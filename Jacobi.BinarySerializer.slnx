@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Jacobi.BinarySerializer.Tests/Jacobi.BinarySerializer.Tests.csproj" Id="106c7385-61c8-4176-b828-a77d1704ec73" />
+  <Project Path="Jacobi.BinarySerializer/Jacobi.BinarySerializer.csproj" Id="bf0e81fd-ddab-4fa0-9b43-62946efc126f" />
+</Solution>
