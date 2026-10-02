@@ -118,6 +118,7 @@ public sealed class SchemaProperty
     /// It may be a literal value or a reference to a processor that provides the value.
     /// </summary>
     public required string Value { get; init; }
+    // TODO: allow complex objects as value, e.g. a list of values/object structures etc.
 }
 
 public record struct SchemaName
@@ -134,13 +135,13 @@ public record struct SchemaName
         }
         else
         {
-            Namespace = moniker.Substring(0, i);
-            Name = moniker.Substring(i + 1);
+            Namespace = moniker[..i];
+            Name = moniker[(i + 1)..];
         }
     }
 
     public string Name { get; }
-    public string? Namespace { get; }
+    public string Namespace { get; } = String.Empty;
     public string FullName
         => String.IsNullOrEmpty(Namespace) ? Name : $"{Namespace}.{Name}";
 

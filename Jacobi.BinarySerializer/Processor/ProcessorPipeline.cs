@@ -1,68 +1,65 @@
-﻿namespace Jacobi.BinarySerializer.Processor;
+﻿using Jacobi.BinarySerializer.Schema;
 
+namespace Jacobi.BinarySerializer.Processor;
+
+/// <summary>
+/// Manages the call sequence of processors and the passing of data between them. 
+/// The pipeline is divided into stages, each of which can have multiple processors. 
+/// The stages are executed in a specific order, and the output of one stage is passed as input to the next stage.
+/// </summary>
 public sealed class ProcessorPipeline
 {
-    public ProcessorPipeline(IEnumerable<IProcessor> processors)
-    {
-        // TODO: detect duplicate processors in the same stage (ignore)
+    /// <summary>Root pipeline: unspecified stages are empty (session skips them).</summary>
+    public ProcessorPipeline(IEnumerable<ProcessorBinding> processors)
+        : this(parent: null, processors) { }
 
-        foreach (var processor in processors)
+    /// <summary>Child pipeline: stages specified by <paramref name="processors"/> replace the parent's, the rest are reused.</summary>
+    public ProcessorPipeline(ProcessorPipeline? parent, IEnumerable<ProcessorBinding> processors)
+    {
+        List<ProcessorBinding>? value = null, field = null, layout = null, stream = null;
+
+        foreach (var binding in processors)
         {
-            switch (processor.Stage)
+            var list = binding.Processor.Stage switch
             {
-                case PipelineStage.Semantic:
-                    _valueProcessors.Add((IValueProcessor)processor);
-                    break;
-                case PipelineStage.Representation:
-                    _fieldProcessors.Add((IFieldProcessor)processor);
-                    break;
-                case PipelineStage.Layout:
-                    _layoutProcessors.Add((ILayoutProcessor)processor);
-                    break;
-                case PipelineStage.Stream:
-                    _streamProcessors.Add((IStreamProcessor)processor);
-                    break;
-                default:
-                    throw new InvalidOperationException($"Unknown/invalid pipeline stage: {processor.Stage}");
+                PipelineStage.Semantic => value ??= [],
+                PipelineStage.Representation => field ??= [],
+                PipelineStage.Layout => layout ??= [],
+                PipelineStage.Stream => stream ??= [],
+                _ => throw new InvalidOperationException($"Unknown/invalid pipeline stage: {binding.Processor.Stage}")
+            };
+
+            // duplicate processors in the same stage: ignore
+            if (!list.Exists(b => b.Processor.Key == binding.Processor.Key))
+            {
+                list.Add(binding);
             }
         }
 
-        if (_valueProcessors.Count == 0)
-        {
-            _valueProcessors.Add(new NullValueProcessor());
-        }
-        if (_fieldProcessors.Count == 0)
-        {
-            _fieldProcessors.Add(new NullFieldProcessor());
-        }
-        if (_layoutProcessors.Count == 0)
-        {
-            _layoutProcessors.Add(new NullLayoutProcessor());
-        }
-        if (_streamProcessors.Count == 0)
-        {
-            _streamProcessors.Add(new NullStreamProcessor());
-        }
+        // reuse parent stage instances when not replaced
+        ValueProcessors = value ?? parent?.ValueProcessors ?? [];
+        FieldProcessors = field ?? parent?.FieldProcessors ?? [];
+        LayoutProcessors = layout ?? parent?.LayoutProcessors ?? [];
+        StreamProcessors = stream ?? parent?.StreamProcessors ?? [];
     }
 
     // TODO:
     // write pipeline: value -> field -> layout -> stream
     // read pipeline: stream -> layout -> field -> value
 
-    // replace with the supplied processors in pipeline stages, leave the rest intact
-    // ProcessorPipeline ReplaceWith(IEnumerable<IProcessor> processors)
+    public IReadOnlyList<ProcessorBinding> ValueProcessors { get; }
+    public IReadOnlyList<ProcessorBinding> FieldProcessors { get; }
+    public IReadOnlyList<ProcessorBinding> LayoutProcessors { get; }
+    public IReadOnlyList<ProcessorBinding> StreamProcessors { get; }
 
-    private readonly List<IValueProcessor> _valueProcessors = new();
-    public IReadOnlyList<IValueProcessor> ValueProcessors => _valueProcessors;
+    /// <summary>True when this pipeline only reuses parent stages (no own processors).</summary>
+    public static bool IsInheritOnly(IReadOnlyCollection<ProcessorBinding> processors) => processors.Count == 0;
+}
 
-    private readonly List<IFieldProcessor> _fieldProcessors = new();
-    public IReadOnlyList<IFieldProcessor> FieldProcessors => _fieldProcessors;
-
-    private readonly List<ILayoutProcessor> _layoutProcessors = new();
-    public IReadOnlyList<ILayoutProcessor> LayoutProcessors => _layoutProcessors;
-
-    private readonly List<IStreamProcessor> _streamProcessors = new();
-    public IReadOnlyList<IStreamProcessor> StreamProcessors => _streamProcessors;
+public sealed class ProcessorBinding(IProcessor processor, IReadOnlyList<SchemaProperty> properties)
+{
+    public IProcessor Processor { get; } = processor;
+    public IReadOnlyList<SchemaProperty> Properties { get; } = properties;
 }
 
 public enum PipelineStage

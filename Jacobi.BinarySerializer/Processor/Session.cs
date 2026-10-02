@@ -1,24 +1,26 @@
-﻿namespace Jacobi.BinarySerializer.Processor;
+﻿using System.Runtime.InteropServices;
+
+namespace Jacobi.BinarySerializer.Processor;
 
 /// <summary>
 /// Maintains the state of a processing session, including the pipeline and context.
 /// </summary>
-public closed class ProcessorSession
+public closed class SessionState
 {
-    public required ProcessorPipeline Pipeline { get; init; }
-
-    // this should probably be top object that refs this session /most specific.
-    public required ProcessorContext Context { get; init; }
-
     // private processor state
+    private readonly Dictionary<ProcessorBinding, object> _private = new(ReferenceEqualityComparer.Instance);
+
+    internal T GetOrCreate<T>(ProcessorBinding owner) where T : class, new()
+        => (T)(CollectionsMarshal.GetValueRefOrAddDefault(_private, owner, out _) ??= new T());
+
     // shared processor state
     // buffer state/management
 }
 
-public sealed class WriterSession : ProcessorSession
+public sealed class WriterSession : SessionState
 {
 }
 
-public sealed class ReaderSession : ProcessorSession
+public sealed class ReaderSession : SessionState
 {
 }

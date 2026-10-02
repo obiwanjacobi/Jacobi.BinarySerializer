@@ -5,9 +5,9 @@ namespace Jacobi.BinarySerializer.Processor;
 public interface IProcessor
 {
     /// <summary>
-    /// Textual short name identifier for the processor, used in schema definitions.
+    /// A unique identifier for the processor, used in schema definitions.
     /// </summary>
-    string Id { get; }
+    ProcessorKey Key { get; }
     /// <summary>
     /// Full descriptive name for the processor, used in logging and diagnostics.
     /// </summary>
@@ -84,82 +84,6 @@ public enum ReadResult
     EndOfData,
     /// <summary>More data is needed to complete the read operation.</summary>
     NeedMoreData,
-}
-
-public sealed class NullValueProcessor : IValueProcessor
-{
-    public string Id => "null-value";
-    public string Name => "Null Value Processor";
-    public PipelineStage Stage => PipelineStage.Semantic;
-
-    public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context)
-        => logicalValue;
-
-    public LogicalField Read(LogicalField logicalValue, ValueProcessorContext context)
-        => logicalValue;
-}
-
-public sealed class NullFieldProcessor : IFieldProcessor
-{
-    public string Id => "null-field";
-    public string Name => "Null Field Processor";
-    public PipelineStage Stage => PipelineStage.Representation;
-
-    public EncodedField Write(LogicalField field, FieldProcessorContext context)
-        // TODO: Determine bit width based on type and value.
-        => new(field.Name, field.LogicalType, field.Value, 1);
-
-    public LogicalField Read(EncodedField field, FieldProcessorContext context)
-        => new(field.Name, field.PhysicalType, field.Value);
-}
-
-// this null-processor should probably be short-circuited in the pipeline/session.
-public sealed class NullLayoutProcessor : ILayoutProcessor
-{
-    public string Id => "null-layout";
-    public string Name => "Null Layout Processor";
-    public PipelineStage Stage => PipelineStage.Layout;
-
-    public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
-    public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
-    {
-        return WriteResult.Success;
-    }
-    public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
-
-    public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
-    public ReadResult Read(ref SequenceReader<byte> reader, out EncodedField encodedValue, LayoutProcessorContext context)
-    {
-        // TODO:
-        encodedValue = new EncodedField(string.Empty, typeof(object), null, 0);
-        return ReadResult.Success;
-    }
-    public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
-}
-
-// this null-processor should probably be short-circuited in the pipeline/session.
-public sealed class NullStreamProcessor : IStreamProcessor
-{
-    public string Id => "null-stream";
-    public string Name => "Null Stream Processor";
-    public PipelineStage Stage => PipelineStage.Stream;
-
-    public WriteResult Write(ref SequenceReader<byte> input, IBufferWriter<byte> output, StreamProcessorContext context)
-    {
-        foreach (var segment in input.Sequence)
-        {
-            output.Write(segment.Span);
-        }
-        return WriteResult.Success;
-    }
-    public ReadResult Read(ref SequenceReader<byte> input, IBufferWriter<byte> output, StreamProcessorContext context)
-    {
-        foreach (var segment in input.Sequence)
-        {
-            output.Write(segment.Span);
-        }
-        return ReadResult.Success;
-    }
 }
 
 public sealed record LogicalField(string Name, Type LogicalType, object? Value);

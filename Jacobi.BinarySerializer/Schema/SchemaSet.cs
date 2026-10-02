@@ -383,17 +383,7 @@ public sealed class SchemaSet
                 Name = node.Name,
                 Type = typeDef.Type,
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
-                ProcessorsList = [.. typeDef.Processors],
-            };
-        }
-        if (node is SchemaGroup groupNode)
-        {
-            return new SchemaGroup
-            {
-                Name = node.Name,
-                PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(typeDef.Processors, groupNode.Processors),
-                ChildList = [.. groupNode.ChildList],
+                ProcessorsList = MergeProcessors(typeDef.Processors, fieldNode.Processors),
             };
         }
         if (node is SchemaRepeat repeatNode)
@@ -416,6 +406,16 @@ public sealed class SchemaSet
                 ProcessorsList = MergeProcessors(typeDef.Processors, choiceNode.Processors),
                 ChildList = [.. choiceNode.ChildList],
                 SelectedIndex = choiceNode.SelectedIndex,
+            };
+        }
+        if (node is SchemaGroup groupNode)
+        {
+            return new SchemaGroup
+            {
+                Name = node.Name,
+                PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
+                ProcessorsList = MergeProcessors(typeDef.Processors, groupNode.Processors),
+                ChildList = [.. groupNode.ChildList],
             };
         }
 

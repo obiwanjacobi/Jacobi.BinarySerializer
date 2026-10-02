@@ -4,6 +4,13 @@ namespace Jacobi.BinarySerializer.Processor;
 
 public closed class ProcessorContext
 {
+    private readonly SessionState _state;
+
+    protected ProcessorContext(SessionState state)
+    {
+        _state = state ?? throw new ArgumentNullException(nameof(state));
+    }
+
     // is on field/group object
     //public SchemaObject SchemaObject { get; init; }
 
@@ -18,6 +25,8 @@ public closed class ProcessorContext
 
     // allow processors to store arbitrary state in the context
     // - they cannot read each other's state
+    internal ProcessorBinding Current { get; set; } = null!;   // set by the session before each call
+    public T GetOrCreateState<T>() where T : class, new() => _state.GetOrCreate<T>(Current);
 
     // publish dynamic values for processors to use, e.g. a data-length value read from the message header.
     // consume dynamic values published by other processors.
@@ -28,20 +37,24 @@ public closed class ProcessorContext
 
 public sealed class ValueProcessorContext : ProcessorContext
 {
+    public ValueProcessorContext(SessionState state) : base(state) { }
     // field info
 }
 
 public sealed class FieldProcessorContext : ProcessorContext
 {
+    public FieldProcessorContext(SessionState state) : base(state) { }
     // field info
 }
 
 public sealed class LayoutProcessorContext : ProcessorContext
 {
+    public LayoutProcessorContext(SessionState state) : base(state) { }
     // group info
 }
 
 public sealed class StreamProcessorContext : ProcessorContext
 {
+    public StreamProcessorContext(SessionState state) : base(state) { }
     // group info
 }

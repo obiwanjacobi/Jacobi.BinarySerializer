@@ -10,4 +10,15 @@ An object that converts/translates data from one format to another. A processor 
 
 Processor Pipeline is a sequence of processors that are applied to data in a specific order. Each processor in the pipeline performs a specific transformation or operation on the data, such as encoding, decoding, compressing, or decompressing. The output of one processor serves as the input for the next processor in the pipeline.
 
-Processor => Context => SessionState + Pipeline
+
+
+Write/Read-Process
+  - SchemaNode cursor/navigation
+  - Owner of SessionState
+  - Manages the lifecycle of the pipeline and its processors
+  - 
+                   +-- Field/GroupInfo => SchemaNode
+                   |
+  Processors => Context => SessionState
+      |            |            |
+      +------- Pipeline --------+
