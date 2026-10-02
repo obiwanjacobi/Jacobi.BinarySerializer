@@ -23,9 +23,9 @@ public sealed class XmlSchema
     [XmlArrayItem("choice", typeof(XmlSchemaChoiceNode))]
     public List<XmlSchemaNode> TypeDefs { get; set; } = [];
 
-    [XmlArray("codecDefs")]
-    [XmlArrayItem("codec")]
-    public List<XmlSchemaCodecRef> CodecDefs { get; set; } = [];
+    [XmlArray("processorDefs")]
+    [XmlArrayItem("processor")]
+    public List<XmlSchemaProcessorRef> ProcessorDefs { get; set; } = [];
 
     [XmlArray("includes")]
     [XmlArrayItem("include")]
@@ -60,8 +60,8 @@ public abstract class XmlSchemaNode
 
 public sealed class XmlSchemaFieldNode : XmlSchemaNode
 {
-    [XmlElement("codec")]
-    public XmlSchemaCodecRef Codec { get; set; } = new() { Codec = string.Empty };
+    [XmlElement("processor")]
+    public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
 
     [XmlAttribute("type")]
     public SchemaDataType Type { get; set; }
@@ -69,9 +69,9 @@ public sealed class XmlSchemaFieldNode : XmlSchemaNode
 
 public class XmlSchemaGroupNode : XmlSchemaNode
 {
-    [XmlArray("pipeline")]
-    [XmlArrayItem("codec")]
-    public List<XmlSchemaCodecRef> Pipeline { get; set; } = [];
+    [XmlArray("processors")]
+    [XmlArrayItem("processor")]
+    public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
 
     [XmlArray("children")]
     [XmlArrayItem("field", typeof(XmlSchemaFieldNode))]
@@ -81,10 +81,10 @@ public class XmlSchemaGroupNode : XmlSchemaNode
     public List<XmlSchemaNode> Children { get; set; } = [];
 }
 
-public sealed class XmlSchemaCodecRef
+public sealed class XmlSchemaProcessorRef
 {
-    [XmlAttribute("codec")]
-    public string Codec { get; set; } = string.Empty;
+    [XmlAttribute("processor")]
+    public string Processor { get; set; } = string.Empty;
 
     [XmlArray("properties")]
     [XmlArrayItem("property")]
@@ -126,3 +126,4 @@ public sealed class XmlSchemaProperty
     [XmlText]
     public string? Text { get; set; }
 }
+

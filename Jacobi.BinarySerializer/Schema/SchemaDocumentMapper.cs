@@ -9,18 +9,21 @@ internal static class SchemaDocumentMapper
 
         foreach (var root in schema.Children)
         {
-            CollectNodes(root, groups, fields);
+            if (root is SchemaGroup group)
+            {
+                CollectNodes(group, groups, fields);
+            }
         }
 
         return new SchemaDocument
         {
             Name = schema.Name,
-            Properties = schema.Properties,
+            PropertyList = schema.Properties.ToList(),
             Children = schema.Children,
             TypeDefs = schema.TypeDefs,
-            CodecDefs = schema.CodecDefs,
+            ProcessorDefs = schema.ProcessorDefs,
             Includes = schema.Includes,
-            Roots = schema.Children.ToList(),
+            Roots = schema.Children.OfType<SchemaGroup>().ToList(),
             Groups = groups,
             Fields = fields
         };
@@ -31,10 +34,10 @@ internal static class SchemaDocumentMapper
         return new Schema
         {
             Name = document.Name,
-            Properties = document.Properties,
+            PropertyList = document.Properties.ToList(),
             Children = document.Roots.OfType<SchemaGroup>().ToList(),
             TypeDefs = document.TypeDefs,
-            CodecDefs = document.CodecDefs,
+            ProcessorDefs = document.ProcessorDefs,
             Includes = document.Includes
         };
     }

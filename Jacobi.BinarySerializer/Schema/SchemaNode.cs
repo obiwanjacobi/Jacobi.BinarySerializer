@@ -1,16 +1,174 @@
 ﻿namespace Jacobi.BinarySerializer.Schema;
 
+public closed class SchemaNode
+{
+    public required string Name { get; init; }
+    public SchemaNodeKind Kind { get; protected init; }
+    public IReadOnlyList<SchemaProperty> Properties => PropertyList;
+    internal List<SchemaProperty> PropertyList { get; init; } = [];
+    /// <summary>
+    /// Optional reference to a SchemaTypeDef that defines the field's type and processors.
+    /// </summary>
+    public SchemaName? TypeDef { get; init; }
+}
+
+public sealed class SchemaTypeDef : SchemaNode
+{
+    public required IReadOnlyList<SchemaProcessorRef> Processors { get; init; }
+    public SchemaDataType Type { get; init; } = SchemaDataType.None;
+}
+
+public sealed class SchemaField : SchemaNode
+{
+    public SchemaField()
+    {
+        Kind = SchemaNodeKind.Field;
+    }
+
+    public IReadOnlyList<SchemaProcessorRef> Processors => ProcessorsList;
+    public List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
+    public required SchemaDataType Type { get; init; }
+}
+
+public class SchemaGroup : SchemaNode
+{
+    public SchemaGroup()
+    {
+        Kind = SchemaNodeKind.Group;
+    }
+
+    public IReadOnlyList<SchemaProcessorRef> Processors => ProcessorsList;
+    public List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
+    public IReadOnlyList<SchemaNode> Children => ChildList;
+    internal List<SchemaNode> ChildList { get; init; } = [];
+}
+
+public sealed class SchemaRepeat : SchemaGroup
+{
+    public SchemaRepeat()
+    {
+        Kind = SchemaNodeKind.Repeat;
+    }
+
+    public required SchemaProcessorOrValue<int> Count { get; init; }
+}
+
+public sealed class SchemaChoice : SchemaGroup
+{
+    public SchemaChoice()
+    {
+        Kind = SchemaNodeKind.Choice;
+    }
+
+    public required SchemaProcessorOrValue<int> SelectedIndex { get; init; }
+}
+
+public readonly union SchemaObject(SchemaField, SchemaGroup, SchemaRepeat, SchemaChoice);
+
+public class Schema : SchemaNode
+{
+    public Schema()
+    {
+        Kind = SchemaNodeKind.Schema;
+    }
+
+    public required IReadOnlyList<SchemaNode> Children { get; init; }
+    public required IReadOnlyList<SchemaTypeDef> TypeDefs { get; init; }
+    public required IReadOnlyList<SchemaProcessorRef> ProcessorDefs { get; init; }
+
+    public required IReadOnlyList<SchemaDocumentRef> Includes { get; init; }
+}
+
+public sealed class SchemaDocument : Schema
+{
+    public required IReadOnlyList<SchemaGroup> Roots { get; init; }
+
+    public required IReadOnlyList<SchemaGroup> Groups { get; init; }
+    public required IReadOnlyList<SchemaField> Fields { get; init; }
+
+    /// <summary>
+    /// True when all references have been resolved and the schema document is ready for use.
+    /// </summary>
+    public bool IsCompiled { get; internal set; }
+}
+
+public sealed class SchemaDocumentRef
+{
+    public required string Schema { get; init; }
+    public string? Path { get; init; }
+
+    // filled after loading the schema document references
+    public SchemaDocument? SchemaDocument { get; internal set; }
+}
+
+public sealed class SchemaProcessorRef
+{
+    // Either the processor-id name or the ProcessorDefs name.
+    public required SchemaName Processor { get; init; }
+    public IReadOnlyList<SchemaProperty> Properties => PropertyList;
+    internal List<SchemaProperty> PropertyList { get; init; } = [];
+}
+
+public union SchemaProcessorOrValue<T>(SchemaProcessorRef, T) { }
+
+public sealed class SchemaProperty
+{
+    public required string Name { get; init; }
+    /// <summary>
+    /// The value-string is interpeted/parsed by the processor that uses this property.
+    /// It may be a literal value or a reference to a processor that provides the value.
+    /// </summary>
+    public required string Value { get; init; }
+}
+
+public record struct SchemaName
+{
+    public SchemaName()
+        => throw new InvalidOperationException("SchemaName must be initialized with a name.");
+
+    public SchemaName(string moniker)
+    {
+        var i = moniker.LastIndexOf('.');
+        if (i == -1)
+        {
+            Name = moniker;
+        }
+        else
+        {
+            Namespace = moniker.Substring(0, i);
+            Name = moniker.Substring(i + 1);
+        }
+    }
+
+    public string Name { get; }
+    public string? Namespace { get; }
+    public string FullName
+        => String.IsNullOrEmpty(Namespace) ? Name : $"{Namespace}.{Name}";
+
+    override public string ToString()
+        => FullName;
+}
+
 public enum SchemaNodeKind
 {
+    /// <summary>Root container object for a schema.</summary>
     Schema,
+    /// <summary>A reusable type definition.</summary>
+    TypeDef,
+    /// <summary>A field within a group.</summary>
     Field,
+    /// <summary>A group of fields.</summary>
     Group,
+    /// <summary>A repeated field or group.</summary>
     Repeat,
+    /// <summary>A choice between multiple fields or groups.</summary>
     Choice,
 }
 
 public enum SchemaDataType
 {
+    /// <summary>Not set/not used (for group typedefs)</summary>
+    None,
     String,
     Int8,
     Int16,
@@ -23,99 +181,4 @@ public enum SchemaDataType
     Boolean,
     Double,
     DateTime,
-}
-
-public closed class SchemaNode
-{
-    public required string Name { get; init; }
-    public SchemaNodeKind Kind { get; protected init; }
-    public required IReadOnlyList<SchemaProperty> Properties { get; init; }
-}
-
-public sealed class SchemaField : SchemaNode
-{
-    public SchemaField()
-    {
-        Kind = SchemaNodeKind.Field;
-    }
-
-    public required SchemaCodecRef Codec { get; init; }
-    public required SchemaDataType Type { get; init; }
-}
-
-public class SchemaGroup : SchemaNode
-{
-    public SchemaGroup()
-    {
-        Kind = SchemaNodeKind.Group;
-    }
-
-    public required IReadOnlyList<SchemaCodecRef> Pipeline { get; init; }
-    public required IReadOnlyList<SchemaNode> Children { get; init; }
-}
-
-public sealed class SchemaRepeat : SchemaGroup
-{
-    public SchemaRepeat()
-    {
-        Kind = SchemaNodeKind.Repeat;
-    }
-
-    public required SchemaCodecOrValue<int> Count { get; init; }
-}
-
-public sealed class SchemaChoice : SchemaGroup
-{
-    public SchemaChoice()
-    {
-        Kind = SchemaNodeKind.Choice;
-    }
-
-    public required SchemaCodecOrValue<int> SelectedIndex { get; init; }
-}
-
-public class Schema : SchemaNode
-{
-    public Schema()
-    {
-        Kind = SchemaNodeKind.Schema;
-    }
-
-    public required IReadOnlyList<SchemaGroup> Children { get; init; }
-    public required IReadOnlyList<SchemaNode> TypeDefs { get; init; }
-    public required IReadOnlyList<SchemaCodecRef> CodecDefs { get; init; }
-
-    public required IReadOnlyList<SchemaDocumentRef> Includes { get; init; }
-}
-
-public sealed class SchemaDocument : Schema
-{
-    public required IReadOnlyList<SchemaGroup> Roots { get; init; }
-
-    public required IReadOnlyList<SchemaGroup> Groups { get; init; }
-    public required IReadOnlyList<SchemaField> Fields { get; init; }
-}
-
-public sealed class SchemaDocumentRef
-{
-    public required string Schema { get; init; }
-    public string? Path { get; init; }
-
-    // filled after loading the schema document references
-    public SchemaDocument? SchemaDocument { get; internal set; }
-}
-
-public sealed class SchemaCodecRef
-{
-    // Either the codec-id name or the CodecDefs name.
-    public required string Codec { get; init; }
-    public required IReadOnlyList<SchemaProperty> Properties { get; init; }
-}
-
-public union SchemaCodecOrValue<T>(SchemaCodecRef, T) { }
-
-public sealed class SchemaProperty
-{
-    public required string Name { get; init; }
-    public required string Value { get; init; }
 }

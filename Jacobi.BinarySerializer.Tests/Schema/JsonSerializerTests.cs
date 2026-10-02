@@ -31,8 +31,8 @@ public class JsonSerializerTests
                 {
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
-                    ""pipeline"": [
-                        { ""codec"": ""root"" }
+                    ""processors"": [
+                        { ""processor"": ""root"" }
                     ],
                     ""children"": [],
                     ""properties"": [
@@ -59,14 +59,16 @@ public class JsonSerializerTests
                 {
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
-                    ""pipeline"": [
-                        { ""codec"": ""root"" }
+                    ""processors"": [
+                        { ""processor"": ""root"" }
                     ],
                     ""children"": [
                         {
                             ""name"": ""FieldA"",
                             ""kind"": ""field"",
-                            ""codec"": { ""codec"": ""identity"" },
+                            ""processors"": [
+                                { ""processor"": ""identity"" }
+                            ],
                             ""type"": ""Int32"",
                             ""scale"": 10
                         }
@@ -90,17 +92,17 @@ public class JsonSerializerTests
     }
 
     [Test]
-    public void Deserialize_TypeDefsAndCodecDefs_ArePreservedWithoutResolution()
+    public void Deserialize_TypeDefsAndProcessorDefs_ArePreservedWithoutResolution()
     {
         var json = @"
         {
             ""name"": ""TestSchema"",
-            ""codecDefs"": [
+            ""processorDefs"": [
                 {
-                    ""codec"": ""rootCodec""
+                    ""processor"": ""rootProcessor""
                 },
                 {
-                    ""codec"": ""deltaCodec"",
+                    ""processor"": ""deltaProcessor"",
                     ""properties"": [
                         { ""name"": ""bits"", ""value"": ""7"" }
                     ]
@@ -110,7 +112,9 @@ public class JsonSerializerTests
                 {
                     ""name"": ""CommonField"",
                     ""kind"": ""field"",
-                    ""codec"": { ""codec"": ""deltaCodec"" },
+                    ""processors"": [
+                        { ""processor"": ""ref:deltaProcessor"" }
+                    ],
                     ""type"": ""Int32"",
                     ""properties"": [
                         { ""name"": ""scale"", ""value"": ""100"" }
@@ -119,14 +123,16 @@ public class JsonSerializerTests
                 {
                     ""name"": ""CommonGroup"",
                     ""kind"": ""group"",
-                    ""pipeline"": [
-                        { ""codec"": ""rootCodec"" }
+                    ""processors"": [
+                        { ""processor"": ""ref:rootProcessor"" }
                     ],
                     ""children"": [
                         {
                             ""name"": ""InnerField"",
                             ""kind"": ""field"",
-                            ""codec"": { ""codec"": ""deltaCodec"" },
+                            ""processors"": [
+                                { ""processor"": ""ref:deltaProcessor"" }
+                            ],
                             ""type"": ""Int16""
                         }
                     ]
@@ -136,14 +142,17 @@ public class JsonSerializerTests
                 {
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
-                    ""pipeline"": [
-                        { ""codec"": ""rootCodec"" }
+                    ""processors"": [
+                        { ""processor"": ""ref:rootProcessor"" }
                     ],
                     ""children"": [
                         {
                             ""name"": ""Value"",
+                            ""typeDef"": ""CommonField"",
                             ""kind"": ""field"",
-                            ""codec"": { ""codec"": ""deltaCodec"" },
+                            ""processors"": [
+                                { ""processor"": ""ref:deltaProcessor"" }
+                            ],
                             ""type"": ""Int32""
                         }
                     ]
@@ -154,18 +163,18 @@ public class JsonSerializerTests
 
         var document = JsonSerializer.Deserialize(json);
 
-        Assert.That(document.CodecDefs.Count, Is.EqualTo(2));
-        Assert.That(document.CodecDefs.Any(c => c.Codec == "rootCodec"));
-        Assert.That(document.CodecDefs.Any(c => c.Codec == "deltaCodec" && c.Properties.Any(p => p.Name == "bits" && p.Value == "7")));
+        Assert.That(document.ProcessorDefs.Count, Is.EqualTo(2));
+        Assert.That(document.ProcessorDefs.Any(p => p.Processor.FullName == "rootProcessor"));
+        Assert.That(document.ProcessorDefs.Any(p => p.Processor.FullName == "deltaProcessor" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
         Assert.That(document.TypeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.TypeDefs.OfType<SchemaField>().Any(f => f.Name == "CommonField" && f.Codec.Codec == "deltaCodec"));
-        Assert.That(document.TypeDefs.OfType<SchemaGroup>().Any(g => g.Name == "CommonGroup" && g.Pipeline.Any(p => p.Codec == "rootCodec")));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.FullName == "ref:deltaProcessor") && t.Type == SchemaDataType.Int32));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.FullName == "ref:rootProcessor") && t.Type == SchemaDataType.None));
 
         // Resolver not implemented yet: usage remains as raw references.
         var rootGroup = document.Roots.Single();
         var rootField = rootGroup.Children.OfType<SchemaField>().Single();
-        Assert.That(rootGroup.Pipeline.Single().Codec, Is.EqualTo("rootCodec"));
-        Assert.That(rootField.Codec.Codec, Is.EqualTo("deltaCodec"));
+        Assert.That(rootGroup.Processors.Single().Processor.FullName, Is.EqualTo("ref:rootProcessor"));
+        Assert.That(rootField.Processors.Single().Processor.FullName, Is.EqualTo("ref:deltaProcessor"));
     }
 }

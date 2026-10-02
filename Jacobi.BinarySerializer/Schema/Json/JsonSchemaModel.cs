@@ -7,13 +7,19 @@ internal sealed class JsonSchema
 {
     public required string Name { get; init; }
     public IReadOnlyList<JsonSchemaNode> Children { get; init; } = [];
-    public IReadOnlyList<JsonSchemaNode> TypeDefs { get; init; } = [];
-    public IReadOnlyList<JsonSchemaCodecRef> CodecDefs { get; init; } = [];
+    public IReadOnlyList<JsonSchemaTypeDef> TypeDefs { get; init; } = [];
+    public IReadOnlyList<JsonSchemaProcessorRef> ProcessorDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaDocumentRef> Includes { get; init; } = [];
     public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
 
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? AdditionalData { get; init; }
+}
+
+internal sealed class JsonSchemaTypeDef : JsonSchemaNode
+{
+    public required IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; }
+    public SchemaDataType Type { get; init; } = SchemaDataType.None;
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
@@ -32,31 +38,31 @@ internal abstract class JsonSchemaNode
 
 internal sealed class JsonSchemaFieldNode : JsonSchemaNode
 {
-    public required JsonSchemaCodecRef Codec { get; init; }
+    public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
     public required SchemaDataType Type { get; init; }
 }
 
 internal class JsonSchemaGroupNode : JsonSchemaNode
 {
-    public IReadOnlyList<JsonSchemaCodecRef> Pipeline { get; init; } = [];
+    public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
     public IReadOnlyList<JsonSchemaNode> Children { get; init; } = [];
 }
 
 internal sealed class JsonSchemaRepeatNode : JsonSchemaGroupNode
 {
-    public JsonSchemaCodecOrValue<int> Count { get; init; }
+    public JsonSchemaProcessorOrValue<int> Count { get; init; }
 }
 
 internal sealed class JsonSchemaChoiceNode : JsonSchemaGroupNode
 {
-    public JsonSchemaCodecOrValue<int> SelectedIndex { get; init; }
+    public JsonSchemaProcessorOrValue<int> SelectedIndex { get; init; }
 }
 
-public union JsonSchemaCodecOrValue<T>(JsonSchemaCodecRef, T) { }
+public union JsonSchemaProcessorOrValue<T>(JsonSchemaProcessorRef, T) { }
 
-internal sealed class JsonSchemaCodecRef
+internal sealed class JsonSchemaProcessorRef
 {
-    public required string Codec { get; init; }
+    public required string Processor { get; init; }
     public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
 }
 
