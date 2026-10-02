@@ -57,12 +57,12 @@ internal static class XmlSchemaMapper
 
     public static Schema ToSchema(XmlSchema xmlSchema)
     {
-        var children = new List<SchemaGroup>();
+        var children = new List<SchemaNode>();
 
         var schema = new Schema
         {
             Name = xmlSchema.Name,
-            Children = children,
+            ChildList = children,
             TypeDefs = xmlSchema.TypeDefs.Select(ToSchemaTypeDef).ToList(),
             ProcessorDefs = xmlSchema.ProcessorDefs.Select(ToSchemaProcessorRef).ToList(),
             Includes = xmlSchema.Includes.Select(include => new SchemaDocumentRef

@@ -23,6 +23,10 @@ public sealed class XmlSchema
     [XmlArrayItem("choice", typeof(XmlSchemaChoiceNode))]
     public List<XmlSchemaNode> TypeDefs { get; set; } = [];
 
+    [XmlArray("processors")]
+    [XmlArrayItem("processor")]
+    public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
+
     [XmlArray("processorDefs")]
     [XmlArrayItem("processor")]
     public List<XmlSchemaProcessorRef> ProcessorDefs { get; set; } = [];
@@ -126,4 +130,3 @@ public sealed class XmlSchemaProperty
     [XmlText]
     public string? Text { get; set; }
 }
-

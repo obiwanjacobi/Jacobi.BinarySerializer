@@ -65,14 +65,13 @@ public sealed class SchemaChoice : SchemaGroup
 
 public readonly union SchemaObject(SchemaField, SchemaGroup, SchemaRepeat, SchemaChoice);
 
-public class Schema : SchemaNode
+public class Schema : SchemaGroup
 {
     public Schema()
     {
         Kind = SchemaNodeKind.Schema;
     }
 
-    public required IReadOnlyList<SchemaNode> Children { get; init; }
     public required IReadOnlyList<SchemaTypeDef> TypeDefs { get; init; }
     public required IReadOnlyList<SchemaProcessorRef> ProcessorDefs { get; init; }
 

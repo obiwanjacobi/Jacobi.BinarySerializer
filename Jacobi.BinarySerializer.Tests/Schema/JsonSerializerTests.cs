@@ -177,4 +177,75 @@ public class JsonSerializerTests
         Assert.That(rootGroup.Processors.Single().Processor.FullName, Is.EqualTo("ref:rootProcessor"));
         Assert.That(rootField.Processors.Single().Processor.FullName, Is.EqualTo("ref:deltaProcessor"));
     }
+
+    [Test]
+    public void Serialize_RoundTrip_UsesProcessorContractNames_AndPreservesRepeatChoiceValues()
+    {
+        var json = """
+            {
+              "name": "RoundTripSchema",
+              "processorDefs": [
+                { "processor": "counterProcessor" },
+                { "processor": "selectorProcessor" }
+              ],
+              "children": [
+                {
+                  "kind": "repeat",
+                  "name": "RepeatGroup",
+                  "count": { "processor": "ref:counterProcessor" },
+                  "processors": [
+                    { "processor": "rootProcessor" }
+                  ],
+                  "children": [
+                    {
+                      "kind": "field",
+                      "name": "Value",
+                      "type": "Int32",
+                      "processors": [
+                        { "processor": "identity" }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "choice",
+                  "name": "ChoiceGroup",
+                  "selectedIndex": 2,
+                  "processors": [
+                    { "processor": "ref:selectorProcessor" }
+                  ],
+                  "children": [
+                    {
+                      "kind": "field",
+                      "name": "OptionA",
+                      "type": "Int16"
+                    },
+                    {
+                      "kind": "field",
+                      "name": "OptionB",
+                      "type": "Int16"
+                    }
+                  ]
+                }
+              ],
+              "properties": []
+            }
+            """;
+
+        var document = JsonSerializer.Deserialize(json);
+        var serialized = JsonSerializer.Serialize(document);
+
+        Assert.That(serialized, Does.Contain("\"ProcessorDefs\""));
+        Assert.That(serialized, Does.Contain("\"Count\""));
+        Assert.That(serialized, Does.Contain("\"SelectedIndex\""));
+        Assert.That(serialized, Does.Not.Contain("codec"));
+        Assert.That(serialized, Does.Not.Contain("pipeline"));
+
+        var roundTripped = JsonSerializer.Deserialize(serialized);
+        var repeat = roundTripped.Roots.OfType<SchemaRepeat>().Single();
+        var choice = roundTripped.Roots.OfType<SchemaChoice>().Single();
+
+        Assert.That(repeat.Count is SchemaProcessorRef repeatCount && repeatCount.Processor.FullName == "ref:counterProcessor");
+        Assert.That(choice.SelectedIndex is int selected && selected == 2);
+    }
 }

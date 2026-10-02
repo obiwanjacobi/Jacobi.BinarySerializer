@@ -107,19 +107,19 @@ public class SchemaSetTests
 
     private static SchemaDocument CreateDocument(
         string name,
-        IReadOnlyList<SchemaGroup>? roots = null,
+        IReadOnlyList<SchemaNode>? roots = null,
         IReadOnlyList<SchemaTypeDef>? typeDefs = null,
         IReadOnlyList<SchemaProcessorRef>? processorDefs = null,
         IReadOnlyList<SchemaDocumentRef>? includes = null)
     {
-        var rootList = roots?.ToList() ?? [];
+        var rootList = roots?.OfType<SchemaGroup>().ToList() ?? [];
         return new SchemaDocument
         {
             Name = name,
             Roots = rootList,
             Groups = rootList,
             Fields = rootList.SelectMany(GetFields).ToList(),
-            Children = rootList,
+            ChildList = roots?.ToList() ?? [],
             TypeDefs = typeDefs ?? [],
             ProcessorDefs = processorDefs ?? [],
             Includes = includes ?? []

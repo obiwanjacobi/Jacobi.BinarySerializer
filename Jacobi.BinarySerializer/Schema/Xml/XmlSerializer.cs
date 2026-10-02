@@ -20,9 +20,7 @@ internal static class XmlSerializer
 
     public static string Serialize(SchemaDocument document)
     {
-        var schema = SchemaDocumentMapper.FromDocument(document);
-
-        var xmlSchema = XmlSchemaMapper.FromSchema(schema);
+        var xmlSchema = XmlSchemaMapper.FromSchema(document);
 
         var serializer = new System.Xml.Serialization.XmlSerializer(typeof(XmlSchema));
         var settings = new XmlWriterSettings

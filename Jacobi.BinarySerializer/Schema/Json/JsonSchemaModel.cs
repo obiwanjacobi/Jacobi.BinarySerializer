@@ -11,6 +11,7 @@ internal sealed class JsonSchema
     public IReadOnlyList<JsonSchemaProcessorRef> ProcessorDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaDocumentRef> Includes { get; init; } = [];
     public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
+    public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
 
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? AdditionalData { get; init; }

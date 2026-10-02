@@ -7,11 +7,11 @@ internal static class JsonSchemaMapper
 {
     public static Schema ToSchema(JsonSchema jsonSchema)
     {
-        var children = new List<SchemaGroup>();
+        var children = new List<SchemaNode>();
         var schema = new Schema
         {
             Name = jsonSchema.Name,
-            Children = children,
+            ChildList = children,
             TypeDefs = jsonSchema.TypeDefs.Select(ToSchemaTypeDef).ToList(),
             ProcessorDefs = jsonSchema.ProcessorDefs.Select(ToSchemaProcessorRef).ToList(),
             Includes = jsonSchema.Includes.Select(include => new SchemaDocumentRef

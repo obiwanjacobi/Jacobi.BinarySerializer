@@ -25,10 +25,7 @@ internal static class JsonSerializer
 
     public static string Serialize(SchemaDocument document)
     {
-        var schema = SchemaDocumentMapper.FromDocument(document);
-
-        var jsonSchema = JsonSchemaMapper.FromSchema(schema);
-
+        var jsonSchema = JsonSchemaMapper.FromSchema(document);
         var options = new JsonSerializerOptions
         {
             WriteIndented = true,
@@ -38,6 +35,7 @@ internal static class JsonSerializer
                 new JsonStringEnumConverter()
             }
         };
+
         return System.Text.Json.JsonSerializer.Serialize(jsonSchema, options);
     }
 }

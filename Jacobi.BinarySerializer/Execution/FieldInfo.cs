@@ -1,4 +1,7 @@
-﻿namespace Jacobi.BinarySerializer.Execution;
+﻿using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Schema;
+
+namespace Jacobi.BinarySerializer.Execution;
 
 /// <summary>
 /// Represents all the information available for a field.
@@ -7,7 +10,11 @@ public sealed class FieldInfo
 {
     // schema parent
     // schema field
-    // codecs (objects implementing ICodec)
+    public required SchemaGroup Parent { get; init; }
+    public required SchemaField Field { get; init; }
+
+    // codecs (objects implementing IProcessor)
+    public required IReadOnlyList<IProcessor> Processors { get; init; }
 
     // parent GroupInfo
     // previous FieldInfo
@@ -19,7 +26,7 @@ public sealed class GroupInfo
 {
     // schema parent
     // schema group
-    // codecs (objects implementing ICodec)
+    // codecs (objects implementing IProcessor)
 
     // parent GroupInfo
     // previous GroupInfo

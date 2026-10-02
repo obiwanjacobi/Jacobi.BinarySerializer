@@ -19,26 +19,13 @@ internal static class SchemaDocumentMapper
         {
             Name = schema.Name,
             PropertyList = schema.Properties.ToList(),
-            Children = schema.Children,
+            ChildList = schema.ChildList,
             TypeDefs = schema.TypeDefs,
             ProcessorDefs = schema.ProcessorDefs,
             Includes = schema.Includes,
             Roots = schema.Children.OfType<SchemaGroup>().ToList(),
             Groups = groups,
             Fields = fields
-        };
-    }
-
-    public static Schema FromDocument(SchemaDocument document)
-    {
-        return new Schema
-        {
-            Name = document.Name,
-            PropertyList = document.Properties.ToList(),
-            Children = document.Roots.OfType<SchemaGroup>().ToList(),
-            TypeDefs = document.TypeDefs,
-            ProcessorDefs = document.ProcessorDefs,
-            Includes = document.Includes
         };
     }
 
