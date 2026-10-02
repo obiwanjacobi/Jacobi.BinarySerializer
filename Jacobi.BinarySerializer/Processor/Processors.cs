@@ -45,35 +45,45 @@ public interface ILayoutProcessor : ILayoutWriter<EncodedField>, ILayoutReader<E
 public interface ILayoutWriter<InT> : IProcessor
 {
     void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context);
-    void Write(IBufferWriter<byte> writer, InT encodedValue, LayoutProcessorContext context);
+    WriteResult Write(IBufferWriter<byte> writer, InT encodedValue, LayoutProcessorContext context);
     void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context);
 }
 public interface ILayoutReader<OutT> : IProcessor
 {
     void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
-    ReadResult TryRead(ref SequenceReader<byte> reader, out OutT outValue, LayoutProcessorContext context);
+    ReadResult Read(ref SequenceReader<byte> reader, out OutT outValue, LayoutProcessorContext context);
     void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
 }
 
 // Stream pipeline stage: framing, compression, encryption, etc.
 public interface IStreamProcessor : IProcessor
 {
-    void Write(ref SequenceReader<byte> payloadInput, IBufferWriter<byte> transportOutput, StreamProcessorContext context);
-    ReadResult TryRead(ref SequenceReader<byte> transportInput, IBufferWriter<byte> payloadOutput, StreamProcessorContext context);
+    WriteResult Write(ref SequenceReader<byte> payloadInput, IBufferWriter<byte> transportOutput, StreamProcessorContext context);
+    ReadResult Read(ref SequenceReader<byte> transportInput, IBufferWriter<byte> payloadOutput, StreamProcessorContext context);
+}
+
+public enum WriteResult
+{
+    /// <summary>Write operation failed (abort).</summary>
+    Failure,
+    /// <summary>Write operation was successful.</summary>
+    Success,
+    /// <summary>More room is needed to complete the write operation.</summary>
+    NeedMoreSpace,
+    /// <summary>More data is needed to complete the write operation.</summary>
+    NeedMoreData,
 }
 
 public enum ReadResult
 {
-    /// <summary>Clean end. No more data available.</summary>
-    EndOfStream,
+    /// <summary>Read operation failed (abort).</summary>
+    Failure,
     /// <summary>Read operation was successful.</summary>
     Success,
+    /// <summary>Clean end. No more data available.</summary>
+    EndOfData,
     /// <summary>More data is needed to complete the read operation.</summary>
     NeedMoreData,
-    /// <summary>Read operation failed (abort).</summary>
-    InvalidData,
-    /// <summary>Internal error occurred during the read operation.</summary>
-    InternalError
 }
 
 public sealed class NullValueProcessor : IValueProcessor
@@ -111,13 +121,14 @@ public sealed class NullLayoutProcessor : ILayoutProcessor
     public PipelineStage Stage => PipelineStage.Layout;
 
     public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
-    public void Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
+    public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
     {
+        return WriteResult.Success;
     }
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
 
     public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
-    public ReadResult TryRead(ref SequenceReader<byte> reader, out EncodedField encodedValue, LayoutProcessorContext context)
+    public ReadResult Read(ref SequenceReader<byte> reader, out EncodedField encodedValue, LayoutProcessorContext context)
     {
         // TODO:
         encodedValue = new EncodedField(string.Empty, typeof(object), null, 0);
@@ -133,14 +144,15 @@ public sealed class NullStreamProcessor : IStreamProcessor
     public string Name => "Null Stream Processor";
     public PipelineStage Stage => PipelineStage.Stream;
 
-    public void Write(ref SequenceReader<byte> input, IBufferWriter<byte> output, StreamProcessorContext context)
+    public WriteResult Write(ref SequenceReader<byte> input, IBufferWriter<byte> output, StreamProcessorContext context)
     {
         foreach (var segment in input.Sequence)
         {
             output.Write(segment.Span);
         }
+        return WriteResult.Success;
     }
-    public ReadResult TryRead(ref SequenceReader<byte> input, IBufferWriter<byte> output, StreamProcessorContext context)
+    public ReadResult Read(ref SequenceReader<byte> input, IBufferWriter<byte> output, StreamProcessorContext context)
     {
         foreach (var segment in input.Sequence)
         {
