@@ -12,13 +12,25 @@ Processor Pipeline is a sequence of processors that are applied to data in a spe
 
 
 
-Write/Read-Process
-  - SchemaNode cursor/navigation
-  - Owner of SessionState
-  - Manages the lifecycle of the pipeline and its processors
-  - 
                    +-- Field/GroupInfo => SchemaNode
                    |
   Processors => Context => SessionState
       |            |            |
       +------- Pipeline --------+
+
+Write/Read-Process (Session)
+  - Owns SessionState and SchemaCursor
+  - Drives navigation (MoveNext / Enter / Exit)
+  - Invokes Pipeline with the node's precompiled ProcessorPlan
+
+CompiledSchema (static, cached, thread-safe)
+  - SchemaNode tree (Field/GroupInfo resolved)
+  - ProcessorPlan per node per direction/phase
+
+Pipeline: stateless executor of a ExecutionPlan
+Context: per-invocation view (Node + SessionState + Data)
+Processors: stateless singletons; scratch state lives in SessionState
+
+  CompiledSchema --> Session --> Cursor --> Node.Plan
+                        |                     |
+                   SessionState <-- Context <-- Pipeline --> Processors

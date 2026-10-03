@@ -1,6 +1,7 @@
 ﻿using System.Runtime.InteropServices;
+using Jacobi.BinarySerializer.Processor;
 
-namespace Jacobi.BinarySerializer.Processor;
+namespace Jacobi.BinarySerializer.Execution;
 
 /// <summary>
 /// Maintains the state of a processing session, including the pipeline and context.
@@ -10,6 +11,7 @@ public closed class SessionState
     // private processor state
     private readonly Dictionary<ProcessorBinding, object> _private = new(ReferenceEqualityComparer.Instance);
 
+    // TODO: needs additional key-data to differentiate between processors of the same type, so we use ProcessorBinding as the key
     internal T GetOrCreate<T>(ProcessorBinding owner) where T : class, new()
         => (T)(CollectionsMarshal.GetValueRefOrAddDefault(_private, owner, out _) ??= new T());
 
@@ -17,10 +19,3 @@ public closed class SessionState
     // buffer state/management
 }
 
-public sealed class WriterSession : SessionState
-{
-}
-
-public sealed class ReaderSession : SessionState
-{
-}

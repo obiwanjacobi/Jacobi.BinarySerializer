@@ -1,4 +1,5 @@
-﻿using Jacobi.BinarySerializer.Schema;
+﻿using Jacobi.BinarySerializer.Execution;
+using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processor;
 
@@ -20,7 +21,7 @@ public closed class ProcessorContext
     /// <summary>
     /// Collected properties for the processor, including properties from the schema and any additional properties (TBD).
     /// </summary>
-    public required IReadOnlyList<SchemaProperty> ProcessorProperties { get; init; }
+    public IReadOnlyList<SchemaProperty> ProcessorProperties { get; internal set; } = [];
     public required IServiceProvider Services { get; init; }
 
     // allow processors to store arbitrary state in the context
@@ -38,23 +39,37 @@ public closed class ProcessorContext
 public sealed class ValueProcessorContext : ProcessorContext
 {
     public ValueProcessorContext(SessionState state) : base(state) { }
-    // field info
+
+    /// <summary>The field being processed (set by the session before each call).</summary>
+    public FieldInfo Field { get; internal set; } = null!;
 }
 
 public sealed class FieldProcessorContext : ProcessorContext
 {
     public FieldProcessorContext(SessionState state) : base(state) { }
-    // field info
+
+    /// <summary>The field being processed (set by the session before each call).</summary>
+    public FieldInfo Field { get; internal set; } = null!;
 }
 
 public sealed class LayoutProcessorContext : ProcessorContext
 {
     public LayoutProcessorContext(SessionState state) : base(state) { }
-    // group info
+
+    /// <summary>The group being laid out (set by the session before each call).</summary>
+    public GroupInfo Group { get; internal set; } = null!;
+
+    /// <summary>
+    /// The field whose encoded value is being written/read: its metadata (data type, properties) describes the value.
+    /// Null for the group-level calls (Begin/End).
+    /// </summary>
+    public FieldInfo? Field { get; internal set; }
 }
 
 public sealed class StreamProcessorContext : ProcessorContext
 {
     public StreamProcessorContext(SessionState state) : base(state) { }
-    // group info
+
+    /// <summary>The group whose payload is being processed (set by the session before each call).</summary>
+    public GroupInfo Group { get; internal set; } = null!;
 }
