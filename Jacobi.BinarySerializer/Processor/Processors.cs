@@ -88,3 +88,27 @@ public enum ReadResult
 
 public sealed record LogicalField(string Name, Type LogicalType, object? Value);
 public sealed record EncodedField(string Name, Type PhysicalType, object? Value, int BitWidth);
+
+public readonly record struct ProcessorKey
+{
+    public ProcessorKey(string fullname)
+    {
+        var i = fullname.LastIndexOf(':');
+        if (i < 0)
+        {
+            throw new ArgumentException($"Invalid processor fullname '{fullname}'. Expected format 'namespace:id'.");
+        }
+
+        Namespace = fullname[..i];
+        Id = fullname[(i + 1)..];
+    }
+
+    public ProcessorKey(string @namespace, string id)
+    {
+        Namespace = @namespace;
+        Id = id;
+    }
+
+    public string Id { get; init; }
+    public string Namespace { get; init; }
+}

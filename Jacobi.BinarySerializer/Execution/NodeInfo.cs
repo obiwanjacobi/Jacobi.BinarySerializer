@@ -44,3 +44,5 @@ public sealed class ChoiceInfo : GroupInfo
 {
     public required ValueSource<int> SelectedIndex { get; init; }
 }
+
+public readonly union ValueSource<T>(T, ProcessorBinding);

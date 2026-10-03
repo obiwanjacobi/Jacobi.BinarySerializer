@@ -6,7 +6,7 @@ public interface IProcessorFactory
 {
     string Namespace { get; }
 
-    IProcessor CreateProcessor(string id);
+    IProcessor? CreateProcessor(string id);
 }
 
 public interface IProcessorFactoryProvider
@@ -21,7 +21,7 @@ public interface IProcessorProvider
     bool TryCreateProcessor(ProcessorKey key, [NotNullWhen(true)] out IProcessor? processor);
 }
 
-public sealed class ProcessorManager : IProcessorProvider
+public sealed class ProcessorManager : IProcessorProvider, IProcessorFactoryProvider
 {
     private readonly Dictionary<string, IProcessorFactory> _processorFactories = new(StringComparer.OrdinalIgnoreCase);
 
@@ -95,28 +95,4 @@ public sealed class ProcessorManager : IProcessorProvider
 
         return factoryTypes.Count > 0;
     }
-}
-
-public readonly record struct ProcessorKey
-{
-    public ProcessorKey(string fullname)
-    {
-        var i = fullname.LastIndexOf(':');
-        if (i < 0)
-        {
-            throw new ArgumentException($"Invalid processor fullname '{fullname}'. Expected format 'namespace:id'.");
-        }
-
-        Namespace = fullname[..i];
-        Id = fullname[(i + 1)..];
-    }
-
-    public ProcessorKey(string @namespace, string id)
-    {
-        Namespace = @namespace;
-        Id = id;
-    }
-
-    public string Id { get; init; }
-    public string Namespace { get; init; }
 }

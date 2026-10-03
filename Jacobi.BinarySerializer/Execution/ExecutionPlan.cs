@@ -204,8 +204,6 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
     }
 }
 
-public readonly union ValueSource<T>(T, ProcessorBinding);
-
 public sealed class ExecutionPlanException(string root, IReadOnlyList<string> errors)
     : Exception($"Failed to build execution plan for '{root}':{Environment.NewLine}{String.Join(Environment.NewLine, errors)}")
 {
