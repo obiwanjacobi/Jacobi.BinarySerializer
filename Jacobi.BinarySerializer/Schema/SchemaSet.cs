@@ -344,7 +344,7 @@ public sealed class SchemaSet
                 var result = repeat.Count switch
                 {
                     SchemaProcessorRef processorRef => TryResolveProcessorRef(document, processorRef),
-                    _ => false
+                    _ => true
                 };
 
                 if (!result)
@@ -358,7 +358,7 @@ public sealed class SchemaSet
                 var result = choice.SelectedIndex switch
                 {
                     SchemaProcessorRef processorRef => TryResolveProcessorRef(document, processorRef),
-                    _ => false
+                    _ => true
                 };
 
                 if (!result)
