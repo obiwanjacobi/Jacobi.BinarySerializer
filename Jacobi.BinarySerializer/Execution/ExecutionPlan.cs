@@ -67,6 +67,7 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
 
         var state = new BuildState();
         var rootInfo = BuildGroup(root, root.Name, parentPipeline: null, state);
+        ResolvePathReferences(rootInfo, state);
 
         if (state.Errors.Count > 0)
         {
@@ -217,16 +218,76 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         return new(processor, processorRef.Properties);
     }
 
-    private ValueSource<int> BindValueSource(SchemaProcessorOrValue<int> source, string path, BuildState state)
+    private ValueSource<int> BindValueSource(SchemaValueOrRef<int> source, string path, BuildState state)
         => source switch
         {
             int value => value,
-            SchemaProcessorRef processorRef when Bind(processorRef, path, state) is { } binding => binding,
+            SchemaValueRef valueRef => BindValueRef(valueRef, path, state),
             _ => default,   // error already reported (or unresolved)
         };
 
+    private static ValueSource<int> BindValueRef(SchemaValueRef valueRef, SchemaPath path, BuildState state)
+    {
+        if (string.IsNullOrWhiteSpace(valueRef.Reference))
+        {
+            state.Error(path, "A value reference cannot be empty.");
+            return default;
+        }
+
+        if (valueRef.IsPublished)
+        {
+            var index = valueRef.Reference.IndexOf(SchemaValueRef.PublishedSeparator);
+            return new PublishedValueKey(valueRef.Reference[..index], valueRef.Reference[(index + 1)..]);
+        }
+
+        var target = new SchemaPath(valueRef.Reference);
+        state.PathReferences.Add((path, target));
+        return PublishedValueKey.ForPath(target);
+    }
+
+    private static void ResolvePathReferences(GroupInfo root, BuildState state)
+    {
+        foreach (var (from, target) in state.PathReferences)
+        {
+            switch (Find(root, target))
+            {
+                case FieldInfo field:
+                    field.PublishesValue = true;
+                    break;
+                case null:
+                    state.Error(from, $"Value reference '{target}' does not match any node in the schema.");
+                    break;
+                default:
+                    state.Error(from, $"Value reference '{target}' must refer to a field, not a group.");
+                    break;
+            }
+        }
+    }
+
+    private static NodeInfo? Find(NodeInfo node, SchemaPath path)
+    {
+        if (node.Path == path)
+        {
+            return node;
+        }
+
+        if (node is GroupInfo group)
+        {
+            foreach (var child in group.Children)
+            {
+                if (Find(child, path) is { } found)
+                {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
     private sealed class BuildState
     {
+        public List<(SchemaPath From, SchemaPath Target)> PathReferences { get; } = [];
+
         public List<string> Errors { get; } = [];
 
         public void Error(string path, string message) => Errors.Add($"{path}: {message}");

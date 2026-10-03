@@ -50,7 +50,7 @@ public sealed class SchemaRepeat : SchemaGroup
         Kind = SchemaNodeKind.Repeat;
     }
 
-    public required SchemaProcessorOrValue<int> Count { get; init; }
+    public required SchemaValueOrRef<int> Count { get; init; }
 }
 
 public sealed class SchemaChoice : SchemaGroup
@@ -60,7 +60,7 @@ public sealed class SchemaChoice : SchemaGroup
         Kind = SchemaNodeKind.Choice;
     }
 
-    public required SchemaProcessorOrValue<int> SelectedIndex { get; init; }
+    public required SchemaValueOrRef<int> SelectedIndex { get; init; }
 }
 
 public readonly union SchemaObject(SchemaField, SchemaGroup, SchemaRepeat, SchemaChoice);
@@ -108,7 +108,21 @@ public sealed class SchemaProcessorRef
     internal List<SchemaProperty> PropertyList { get; init; } = [];
 }
 
-public union SchemaProcessorOrValue<T>(SchemaProcessorRef, T) { }
+public union SchemaValueOrRef<T>(SchemaValueRef, T) { }
+
+/// <summary>
+/// A reference to a (public) value: either a value published by a processor ('pubns/name')
+/// or the value of a field addressed by its schema path ('Root.Header.Length').
+/// </summary>
+public sealed class SchemaValueRef
+{
+    public const char PublishedSeparator = '/';
+
+    public required string Reference { get; init; }
+
+    /// <summary>True for 'pubns/name', false for a schema path.</summary>
+    public bool IsPublished => Reference.Contains(PublishedSeparator);
+}
 
 public sealed class SchemaProperty
 {

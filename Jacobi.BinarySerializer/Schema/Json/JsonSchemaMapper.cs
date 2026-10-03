@@ -116,7 +116,7 @@ internal static class JsonSchemaMapper
                 Name = repeat.Name,
                 ProcessorsList = repeat.Processors.Select(ToSchemaProcessorRef).ToList(),
                 ChildList = children,
-                Count = ToSchemaProcessorOrValue(repeat.Count),
+                Count = ToSchemaValueOrRef(repeat.Count),
                 PropertyList = MergeProperties(repeat.Properties, repeat.AdditionalData)
             };
         }
@@ -127,7 +127,7 @@ internal static class JsonSchemaMapper
                 Name = choice.Name,
                 ProcessorsList = choice.Processors.Select(ToSchemaProcessorRef).ToList(),
                 ChildList = children,
-                SelectedIndex = ToSchemaProcessorOrValue(choice.SelectedIndex),
+                SelectedIndex = ToSchemaValueOrRef(choice.SelectedIndex),
                 PropertyList = MergeProperties(choice.Properties, choice.AdditionalData)
             };
         }
@@ -151,19 +151,19 @@ internal static class JsonSchemaMapper
         return group;
     }
 
-    private static SchemaProcessorOrValue<int> ToSchemaProcessorOrValue(JsonSchemaProcessorOrValue<int> processorOrValue)
+    private static SchemaValueOrRef<int> ToSchemaValueOrRef(JsonSchemaValueOrRef<int> valueOrRef)
     {
-        if (processorOrValue is JsonSchemaProcessorRef processor)
+        if (valueOrRef is JsonSchemaValueRef valueRef)
         {
-            return ToSchemaProcessorRef(processor);
+            return new SchemaValueRef { Reference = valueRef.Reference };
         }
 
-        if (processorOrValue is int value)
+        if (valueOrRef is int value)
         {
             return value;
         }
 
-        throw new JsonException($"Unsupported JSON schema processor or value type '{processorOrValue.GetType().Name}'.");
+        throw new JsonException($"Unsupported JSON schema value type '{valueOrRef.GetType().Name}'.");
     }
 
     private static JsonSchemaNode FromSchemaNode(SchemaNode schemaNode)
@@ -202,7 +202,7 @@ internal static class JsonSchemaMapper
                 Name = repeat.Name,
                 Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Children = repeat.Children.Select(FromSchemaNode).ToList(),
-                Count = FromSchemaProcessorOrValue(repeat.Count),
+                Count = FromSchemaValueOrRef(repeat.Count),
                 Properties = repeat.Properties.Select(FromSchemaProperty).ToList()
             };
         }
@@ -214,7 +214,7 @@ internal static class JsonSchemaMapper
                 Name = choice.Name,
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Children = choice.Children.Select(FromSchemaNode).ToList(),
-                SelectedIndex = FromSchemaProcessorOrValue(choice.SelectedIndex),
+                SelectedIndex = FromSchemaValueOrRef(choice.SelectedIndex),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()
             };
         }
@@ -222,19 +222,19 @@ internal static class JsonSchemaMapper
         throw new JsonException($"Unsupported schema group type '{group.GetType().Name}'.");
     }
 
-    private static JsonSchemaProcessorOrValue<int> FromSchemaProcessorOrValue(SchemaProcessorOrValue<int> processorOrValue)
+    private static JsonSchemaValueOrRef<int> FromSchemaValueOrRef(SchemaValueOrRef<int> valueOrRef)
     {
-        if (processorOrValue is SchemaProcessorRef processor)
+        if (valueOrRef is SchemaValueRef valueRef)
         {
-            return FromSchemaProcessorRef(processor);
+            return new JsonSchemaValueRef { Reference = valueRef.Reference };
         }
 
-        if (processorOrValue is int value)
+        if (valueOrRef is int value)
         {
             return value;
         }
 
-        throw new JsonException($"Unsupported schema processor or value type '{processorOrValue.GetType().Name}'.");
+        throw new JsonException($"Unsupported schema value type '{valueOrRef.GetType().Name}'.");
     }
 
     private static JsonSchemaProcessorRef FromSchemaProcessorRef(SchemaProcessorRef processorRef)

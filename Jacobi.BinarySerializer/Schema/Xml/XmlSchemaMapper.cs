@@ -29,6 +29,7 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaRepeatNode.Processors),
         nameof(XmlSchemaRepeatNode.Children),
         nameof(XmlSchemaRepeatNode.Count),
+        nameof(XmlSchemaRepeatNode.CountRef),
         nameof(XmlSchemaRepeatNode.Properties)
     };
 
@@ -38,6 +39,7 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaChoiceNode.Processors),
         nameof(XmlSchemaChoiceNode.Children),
         nameof(XmlSchemaChoiceNode.SelectedIndex),
+        nameof(XmlSchemaChoiceNode.SelectedIndexRef),
         nameof(XmlSchemaChoiceNode.Properties)
     };
 
@@ -233,7 +235,7 @@ internal static class XmlSchemaMapper
             Name = xmlRepeat.Name,
             ProcessorsList = xmlRepeat.Processors.Select(ToSchemaProcessorRef).ToList(),
             ChildList = children,
-            Count = ParseProcessorOrInt32(xmlRepeat.Count),
+            Count = ToSchemaValue(xmlRepeat.Count, xmlRepeat.CountRef),
             PropertyList = MergeProperties(
                 xmlRepeat.Properties,
                 xmlRepeat.AdditionalAttributes,
@@ -258,7 +260,7 @@ internal static class XmlSchemaMapper
             Name = xmlChoice.Name,
             ProcessorsList = xmlChoice.Processors.Select(ToSchemaProcessorRef).ToList(),
             ChildList = children,
-            SelectedIndex = ParseProcessorOrInt32(xmlChoice.SelectedIndex),
+            SelectedIndex = ToSchemaValue(xmlChoice.SelectedIndex, xmlChoice.SelectedIndexRef),
             PropertyList = MergeProperties(
                 xmlChoice.Properties,
                 xmlChoice.AdditionalAttributes,
@@ -307,7 +309,8 @@ internal static class XmlSchemaMapper
                 Name = repeat.Name,
                 Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Children = repeat.Children.Select(FromSchemaNode).ToList(),
-                Count = ToStringValue(repeat.Count),
+                Count = ToConstantText(repeat.Count),
+                CountRef = ToXmlValueRef(repeat.Count),
                 Properties = repeat.Properties.Select(FromSchemaProperty).ToList()
             };
         }
@@ -319,7 +322,8 @@ internal static class XmlSchemaMapper
                 Name = choice.Name,
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Children = choice.Children.Select(FromSchemaNode).ToList(),
-                SelectedIndex = ToStringValue(choice.SelectedIndex),
+                SelectedIndex = ToConstantText(choice.SelectedIndex),
+                SelectedIndexRef = ToXmlValueRef(choice.SelectedIndex),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()
             };
         }
@@ -349,18 +353,20 @@ internal static class XmlSchemaMapper
         };
     }
 
-    private static SchemaProcessorOrValue<int> ParseProcessorOrInt32(string? value)
+    private static SchemaValueOrRef<int> ToSchemaValue(string? constant, XmlSchemaValueRef? valueRef)
     {
-        if (Int32.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
+        if (valueRef is not null)
+        {
+            return new SchemaValueRef { Reference = valueRef.Reference };
+        }
+
+        if (Int32.TryParse(constant, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
         {
             return number;
         }
 
-        return new SchemaProcessorRef
-        {
-            Processor = new SchemaName(value ?? string.Empty),
-            PropertyList = []
-        };
+        throw new InvalidOperationException(
+            $"'{constant}' is not a valid constant; use a nested element with a 'ref' attribute to refer to a value.");
     }
 
     private static XmlSchemaProcessorRef FromSchemaProcessorRef(SchemaProcessorRef processor)
@@ -372,15 +378,11 @@ internal static class XmlSchemaMapper
         };
     }
 
-    private static string ToStringValue(SchemaProcessorOrValue<int> value)
-    {
-        return value switch
-        {
-            int number => number.ToString(CultureInfo.InvariantCulture),
-            SchemaProcessorRef processor => processor.Processor.ToString(),
-            _ => string.Empty
-        };
-    }
+    private static string? ToConstantText(SchemaValueOrRef<int> value)
+        => value is int number ? number.ToString(CultureInfo.InvariantCulture) : null;
+
+    private static XmlSchemaValueRef? ToXmlValueRef(SchemaValueOrRef<int> value)
+        => value is SchemaValueRef valueRef ? new XmlSchemaValueRef { Reference = valueRef.Reference } : null;
 
     private static XmlSchemaProperty FromSchemaProperty(SchemaProperty property)
     {

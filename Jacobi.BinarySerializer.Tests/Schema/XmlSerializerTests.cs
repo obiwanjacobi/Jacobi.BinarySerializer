@@ -152,7 +152,8 @@ public class XmlSerializerTests
                 <processor processor="selectorProcessor" />
               </processorDefs>
               <children>
-                <repeat name="RepeatGroup" count="ref:counterProcessor">
+                <repeat name="RepeatGroup">
+                  <count ref="hdr/count" />
                   <processors>
                     <processor processor="rootProcessor" />
                   </processors>
@@ -181,7 +182,7 @@ public class XmlSerializerTests
 
         Assert.That(serialized, Does.Contain("processorDefs"));
         Assert.That(serialized, Does.Contain("<processors>"));
-        Assert.That(serialized, Does.Contain("count=\"ref:counterProcessor\""));
+        Assert.That(serialized, Does.Contain("ref=\"hdr/count\""));
         Assert.That(serialized, Does.Contain("selectedIndex=\"2\""));
         Assert.That(serialized, Does.Not.Contain("codec"));
         Assert.That(serialized, Does.Not.Contain("pipeline"));
@@ -190,7 +191,7 @@ public class XmlSerializerTests
         var repeat = roundTripped.Roots.OfType<SchemaRepeat>().Single();
         var choice = roundTripped.Roots.OfType<SchemaChoice>().Single();
 
-        Assert.That(repeat.Count is SchemaProcessorRef repeatCount && repeatCount.Processor.FullName == "ref:counterProcessor");
+        Assert.That(repeat.Count is SchemaValueRef repeatCount && repeatCount.Reference == "hdr/count");
         Assert.That(choice.SelectedIndex is int selected && selected == 2);
     }
 }

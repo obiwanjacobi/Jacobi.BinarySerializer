@@ -21,6 +21,9 @@ public sealed class FieldInfo : NodeInfo
     // schema field
     public required SchemaField Field { get; init; }
 
+    /// <summary>True when another node refers to this field's value by schema path; the session publishes it.</summary>
+    public bool PublishesValue { get; internal set; }
+
     // previous FieldInfo
     // next FieldInfo
 }
@@ -45,4 +48,14 @@ public sealed class ChoiceInfo : GroupInfo
     public required ValueSource<int> SelectedIndex { get; init; }
 }
 
-public readonly union ValueSource<T>(T, ProcessorBinding);
+public readonly union ValueSource<T>(T, PublishedValueKey);
+
+/// <summary>
+/// Identifies a public value: a processor-published 'pubns/name', or the value of a field addressed by its schema path.
+/// </summary>
+public readonly record struct PublishedValueKey(string Namespace, string Name)
+{
+    public static PublishedValueKey ForPath(SchemaPath path) => new(string.Empty, path.Value);
+
+    public override string ToString() => string.IsNullOrEmpty(Namespace) ? Name : $"{Namespace}/{Name}";
+}

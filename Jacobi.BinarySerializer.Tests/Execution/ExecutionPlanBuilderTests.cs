@@ -122,16 +122,16 @@ public class ExecutionPlanBuilderTests
     }
 
     [Test]
-    public void Build_Repeat_WithProcessorCount_BindsProcessor()
+    public void Build_Repeat_WithValueRefCount_BindsPublishedKey()
     {
-        var repeat = new SchemaRepeat { Name = "Items", Count = Ref("value") };
+        var repeat = new SchemaRepeat { Name = "Items", Count = new SchemaValueRef { Reference = "hdr/count" } };
         var root = CreateGroup("Root");
         root.ChildList.Add(repeat);
 
         var plan = CreateBuilder().Build(root);
 
         var info = (RepeatInfo)plan.Root.Children[0];
-        Assert.That(info.Count.Value, Is.TypeOf<ProcessorBinding>());
+        Assert.That(info.Count.Value, Is.EqualTo(new PublishedValueKey("hdr", "count")));
     }
 
     [Test]

@@ -1,36 +1,26 @@
 # Processor
 
-An object that converts/translates data from one format to another. A processor is typically used to encode or decode data, such as converting audio or video files from one format to another, or compressing and decompressing data for storage or transmission.
+An object that converts/translates data from one format to another. 
 
-- define a list of global/well-known properties (names and datatypes.
-- publish it supported properties (well-know and custom).
-- Processor impl. is specific to a pipeline phase.
-- 
+- [ ] define a list of global/well-known properties (names and datatypes).
+- [ ] 
 
+## Well-Known Properties
 
-Processor Pipeline is a sequence of processors that are applied to data in a specific order. Each processor in the pipeline performs a specific transformation or operation on the data, such as encoding, decoding, compressing, or decompressing. The output of one processor serves as the input for the next processor in the pipeline.
+A common set of properties that are used by the mechanism or other processors. 
 
+| Property Name | Data Type | Description |
+|---------------|-----------|-------------|
+| pubns | string | Public Namespace: the namespace used when a processor publishes public values. |
+| length | uint | The length of the data being processed. String with a fixed length can be encoded this way. |
 
+## Publishing Public Values
 
-                   +-- Field/GroupInfo => SchemaNode
-                   |
-  Processors => Context => SessionState
-      |            |            |
-      +------- Pipeline --------+
+A processor can publish public values that can be used by other components in the pipeline.
+These values can be used to configure the processor or to provide information about the processing that has been done.
 
-Write/Read-Process (Session)
-  - Owns SessionState and SchemaCursor
-  - Drives navigation (MoveNext / Enter / Exit)
-  - Invokes Pipeline with the node's precompiled ProcessorPlan
+A public value can be published using a namespace and a name. 
+The namespace is used to group related values together and prevents collisions between multiple processors publishing the same value.
+The name is used to identify the value within the namespace.
 
-CompiledSchema (static, cached, thread-safe)
-  - SchemaNode tree (Field/GroupInfo resolved)
-  - ProcessorPlan per node per direction/phase
-
-Pipeline: stateless executor of a ExecutionPlan
-Context: per-invocation view (Node + SessionState + Data)
-Processors: stateless singletons; scratch state lives in SessionState
-
-  CompiledSchema --> Session --> Cursor --> Node.Plan
-                        |                     |
-                   SessionState <-- Context <-- Pipeline --> Processors
+Typically the namespace can be set on the publishing processor.

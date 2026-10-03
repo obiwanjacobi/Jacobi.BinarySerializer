@@ -106,14 +106,28 @@ public sealed class XmlSchemaDocumentRef
 
 public sealed class XmlSchemaRepeatNode : XmlSchemaGroupNode
 {
+    /// <summary>A constant count (attribute); use <see cref="CountRef"/> to refer to a value.</summary>
     [XmlAttribute("count")]
     public string? Count { get; set; }
+
+    [XmlElement("count")]
+    public XmlSchemaValueRef? CountRef { get; set; }
 }
 
 public sealed class XmlSchemaChoiceNode : XmlSchemaGroupNode
 {
+    /// <summary>A constant index (attribute); use <see cref="SelectedIndexRef"/> to refer to a value.</summary>
     [XmlAttribute("selectedIndex")]
     public string? SelectedIndex { get; set; }
+
+    [XmlElement("selectedIndex")]
+    public XmlSchemaValueRef? SelectedIndexRef { get; set; }
+}
+
+public sealed class XmlSchemaValueRef
+{
+    [XmlAttribute("ref")]
+    public string Reference { get; set; } = string.Empty;
 }
 
 public sealed class XmlSchemaProperty

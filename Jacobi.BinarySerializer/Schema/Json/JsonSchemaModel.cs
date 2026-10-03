@@ -51,15 +51,21 @@ internal class JsonSchemaGroupNode : JsonSchemaNode
 
 internal sealed class JsonSchemaRepeatNode : JsonSchemaGroupNode
 {
-    public JsonSchemaProcessorOrValue<int> Count { get; init; }
+    public JsonSchemaValueOrRef<int> Count { get; init; }
 }
 
 internal sealed class JsonSchemaChoiceNode : JsonSchemaGroupNode
 {
-    public JsonSchemaProcessorOrValue<int> SelectedIndex { get; init; }
+    public JsonSchemaValueOrRef<int> SelectedIndex { get; init; }
 }
 
-public union JsonSchemaProcessorOrValue<T>(JsonSchemaProcessorRef, T) { }
+/// <summary>A value reference object ({ "reference": "..." }) or a constant.</summary>
+public union JsonSchemaValueOrRef<T>(JsonSchemaValueRef, T) { }
+
+internal sealed class JsonSchemaValueRef
+{
+    public required string Reference { get; init; }
+}
 
 internal sealed class JsonSchemaProcessorRef
 {

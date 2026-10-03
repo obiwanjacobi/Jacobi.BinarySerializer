@@ -158,16 +158,6 @@ public sealed class SchemaSet
 
                 CollectNodeDependencies(group.ChildList, documentName, dependencies);
             }
-
-            if (node is SchemaRepeat repeat && repeat.Count is SchemaProcessorRef repeatCountProcessor)
-            {
-                AddSchemaDependency(repeatCountProcessor.Processor, documentName, dependencies);
-            }
-
-            if (node is SchemaChoice choice && choice.SelectedIndex is SchemaProcessorRef selectedIndexProcessor)
-            {
-                AddSchemaDependency(selectedIndexProcessor.Processor, documentName, dependencies);
-            }
         }
     }
 
@@ -334,34 +324,6 @@ public sealed class SchemaSet
                 }
 
                 if (!ResolveReferences(document, group.ChildList))
-                {
-                    allResolved = false;
-                }
-            }
-
-            if (node is SchemaRepeat repeat)
-            {
-                var result = repeat.Count switch
-                {
-                    SchemaProcessorRef processorRef => TryResolveProcessorRef(document, processorRef),
-                    _ => true
-                };
-
-                if (!result)
-                {
-                    allResolved = false;
-                }
-            }
-
-            if (node is SchemaChoice choice)
-            {
-                var result = choice.SelectedIndex switch
-                {
-                    SchemaProcessorRef processorRef => TryResolveProcessorRef(document, processorRef),
-                    _ => true
-                };
-
-                if (!result)
                 {
                     allResolved = false;
                 }

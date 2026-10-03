@@ -192,7 +192,7 @@ public class JsonSerializerTests
                 {
                   "kind": "repeat",
                   "name": "RepeatGroup",
-                  "count": { "processor": "ref:counterProcessor" },
+                  "count": { "reference": "hdr/count" },
                   "processors": [
                     { "processor": "rootProcessor" }
                   ],
@@ -245,7 +245,7 @@ public class JsonSerializerTests
         var repeat = roundTripped.Roots.OfType<SchemaRepeat>().Single();
         var choice = roundTripped.Roots.OfType<SchemaChoice>().Single();
 
-        Assert.That(repeat.Count is SchemaProcessorRef repeatCount && repeatCount.Processor.FullName == "ref:counterProcessor");
+        Assert.That(repeat.Count is SchemaValueRef repeatCount && repeatCount.Reference == "hdr/count");
         Assert.That(choice.SelectedIndex is int selected && selected == 2);
     }
 }
