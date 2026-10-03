@@ -111,14 +111,66 @@ public class PlanCursorTests
     }
 
     [Test]
-    public void Next_Repeat_IsNotSupportedYet()
+    public void Repeat_VisitsChildrenPerItem()
     {
         var repeat = new SchemaRepeat { Name = "R", Count = 2 };
+        repeat.ChildList.Add(Field("A"));
         var cursor = new PlanCursor<string>(Build(Group("Root", repeat)));
         cursor.Next();
         cursor.Enter("Root");
 
-        Assert.Throws<NotSupportedException>(() => cursor.Next());
+        var steps = new List<string>();
+        var enter = cursor.Next();
+        steps.Add($"{enter.Kind}:{enter.Node!.Path}");
+        cursor.EnterRepeat("Root", 2);
+        CursorStep<string> step;
+        do
+        {
+            step = cursor.Next();
+            steps.Add($"{step.Kind}:{step.Node?.Path}:{step.Index}/{step.Count}");
+            if (step.Kind == CursorStepKind.EnterItem)
+            {
+                cursor.Enter($"item{step.Index}");
+            }
+        } while (step.Kind != CursorStepKind.Done);
+
+        Assert.That(steps, Is.EqualTo(new[]
+        {
+            "EnterGroup:Root.R",
+            "EnterItem:Root.R:0/2", "Field:Root.R.A:0/0", "ExitItem:Root.R:0/2",
+            "EnterItem:Root.R:1/2", "Field:Root.R.A:0/0", "ExitItem:Root.R:1/2",
+            "ExitGroup:Root.R:0/0", "ExitGroup:Root:0/0", "Done::0/0",
+        }));
+    }
+
+    [Test]
+    public void Repeat_CountZero_SkipsChildren()
+    {
+        var repeat = new SchemaRepeat { Name = "R", Count = 0 };
+        repeat.ChildList.Add(Field("A"));
+        var cursor = new PlanCursor<string>(Build(Group("Root", repeat)));
+        cursor.Next();
+        cursor.Enter("Root");
+        cursor.Next();
+        cursor.EnterRepeat("Root", 0);
+
+        Assert.That(cursor.Next().Kind, Is.EqualTo(CursorStepKind.ExitGroup));
+        Assert.That(cursor.Next().Kind, Is.EqualTo(CursorStepKind.ExitGroup));
+        Assert.That(cursor.Next().Kind, Is.EqualTo(CursorStepKind.Done));
+    }
+
+    [Test]
+    public void Repeat_EnterInsteadOfEnterRepeat_OrNegativeCount_Throws()
+    {
+        var repeat = new SchemaRepeat { Name = "R", Count = 1 };
+        repeat.ChildList.Add(Field("A"));
+        var cursor = new PlanCursor<string>(Build(Group("Root", repeat)));
+        cursor.Next();
+        cursor.Enter("Root");
+        cursor.Next();
+
+        Assert.Throws<InvalidOperationException>(() => cursor.Enter("R"));
+        Assert.Throws<InvalidOperationException>(() => cursor.EnterRepeat("Root", -1));
     }
 
     [Test]

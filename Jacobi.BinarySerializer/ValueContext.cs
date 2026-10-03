@@ -16,6 +16,9 @@ public closed class ValueContext
     public string Path => Node.Path;
 
     public required IServiceProvider Services { get; init; }
+
+    /// <summary>The repeat instance indices that lead to this node (empty outside repeats).</summary>
+    public InstancePath Instance { get; init; }
 }
 
 public sealed class FieldContext : ValueContext

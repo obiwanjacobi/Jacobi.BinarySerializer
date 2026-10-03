@@ -47,6 +47,17 @@ public sealed class ExecutionPlan
         var to = Find(toPath) ?? throw new ArgumentException($"There is no node '{toPath}' in the plan.", nameof(toPath));
         return new PlanRange(from, to);
     }
+
+    /// <summary>
+    /// Creates a range whose bounds are inside repeats: <paramref name="fromInstance"/> / <paramref name="toInstance"/> hold the item index
+    /// of each repeat on the way (outermost first). Missing indices mean the first (from) or last (to) item.
+    /// </summary>
+    public PlanRange CreateRange(SchemaPath fromPath, InstancePath fromInstance, SchemaPath toPath, InstancePath toInstance)
+    {
+        var from = Find(fromPath) ?? throw new ArgumentException($"There is no node '{fromPath}' in the plan.", nameof(fromPath));
+        var to = Find(toPath) ?? throw new ArgumentException($"There is no node '{toPath}' in the plan.", nameof(toPath));
+        return new PlanRange(from, fromInstance, to, toInstance);
+    }
 }
 
 //-----------------------------------------------------------------------------

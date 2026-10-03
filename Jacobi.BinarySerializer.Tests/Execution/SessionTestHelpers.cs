@@ -199,7 +199,11 @@ internal sealed class DictSink : IValueSink
         return new DictSink(_root, context.Path);
     }
 
-    public IValueSink EnterItem(RepeatContext context, int index, int count) => throw new NotSupportedException();
+    public IValueSink EnterItem(RepeatContext context, int index, int count)
+    {
+        _root.Events.Add($"Item:{context.Path}[{index}/{count}]");
+        return new DictSink(_root, $"{context.Path}[{index}]");
+    }
     public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => throw new NotSupportedException();
     public void Complete() => _root.Events.Add($"Complete:{_path}");
 }

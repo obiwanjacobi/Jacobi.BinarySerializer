@@ -19,8 +19,16 @@ public closed class SessionState
     // shared processor state
     private readonly Dictionary<PublishedValueKey, object?> _published = [];
 
-    /// <summary>Publishes a value; a later publication of the same key overwrites the earlier one.</summary>
-    internal void Publish(PublishedValueKey key, object? value) => _published[key] = value;
+    /// <summary>
+    /// Publishes a public value (e.g. to prefill a repeat count before writing); a later publication of the same key overwrites the earlier one.
+    /// </summary>
+    public void Publish(PublishedValueKey key, object? value) => _published[key] = value;
+
+    /// <summary>Publishes a public value by namespace and name ('pubns/name').</summary>
+    public void Publish(string ns, string name, object? value) => Publish(new PublishedValueKey(ns, name), value);
+
+    /// <summary>Publishes the value of the field at a schema path.</summary>
+    public void Publish(SchemaPath path, object? value) => Publish(PublishedValueKey.ForPath(path), value);
 
     /// <summary>Resolves a constant or a published value to an int. An unpublished value is a runtime error.</summary>
     internal int Resolve(ValueSource<int> source, SchemaPath referrer)

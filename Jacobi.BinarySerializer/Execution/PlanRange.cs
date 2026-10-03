@@ -7,12 +7,20 @@ namespace Jacobi.BinarySerializer.Execution;
 /// </summary>
 public sealed class PlanRange
 {
-    private readonly HashSet<NodeInfo> _included = new(ReferenceEqualityComparer.Instance);
+    // document-order position keys: per ancestor its index and, for a repeat above the node, the item index.
+    private readonly int[] _from;
+    private readonly int[] _to;
 
     internal PlanRange(NodeInfo from, NodeInfo to)
+        : this(from, InstancePath.Empty, to, InstancePath.Empty)
+    { }
+
+    internal PlanRange(NodeInfo from, InstancePath fromInstance, NodeInfo to, InstancePath toInstance)
     {
         First = FirstField(from);
         Last = LastField(to);
+        FromInstance = fromInstance;
+        ToInstance = toInstance;
 
         var fields = new List<FieldInfo>();
         CollectFields(Root(from), fields);
@@ -24,13 +32,13 @@ public sealed class PlanRange
             throw new ArgumentException($"The range start '{from.Path}' comes after the range end '{to.Path}' in the plan.");
         }
 
-        for (var i = start; i <= end; i++)
+        CheckInstance(First, fromInstance);
+        CheckInstance(Last, toInstance);
+        _from = Key(First, fromInstance, 0);
+        _to = Key(Last, toInstance, int.MaxValue);
+        if (Compare(_from, _to) > 0)
         {
-            // the field and all groups on the way up to the root
-            for (NodeInfo? node = fields[i]; node is not null; node = node.Parent)
-            {
-                _included.Add(node);
-            }
+            throw new ArgumentException($"The range start '{from.Path}{fromInstance}' comes after the range end '{to.Path}{toInstance}'.");
         }
     }
 
@@ -40,8 +48,82 @@ public sealed class PlanRange
     /// <summary>The last field of the range.</summary>
     public FieldInfo Last { get; }
 
-    /// <summary>True when the node is a field in the range, or a group that contains one.</summary>
-    internal bool Includes(NodeInfo node) => _included.Contains(node);
+    /// <summary>The item indices of the repeats around <see cref="First"/> (empty: from the first item).</summary>
+    public InstancePath FromInstance { get; }
+
+    /// <summary>The item indices of the repeats around <see cref="Last"/> (empty: up to the last item).</summary>
+    public InstancePath ToInstance { get; }
+
+    /// <summary>
+    /// True when the node (at the given instance) is a field in the range, or a group, repeat or repeat item that contains one.
+    /// <paramref name="instance"/> holds the item index of every repeat above the node; for a repeat node it may hold one more: the item.
+    /// </summary>
+    internal bool Includes(NodeInfo node, InstancePath instance)
+    {
+        var key = Key(node, instance, 0);
+        return Compare(key, _from) >= 0 && Compare(key, _to) <= 0;
+    }
+
+    private static void CheckInstance(FieldInfo field, InstancePath instance)
+    {
+        var repeats = 0;
+        for (NodeInfo? node = field.Parent; node is not null; node = node.Parent)
+        {
+            if (node is RepeatInfo)
+            {
+                repeats++;
+            }
+        }
+        if (instance.Length > repeats)
+        {
+            throw new ArgumentException($"'{field.Path}' is inside {repeats} repeat(s) but the instance path {instance} has {instance.Length} indices.");
+        }
+    }
+
+    private static int[] Key(NodeInfo node, InstancePath instance, int fill)
+    {
+        var chain = new List<NodeInfo>();
+        for (NodeInfo? n = node; n is not null; n = n.Parent)
+        {
+            chain.Add(n);
+        }
+        chain.Reverse();
+
+        var key = new List<int>();
+        var depth = 0;
+        for (var i = 0; i < chain.Count; i++)
+        {
+            key.Add(chain[i].Index);
+            if (chain[i] is RepeatInfo)
+            {
+                if (i < chain.Count - 1)
+                {
+                    key.Add(depth < instance.Length ? instance[depth] : fill);
+                }
+                else if (depth < instance.Length)
+                {
+                    key.Add(instance[depth]);
+                }
+                depth++;
+            }
+        }
+        return [.. key];
+    }
+
+    // compares over the shared length: a node's key is a prefix of the keys of the fields below it.
+    private static int Compare(int[] key, int[] bound)
+    {
+        var length = Math.Min(key.Length, bound.Length);
+        for (var i = 0; i < length; i++)
+        {
+            var c = key[i].CompareTo(bound[i]);
+            if (c != 0)
+            {
+                return c;
+            }
+        }
+        return 0;
+    }
 
     private static NodeInfo Root(NodeInfo node)
     {

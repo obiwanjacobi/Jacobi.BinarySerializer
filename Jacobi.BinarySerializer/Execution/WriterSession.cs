@@ -17,6 +17,7 @@ public sealed class WriterSession : SessionState
     private readonly ExecutionPlan _plan;
     private readonly IBufferWriter<byte> _output;
     private readonly IServiceProvider _services;
+    private InstancePath _instance;
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
@@ -63,6 +64,7 @@ public sealed class WriterSession : SessionState
         while (true)
         {
             var step = cursor.Next();
+            SetInstance(cursor.Instance);
             switch (step.Kind)
             {
                 case CursorStepKind.EnterGroup:
@@ -72,17 +74,26 @@ public sealed class WriterSession : SessionState
                     {
                         cursor.Enter(source);
                     }
+                    else if (group is RepeatInfo repeat)
+                    {
+                        var count = Resolve(repeat.Count, repeat.Path);
+                        CheckItemCount(repeat, step.Scope, count);
+                        cursor.EnterRepeat(step.Scope, count);
+                    }
                     else if (group is ChoiceInfo choice)
                     {
                         var index = Resolve(choice.SelectedIndex, choice.Path);
-                        var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services });
+                        var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance });
                         cursor.Enter(choiceScope, index);
                     }
                     else
                     {
-                        cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services }));
+                        cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services, Instance = _instance }));
                     }
-                    BeginLayout(group);
+                    if (group is not RepeatInfo)
+                    {
+                        BeginLayout(group);
+                    }
                     break;
                 }
 
@@ -99,7 +110,10 @@ public sealed class WriterSession : SessionState
                 case CursorStepKind.ExitGroup:
                 {
                     var group = (GroupInfo)step.Node!;
-                    EndLayout(group);
+                    if (group is not RepeatInfo)
+                    {
+                        EndLayout(group);
+                    }
                     if (group == root && payload is not null)
                     {
                         return WriteStream(root, payload);
@@ -107,9 +121,42 @@ public sealed class WriterSession : SessionState
                     break;
                 }
 
+                case CursorStepKind.EnterItem:
+                {
+                    var repeat = (RepeatInfo)step.Node!;
+                    var item = step.Scope!.EnterItem(new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index);
+                    cursor.Enter(item);
+                    SetInstance(cursor.Instance);
+                    BeginLayout(repeat);
+                    break;
+                }
+
+                case CursorStepKind.ExitItem:
+                    EndLayout((GroupInfo)step.Node!);
+                    break;
+
                 case CursorStepKind.Done:
                     return WriteResult.Success;
             }
+        }
+    }
+
+    private void CheckItemCount(RepeatInfo repeat, IValueSource scope, int count)
+    {
+        int modelCount;
+        try
+        {
+            modelCount = scope.GetCount(new RepeatContext { Node = repeat, Services = _services, Instance = _instance });
+        }
+        catch (NotSupportedException)
+        {
+            return;     // flat models cannot tell
+        }
+
+        if (modelCount != count)
+        {
+            throw new InvalidOperationException(
+                $"'{repeat.Path}': the schema count is {count} but the value model has {modelCount} items.");
         }
     }
 
@@ -117,7 +164,7 @@ public sealed class WriterSession : SessionState
     {
         var pipeline = field.Pipeline;
 
-        if (!scope.TryGetField(new FieldContext { Node = field, Services = _services }, out var logical))
+        if (!scope.TryGetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, out var logical))
         {
             // TODO: derive values the model does not hold (lengths, counts, discriminators).
             throw new InvalidOperationException($"'{field.Path}': the value model has no value for the field.");
@@ -245,6 +292,15 @@ public sealed class WriterSession : SessionState
         }
 
         return WriteResult.Success;
+    }
+
+    private void SetInstance(InstancePath instance)
+    {
+        _instance = instance;
+        _valueContext.Instance = instance;
+        _fieldContext.Instance = instance;
+        _layoutContext.Instance = instance;
+        _streamContext.Instance = instance;
     }
 
     private static void Prepare(ProcessorContext context, ProcessorBinding? binding)

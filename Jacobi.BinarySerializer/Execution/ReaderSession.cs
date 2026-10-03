@@ -16,6 +16,7 @@ public sealed class ReaderSession : SessionState
 {
     private readonly ExecutionPlan _plan;
     private readonly IServiceProvider _services;
+    private InstancePath _instance;
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
@@ -65,6 +66,7 @@ public sealed class ReaderSession : SessionState
         while (true)
         {
             var step = cursor.Next();
+            SetInstance(cursor.Instance);
             switch (step.Kind)
             {
                 case CursorStepKind.EnterGroup:
@@ -74,17 +76,25 @@ public sealed class ReaderSession : SessionState
                     {
                         cursor.Enter(sink);
                     }
+                    else if (group is RepeatInfo repeat)
+                    {
+                        var count = Resolve(repeat.Count, repeat.Path);
+                        cursor.EnterRepeat(step.Scope, count);
+                    }
                     else if (group is ChoiceInfo choice)
                     {
                         var index = Resolve(choice.SelectedIndex, choice.Path);
-                        var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services }, index);
+                        var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index);
                         cursor.Enter(choiceScope, index);
                     }
                     else
                     {
-                        cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services }));
+                        cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services, Instance = _instance }));
                     }
-                    BeginLayout(group, ref reader);
+                    if (group is not RepeatInfo)
+                    {
+                        BeginLayout(group, ref reader);
+                    }
                     break;
                 }
 
@@ -98,9 +108,28 @@ public sealed class ReaderSession : SessionState
                     break;
                 }
 
-                case CursorStepKind.ExitGroup:
+                case CursorStepKind.EnterItem:
+                {
+                    var repeat = (RepeatInfo)step.Node!;
+                    var item = step.Scope!.EnterItem(
+                        new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index, step.Count);
+                    cursor.Enter(item);
+                    SetInstance(cursor.Instance);
+                    BeginLayout(repeat, ref reader);
+                    break;
+                }
+
+                case CursorStepKind.ExitItem:
                     EndLayout((GroupInfo)step.Node!, ref reader);
                     step.Scope!.Complete();
+                    break;
+
+                case CursorStepKind.ExitGroup:
+                    if (step.Node is not RepeatInfo)
+                    {
+                        EndLayout((GroupInfo)step.Node!, ref reader);
+                        step.Scope!.Complete();
+                    }
                     break;
 
                 case CursorStepKind.Done:
@@ -175,7 +204,7 @@ public sealed class ReaderSession : SessionState
             Publish(PublishedValueKey.ForPath(field.Path), logical.Value);
         }
 
-        scope.SetField(new FieldContext { Node = field, Services = _services }, logical);
+        scope.SetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, logical);
         return ReadResult.Success;
     }
 
@@ -235,6 +264,15 @@ public sealed class ReaderSession : SessionState
 
         payload = current;
         return ReadResult.Success;
+    }
+
+    private void SetInstance(InstancePath instance)
+    {
+        _instance = instance;
+        _valueContext.Instance = instance;
+        _fieldContext.Instance = instance;
+        _layoutContext.Instance = instance;
+        _streamContext.Instance = instance;
     }
 
     private static void Prepare(ProcessorContext context, ProcessorBinding? binding)

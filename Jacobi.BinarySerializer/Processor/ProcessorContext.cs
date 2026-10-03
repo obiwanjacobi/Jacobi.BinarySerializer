@@ -24,6 +24,9 @@ public closed class ProcessorContext
     public IReadOnlyList<SchemaProperty> ProcessorProperties { get; internal set; } = [];
     public required IServiceProvider Services { get; init; }
 
+    /// <summary>The repeat instance indices that lead to the current node (empty outside repeats; set by the session before each call).</summary>
+    public InstancePath Instance { get; internal set; }
+
     // allow processors to store arbitrary state in the context
     // - they cannot read each other's state
     internal ProcessorBinding Current { get; set; } = null!;   // set by the session before each call
