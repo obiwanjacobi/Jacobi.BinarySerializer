@@ -70,54 +70,54 @@ public sealed class ReaderSession : SessionState
             switch (step.Kind)
             {
                 case CursorStepKind.EnterGroup:
-                {
-                    var group = (GroupInfo)step.Node!;
-                    if (step.Scope is null)
                     {
-                        cursor.Enter(sink);
+                        var group = (GroupInfo)step.Node!;
+                        if (step.Scope is null)
+                        {
+                            cursor.Enter(sink);
+                        }
+                        else if (group is RepeatInfo repeat)
+                        {
+                            var count = Resolve(repeat.Count, repeat.Path);
+                            cursor.EnterRepeat(step.Scope, count);
+                        }
+                        else if (group is ChoiceInfo choice)
+                        {
+                            var index = Resolve(choice.SelectedIndex, choice.Path);
+                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index);
+                            cursor.Enter(choiceScope, index);
+                        }
+                        else
+                        {
+                            cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services, Instance = _instance }));
+                        }
+                        if (group is not RepeatInfo)
+                        {
+                            BeginLayout(group, ref reader);
+                        }
+                        break;
                     }
-                    else if (group is RepeatInfo repeat)
-                    {
-                        var count = Resolve(repeat.Count, repeat.Path);
-                        cursor.EnterRepeat(step.Scope, count);
-                    }
-                    else if (group is ChoiceInfo choice)
-                    {
-                        var index = Resolve(choice.SelectedIndex, choice.Path);
-                        var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index);
-                        cursor.Enter(choiceScope, index);
-                    }
-                    else
-                    {
-                        cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services, Instance = _instance }));
-                    }
-                    if (group is not RepeatInfo)
-                    {
-                        BeginLayout(group, ref reader);
-                    }
-                    break;
-                }
 
                 case CursorStepKind.Field:
-                {
-                    var result = ReadField((FieldInfo)step.Node!, step.Scope!, ref reader);
-                    if (result != ReadResult.Success)
                     {
-                        return result;
+                        var result = ReadField((FieldInfo)step.Node!, step.Scope!, ref reader);
+                        if (result != ReadResult.Success)
+                        {
+                            return result;
+                        }
+                        break;
                     }
-                    break;
-                }
 
                 case CursorStepKind.EnterItem:
-                {
-                    var repeat = (RepeatInfo)step.Node!;
-                    var item = step.Scope!.EnterItem(
-                        new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index, step.Count);
-                    cursor.Enter(item);
-                    SetInstance(cursor.Instance);
-                    BeginLayout(repeat, ref reader);
-                    break;
-                }
+                    {
+                        var repeat = (RepeatInfo)step.Node!;
+                        var item = step.Scope!.EnterItem(
+                            new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index, step.Count);
+                        cursor.Enter(item);
+                        SetInstance(cursor.Instance);
+                        BeginLayout(repeat, ref reader);
+                        break;
+                    }
 
                 case CursorStepKind.ExitItem:
                     EndLayout((GroupInfo)step.Node!, ref reader);
@@ -257,6 +257,11 @@ public sealed class ReaderSession : SessionState
             var result = ((IStreamProcessor)binding.Processor).Read(ref reader, next, _streamContext);
             if (result != ReadResult.Success)
             {
+                if (result == ReadResult.NeedMoreData)
+                {
+                    throw new InvalidOperationException(
+                        $"'{root.Path}': the stream processor '{binding.Processor.Name}' ({binding.Processor.Key}) needs more data in the input.");
+                }
                 return result;
             }
             current = new ReadOnlySequence<byte>(next.WrittenMemory);

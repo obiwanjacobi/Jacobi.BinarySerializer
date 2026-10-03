@@ -68,68 +68,68 @@ public sealed class WriterSession : SessionState
             switch (step.Kind)
             {
                 case CursorStepKind.EnterGroup:
-                {
-                    var group = (GroupInfo)step.Node!;
-                    if (step.Scope is null)
                     {
-                        cursor.Enter(source);
+                        var group = (GroupInfo)step.Node!;
+                        if (step.Scope is null)
+                        {
+                            cursor.Enter(source);
+                        }
+                        else if (group is RepeatInfo repeat)
+                        {
+                            var count = Resolve(repeat.Count, repeat.Path);
+                            CheckItemCount(repeat, step.Scope, count);
+                            cursor.EnterRepeat(step.Scope, count);
+                        }
+                        else if (group is ChoiceInfo choice)
+                        {
+                            var index = Resolve(choice.SelectedIndex, choice.Path);
+                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance });
+                            cursor.Enter(choiceScope, index);
+                        }
+                        else
+                        {
+                            cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services, Instance = _instance }));
+                        }
+                        if (group is not RepeatInfo)
+                        {
+                            BeginLayout(group);
+                        }
+                        break;
                     }
-                    else if (group is RepeatInfo repeat)
-                    {
-                        var count = Resolve(repeat.Count, repeat.Path);
-                        CheckItemCount(repeat, step.Scope, count);
-                        cursor.EnterRepeat(step.Scope, count);
-                    }
-                    else if (group is ChoiceInfo choice)
-                    {
-                        var index = Resolve(choice.SelectedIndex, choice.Path);
-                        var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance });
-                        cursor.Enter(choiceScope, index);
-                    }
-                    else
-                    {
-                        cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services, Instance = _instance }));
-                    }
-                    if (group is not RepeatInfo)
-                    {
-                        BeginLayout(group);
-                    }
-                    break;
-                }
 
                 case CursorStepKind.Field:
-                {
-                    var result = WriteField((FieldInfo)step.Node!, step.Scope!);
-                    if (result != WriteResult.Success)
                     {
-                        return result;
+                        var result = WriteField((FieldInfo)step.Node!, step.Scope!);
+                        if (result != WriteResult.Success)
+                        {
+                            return result;
+                        }
+                        break;
                     }
-                    break;
-                }
 
                 case CursorStepKind.ExitGroup:
-                {
-                    var group = (GroupInfo)step.Node!;
-                    if (group is not RepeatInfo)
                     {
-                        EndLayout(group);
+                        var group = (GroupInfo)step.Node!;
+                        if (group is not RepeatInfo)
+                        {
+                            EndLayout(group);
+                        }
+                        if (group == root && payload is not null)
+                        {
+                            return WriteStream(root, payload);
+                        }
+                        break;
                     }
-                    if (group == root && payload is not null)
-                    {
-                        return WriteStream(root, payload);
-                    }
-                    break;
-                }
 
                 case CursorStepKind.EnterItem:
-                {
-                    var repeat = (RepeatInfo)step.Node!;
-                    var item = step.Scope!.EnterItem(new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index);
-                    cursor.Enter(item);
-                    SetInstance(cursor.Instance);
-                    BeginLayout(repeat);
-                    break;
-                }
+                    {
+                        var repeat = (RepeatInfo)step.Node!;
+                        var item = step.Scope!.EnterItem(new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index);
+                        cursor.Enter(item);
+                        SetInstance(cursor.Instance);
+                        BeginLayout(repeat);
+                        break;
+                    }
 
                 case CursorStepKind.ExitItem:
                     EndLayout((GroupInfo)step.Node!);
@@ -282,6 +282,11 @@ public sealed class WriterSession : SessionState
             var result = ((IStreamProcessor)binding.Processor).Write(ref reader, next ?? _output, _streamContext);
             if (result != WriteResult.Success)
             {
+                if (result == WriteResult.NeedMoreSpace)
+                {
+                    throw new InvalidOperationException(
+                        $"'{root.Path}': the stream processor '{binding.Processor.Name}' ({binding.Processor.Key}) needs more space in the output.");
+                }
                 return result;
             }
 
