@@ -57,6 +57,8 @@ internal static class SessionTestHelpers
         public string Name => "Recording Layout";
         public PipelineStage Stage => PipelineStage.Layout;
 
+        public IReadOnlyList<PropertyDescriptor> Properties => [];
+
         public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
             => log.Add($"Begin:{context.Group.Path}");
 
@@ -95,6 +97,9 @@ internal static class SessionTestHelpers
         public ProcessorKey Key => new(Ns, "scale");
         public string Name => "Scale";
         public PipelineStage Stage => PipelineStage.Semantic;
+
+        public IReadOnlyList<PropertyDescriptor> Properties => [];
+
         public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context)
             => logicalValue with { Value = (int)logicalValue.Value! * 2 };
         public LogicalField Read(LogicalField logicalValue, ValueProcessorContext context)
@@ -107,6 +112,8 @@ internal static class SessionTestHelpers
         public ProcessorKey Key => new(Ns, "bigendian");
         public string Name => "Big Endian";
         public PipelineStage Stage => PipelineStage.Representation;
+
+        public IReadOnlyList<PropertyDescriptor> Properties => [];
 
         public EncodedField Write(LogicalField field, FieldProcessorContext context)
         {
@@ -129,6 +136,8 @@ internal static class SessionTestHelpers
         public ProcessorKey Key => new(Ns, "stream");
         public string Name => "Prefix";
         public PipelineStage Stage => PipelineStage.Stream;
+
+        public IReadOnlyList<PropertyDescriptor> Properties => [];
 
         public WriteResult Write(ref SequenceReader<byte> payloadInput, IBufferWriter<byte> transportOutput, StreamProcessorContext context)
         {

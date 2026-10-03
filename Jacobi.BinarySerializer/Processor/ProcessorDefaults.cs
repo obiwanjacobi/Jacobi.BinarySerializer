@@ -26,6 +26,8 @@ public sealed class DefaultValueProcessor : IValueProcessor
     public string Name => "Default Value Processor";
     public PipelineStage Stage => PipelineStage.Semantic;
 
+    public IReadOnlyList<PropertyDescriptor> Properties => [];
+
     public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context)
         => logicalValue;
 
@@ -39,6 +41,8 @@ public sealed class DefaultFieldProcessor : IFieldProcessor
     public ProcessorKey Key => new("default", "field");
     public string Name => "Default Field Processor";
     public PipelineStage Stage => PipelineStage.Representation;
+
+    public IReadOnlyList<PropertyDescriptor> Properties => [];
 
     public EncodedField Write(LogicalField field, FieldProcessorContext context)
     {
@@ -70,6 +74,8 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
     public ProcessorKey Key => new("default", "layout");
     public string Name => "Default Layout Processor";
     public PipelineStage Stage => PipelineStage.Layout;
+
+    public IReadOnlyList<PropertyDescriptor> Properties => [];
 
     public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
     public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
@@ -131,6 +137,8 @@ public sealed class DefaultStreamProcessor : IStreamProcessor
     public ProcessorKey Key => new("default", "stream");
     public string Name => "Default Stream Processor";
     public PipelineStage Stage => PipelineStage.Stream;
+
+    public IReadOnlyList<PropertyDescriptor> Properties => [];
 
     public WriteResult Write(ref SequenceReader<byte> input, IBufferWriter<byte> output, StreamProcessorContext context)
     {

@@ -14,6 +14,14 @@ A common set of properties that are used by the mechanism or other processors.
 | pubns | string | Public Namespace: the namespace used when a processor publishes public values. |
 | length | uint | The length of the data being processed. String with a fixed length can be encoded this way. |
 
+## Specifying Processor Properties
+
+In general the processor key is to be used as a prefix to the property name when specifying properties for a processor.
+
+`sys.enum.map` - where `sys.enum` is the processor key and `map` is the property name.
+
+However when specifying properties inside the processor-definitions in a schema, the properties are alread listed under the processor key, so the prefix is not needed.
+
 ## Publishing Public Values
 
 A processor can publish public values that can be used by other components in the pipeline.

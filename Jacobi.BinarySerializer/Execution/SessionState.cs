@@ -59,4 +59,3 @@ public closed class SessionState
     }
     // buffer state/management
 }
-

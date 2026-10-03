@@ -302,6 +302,7 @@ public class ExecutionPlanBuilderTests
         public ProcessorKey Key => new(Ns, "value");
         public string Name => "Fake Value";
         public PipelineStage Stage => PipelineStage.Semantic;
+        public IReadOnlyList<PropertyDescriptor> Properties => [];
         public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context) => logicalValue;
         public LogicalField Read(LogicalField logicalValue, ValueProcessorContext context) => logicalValue;
     }
@@ -311,6 +312,7 @@ public class ExecutionPlanBuilderTests
         public ProcessorKey Key => new(Ns, "layout");
         public string Name => "Fake Layout";
         public PipelineStage Stage => PipelineStage.Layout;
+        public IReadOnlyList<PropertyDescriptor> Properties => [];
         public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
         public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
             => WriteResult.Success;
@@ -330,5 +332,6 @@ public class ExecutionPlanBuilderTests
         public ProcessorKey Key => new(Ns, "bad");
         public string Name => "Mismatched";
         public PipelineStage Stage => PipelineStage.Layout;
+        public IReadOnlyList<PropertyDescriptor> Properties => [];
     }
 }

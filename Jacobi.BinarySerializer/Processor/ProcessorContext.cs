@@ -12,9 +12,6 @@ public closed class ProcessorContext
         _state = state ?? throw new ArgumentNullException(nameof(state));
     }
 
-    // is on field/group object
-    //public SchemaObject SchemaObject { get; init; }
-
     // the current pipeline stage for this context, which determines what processors are available
     public PipelineStage Stage { get; init; }
 
@@ -34,9 +31,7 @@ public closed class ProcessorContext
 
     // publish dynamic values for processors to use, e.g. a data-length value read from the message header.
     // consume dynamic values published by other processors.
-
-    // diagnostics:
-    // - log messages
+    public void Publish(string ns, string key, object? value) => _state.Publish(ns, key, value);
 }
 
 public sealed class ValueProcessorContext : ProcessorContext

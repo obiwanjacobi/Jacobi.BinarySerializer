@@ -16,6 +16,11 @@ public interface IProcessor
     /// The pipeline stage in which this processor operates.
     /// </summary>
     PipelineStage Stage { get; }
+
+    /// <summary>
+    /// Publishes the properties a processor supports.
+    /// </summary>
+    public IReadOnlyList<PropertyDescriptor> Properties { get; }
 }
 
 // Semantic pipeline stage: logical value transforms (scale, enum mapping, nullability, etc.)
@@ -60,6 +65,35 @@ public interface IStreamProcessor : IProcessor
 {
     WriteResult Write(ref SequenceReader<byte> payloadInput, IBufferWriter<byte> transportOutput, StreamProcessorContext context);
     ReadResult Read(ref SequenceReader<byte> transportInput, IBufferWriter<byte> payloadOutput, StreamProcessorContext context);
+}
+
+public sealed class PropertyDescriptor
+{
+    public PropertyDescriptor(string name, Type type)
+    {
+        Name = name;
+        PropertyType = type;
+        Description = String.Empty;
+    }
+
+    public PropertyDescriptor(string name, Type type, bool isRequired, bool isReadOnly = false, bool isPublished = false, string? description = null)
+    {
+        Name = name;
+        PropertyType = type;
+        IsRequired = isRequired;
+        IsReadOnly = isReadOnly;
+        IsPublished = isPublished;
+        Description = description ?? String.Empty;
+    }
+
+    public string Name { get; }
+    public Type PropertyType { get; }
+
+    public bool IsRequired { get; }
+    public bool IsReadOnly { get; }
+    public bool IsPublished { get; }
+
+    public string Description { get; }
 }
 
 public enum WriteResult
