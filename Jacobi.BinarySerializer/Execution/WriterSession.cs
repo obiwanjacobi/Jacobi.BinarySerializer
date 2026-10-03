@@ -39,9 +39,19 @@ public sealed class WriterSession : SessionState
         _streamContext = new StreamProcessorContext(this) { Services = _services, Stage = PipelineStage.Stream };
     }
 
+    /// <summary>Writes the fields from the flat <paramref name="source"/> to the output.</summary>
+    /// <param name="source">Asked for the value of each field that is written, in plan order.</param>
+    /// <param name="range">Optional: only write these fields. The default is the whole plan.</param>
+    public WriteResult Write(IFieldSource source, PlanRange? range = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Write(new FieldSourceAdapter(source), range);
+    }
+
     /// <summary>Writes the values from <paramref name="source"/> to the output.</summary>
+    /// <param name="range">Optional: only write these fields. The default is the whole plan.</param>
     /// <returns>Success, or the failing result of a processor.</returns>
-    public WriteResult Write(IValueSource source)
+    public WriteResult Write(IValueSource source, PlanRange? range = null)
     {
         ArgumentNullException.ThrowIfNull(source);
 
@@ -49,7 +59,7 @@ public sealed class WriterSession : SessionState
         var payload = root.Pipeline.StreamProcessors.Count > 0 ? new ArrayBufferWriter<byte>() : null;
         _target = payload ?? _output;
 
-        var cursor = new PlanCursor<IValueSource>(root);
+        var cursor = new PlanCursor<IValueSource>(root, range);
         while (true)
         {
             var step = cursor.Next();

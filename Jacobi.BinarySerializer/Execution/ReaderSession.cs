@@ -33,8 +33,18 @@ public sealed class ReaderSession : SessionState
         _streamContext = new StreamProcessorContext(this) { Services = _services, Stage = PipelineStage.Stream };
     }
 
+    /// <summary>Reads the fields from <paramref name="input"/> into the flat <paramref name="sink"/>.</summary>
+    /// <param name="sink">Receives each field that is read, in plan order.</param>
+    /// <param name="range">Optional: only read these fields. The default is the whole plan.</param>
+    public ReadResult Read(ReadOnlySequence<byte> input, IFieldSink sink, PlanRange? range = null)
+    {
+        ArgumentNullException.ThrowIfNull(sink);
+        return Read(input, new FieldSinkAdapter(sink), range);
+    }
+
     /// <summary>Reads the values from <paramref name="input"/> into <paramref name="sink"/>.</summary>
-    public ReadResult Read(ReadOnlySequence<byte> input, IValueSink sink)
+    /// <param name="range">Optional: only read these fields. The default is the whole plan.</param>
+    public ReadResult Read(ReadOnlySequence<byte> input, IValueSink sink, PlanRange? range = null)
     {
         ArgumentNullException.ThrowIfNull(sink);
 
@@ -51,7 +61,7 @@ public sealed class ReaderSession : SessionState
         }
 
         var reader = new SequenceReader<byte>(payload);
-        var cursor = new PlanCursor<IValueSink>(root);
+        var cursor = new PlanCursor<IValueSink>(root, range);
         while (true)
         {
             var step = cursor.Next();

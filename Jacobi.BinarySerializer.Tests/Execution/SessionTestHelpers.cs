@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -155,7 +156,7 @@ internal static class SessionTestHelpers
 /// <summary>Dictionary-backed value source (keyed by node path); records group entries.</summary>
 internal sealed class DictSource(Dictionary<string, object?> values, List<string>? events = null) : IValueSource
 {
-    public bool TryGetField(FieldContext context, out LogicalField? field)
+    public bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
     {
         if (values.TryGetValue(context.Path, out var value))
         {

@@ -12,6 +12,41 @@ public sealed class ExecutionPlan
     // schema hierarchy with immutable GroupInfo and FieldInfo objects
     // resolved Processor pipelines for each field and group
     public required GroupInfo Root { get; init; }
+
+    /// <summary>Finds a node by its path (e.g. 'Root.Header.Length'); null when there is none.</summary>
+    public NodeInfo? Find(SchemaPath path)
+        => Find(Root, path);
+
+    private static NodeInfo? Find(NodeInfo node, SchemaPath path)
+    {
+        if (node.Path == path)
+        {
+            return node;
+        }
+
+        if (node is GroupInfo group)
+        {
+            foreach (var child in group.Children)
+            {
+                if (Find(child, path) is { } found)
+                {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Creates a range of fields to write or read: from the first field of <paramref name="fromPath"/> to the last field of <paramref name="toPath"/>.
+    /// Each path is a field or a group (a group stands for its first or last field).
+    /// </summary>
+    public PlanRange CreateRange(SchemaPath fromPath, SchemaPath toPath)
+    {
+        var from = Find(fromPath) ?? throw new ArgumentException($"There is no node '{fromPath}' in the plan.", nameof(fromPath));
+        var to = Find(toPath) ?? throw new ArgumentException($"There is no node '{toPath}' in the plan.", nameof(toPath));
+        return new PlanRange(from, to);
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -23,6 +58,8 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         ArgumentNullException.ThrowIfNull(schemaSet);
         return Build(FindRoot(schemaSet, root));
     }
+
+    // TODO: add overload ExecutionPlan Build(SchemaDocument, SchemaName/string root){}
 
     public ExecutionPlan Build(SchemaGroup root)
     {
@@ -60,7 +97,7 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         return matches[0].Root;
     }
 
-    private NodeInfo? BuildNode(SchemaNode node, string path, ProcessorPipeline parentPipeline, BuildState state)
+    private NodeInfo? BuildNode(SchemaNode node, SchemaPath path, ProcessorPipeline parentPipeline, BuildState state)
         => node switch
         {
             SchemaField field => BuildField(field, path, parentPipeline, state),
@@ -68,7 +105,7 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             _ => state.Error<NodeInfo>(path, $"Unsupported schema node kind '{node.Kind}'.")
         };
 
-    private FieldInfo BuildField(SchemaField field, string path, ProcessorPipeline parentPipeline, BuildState state)
+    private FieldInfo BuildField(SchemaField field, SchemaPath path, ProcessorPipeline parentPipeline, BuildState state)
     {
         var processors = BindProcessors(field.Processors, path, state);
         return new FieldInfo
@@ -80,7 +117,7 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         };
     }
 
-    private GroupInfo BuildGroup(SchemaGroup group, string path, ProcessorPipeline? parentPipeline, BuildState state)
+    private GroupInfo BuildGroup(SchemaGroup group, SchemaPath path, ProcessorPipeline? parentPipeline, BuildState state)
     {
         var processors = BindProcessors(group.Processors, path, state);
         var pipeline = CreatePipeline(parentPipeline, processors);
@@ -88,7 +125,7 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         var children = new List<NodeInfo>(group.Children.Count);
         foreach (var child in group.Children)
         {
-            if (BuildNode(child, $"{path}.{child.Name}", pipeline, state) is { } childInfo)
+            if (BuildNode(child, path.Append(child.Name), pipeline, state) is { } childInfo)
                 children.Add(childInfo);
         }
 

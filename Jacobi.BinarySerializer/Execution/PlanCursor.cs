@@ -38,13 +38,17 @@ internal sealed class PlanCursor<TScope>
     }
 
     private readonly Stack<Frame> _frames = new();
+    private readonly PlanRange? _range;
     private GroupInfo? _pendingEnter;
     private bool _pendingAnnounced;
 
-    public PlanCursor(GroupInfo root)
+    /// <param name="root">The root group of the plan.</param>
+    /// <param name="range">Optional: only the fields of the range (and the groups leading to them) are visited.</param>
+    public PlanCursor(GroupInfo root, PlanRange? range = null)
     {
         ArgumentNullException.ThrowIfNull(root);
         _pendingEnter = root;
+        _range = range;
     }
 
     /// <summary>Number of groups currently entered.</summary>
@@ -75,6 +79,14 @@ internal sealed class PlanCursor<TScope>
         }
 
         var frame = _frames.Peek();
+        if (_range is not null)
+        {
+            while (frame.NextChild < frame.Group.Children.Count && !_range.Includes(frame.Group.Children[frame.NextChild]))
+            {
+                frame.NextChild++;
+            }
+        }
+
         if (frame.NextChild < frame.Group.Children.Count)
         {
             var child = frame.Group.Children[frame.NextChild++];

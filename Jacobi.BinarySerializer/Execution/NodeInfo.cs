@@ -8,7 +8,7 @@ public closed class NodeInfo
     public GroupInfo? Parent { get; internal set; }
     public int Index { get; internal set; }
     public required string Name { get; init; }
-    public required string Path { get; init; }
+    public required SchemaPath Path { get; init; }
 
     public required ProcessorPipeline Pipeline { get; init; }
 }

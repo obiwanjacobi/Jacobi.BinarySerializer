@@ -201,7 +201,7 @@ public class ExecutionPlanStructureTests
 
         foreach (var node in Flatten(plan.Root).Where(n => n.Parent is not null))
         {
-            Assert.That(node.Parent!.Children[node.Index], Is.SameAs(node), node.Path);
+            Assert.That(node.Parent!.Children[node.Index], Is.SameAs(node), node.Path.Value);
         }
     }
 

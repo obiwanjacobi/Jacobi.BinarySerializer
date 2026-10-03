@@ -121,34 +121,6 @@ public sealed class SchemaProperty
     // TODO: allow complex objects as value, e.g. a list of values/object structures etc.
 }
 
-public record struct SchemaName
-{
-    public SchemaName()
-        => throw new InvalidOperationException("SchemaName must be initialized with a name.");
-
-    public SchemaName(string moniker)
-    {
-        var i = moniker.LastIndexOf('.');
-        if (i == -1)
-        {
-            Name = moniker;
-        }
-        else
-        {
-            Namespace = moniker[..i];
-            Name = moniker[(i + 1)..];
-        }
-    }
-
-    public string Name { get; }
-    public string Namespace { get; } = String.Empty;
-    public string FullName
-        => String.IsNullOrEmpty(Namespace) ? Name : $"{Namespace}.{Name}";
-
-    override public string ToString()
-        => FullName;
-}
-
 public enum SchemaNodeKind
 {
     /// <summary>Root container object for a schema.</summary>

@@ -1,6 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-using Jacobi.BinarySerializer.Processor;
-
 namespace Jacobi.BinarySerializer;
 
 // The value model abstraction: the session walks the ExecutionPlan and talks to these interfaces,
@@ -14,14 +11,8 @@ namespace Jacobi.BinarySerializer;
 /// <summary>
 /// Provides the values to write. An instance represents one scope (group, repeat item or choice).
 /// </summary>
-public interface IValueSource
+public interface IValueSource : IFieldSource
 {
-    /// <summary>
-    /// Gets the value of a child field of this scope.
-    /// Returns false when the model has no value for the field; the engine then derives it (length, count, ...) or fails.
-    /// </summary>
-    bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? value);
-
     /// <summary>Enters a child group of this scope.</summary>
     IValueSource EnterGroup(GroupContext context);
 
@@ -41,11 +32,8 @@ public interface IValueSource
 /// <summary>
 /// Receives the values that were read. An instance represents one scope (group, repeat item or choice).
 /// </summary>
-public interface IValueSink
+public interface IValueSink : IFieldSink
 {
-    /// <summary>Sets the value of a child field. Fields the model does not map are ignored.</summary>
-    void SetField(FieldContext context, LogicalField value);
-
     /// <summary>Enters a child group of this scope.</summary>
     IValueSink EnterGroup(GroupContext context);
 
