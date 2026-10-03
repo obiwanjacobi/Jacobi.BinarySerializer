@@ -30,11 +30,12 @@ internal readonly record struct CursorStep<TScope>(CursorStepKind Kind, NodeInfo
 /// </summary>
 internal sealed class PlanCursor<TScope>
 {
-    private sealed class Frame(GroupInfo group, TScope scope)
+    private sealed class Frame(GroupInfo group, TScope scope, int firstChild, int endChild)
     {
         public GroupInfo Group { get; } = group;
         public TScope Scope { get; } = scope;
-        public int NextChild { get; set; }
+        public int NextChild { get; set; } = firstChild;
+        public int EndChild { get; } = endChild;
     }
 
     private readonly Stack<Frame> _frames = new();
@@ -81,13 +82,13 @@ internal sealed class PlanCursor<TScope>
         var frame = _frames.Peek();
         if (_range is not null)
         {
-            while (frame.NextChild < frame.Group.Children.Count && !_range.Includes(frame.Group.Children[frame.NextChild]))
+            while (frame.NextChild < frame.EndChild && !_range.Includes(frame.Group.Children[frame.NextChild]))
             {
                 frame.NextChild++;
             }
         }
 
-        if (frame.NextChild < frame.Group.Children.Count)
+        if (frame.NextChild < frame.EndChild)
         {
             var child = frame.Group.Children[frame.NextChild++];
             switch (child)
@@ -95,8 +96,8 @@ internal sealed class PlanCursor<TScope>
                 case FieldInfo:
                     return new(CursorStepKind.Field, child, frame.Scope);
 
-                // TODO: repeat (iterate children Count times) and choice (visit only the selected alternative).
-                case RepeatInfo or ChoiceInfo:
+                // TODO: repeat (iterate children Count times).
+                case RepeatInfo:
                     throw new NotSupportedException($"'{child.Path}': {child.GetType().Name} is not supported by the cursor yet.");
 
                 case GroupInfo:
@@ -113,15 +114,32 @@ internal sealed class PlanCursor<TScope>
         return new(CursorStepKind.ExitGroup, frame.Group, frame.Scope);
     }
 
-    /// <summary>Completes an <see cref="CursorStepKind.EnterGroup"/> step: pushes the frame with the scope of the entered group.</summary>
-    public void Enter(TScope scope)
+    /// <summary>
+    /// Completes an <see cref="CursorStepKind.EnterGroup"/> step: pushes the frame with the scope of the entered group.
+    /// </summary>
+    /// <param name="scope">The scope of the entered group.</param>
+    /// <param name="selectedIndex">Required for a choice: the index of the one alternative to visit.</param>
+    public void Enter(TScope scope, int? selectedIndex = null)
     {
         if (_pendingEnter is null || !_pendingAnnounced)
         {
             throw new InvalidOperationException("Enter(scope) can only be called after an EnterGroup step.");
         }
 
-        _frames.Push(new Frame(_pendingEnter, scope));
+        var first = 0;
+        var end = _pendingEnter.Children.Count;
+        if (_pendingEnter is ChoiceInfo)
+        {
+            if (selectedIndex is not { } index || index < 0 || index >= end)
+            {
+                throw new InvalidOperationException(
+                    $"'{_pendingEnter.Path}': choice index {selectedIndex?.ToString() ?? "(none)"} is out of range (0..{end - 1}).");
+            }
+            first = index;
+            end = index + 1;
+        }
+
+        _frames.Push(new Frame(_pendingEnter, scope, first, end));
         _pendingEnter = null;
         _pendingAnnounced = false;
     }

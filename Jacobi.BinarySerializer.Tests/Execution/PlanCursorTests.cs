@@ -122,17 +122,44 @@ public class PlanCursorTests
     }
 
     [Test]
-    public void Next_Choice_IsNotSupportedYet()
+    public void Choice_VisitsOnlySelectedAlternative()
+    {
+        var choice = new SchemaChoice { Name = "C", SelectedIndex = 1 };
+        choice.ChildList.Add(Field("A"));
+        choice.ChildList.Add(Field("B"));
+        var cursor = new PlanCursor<string>(Build(Group("Root", choice)));
+        cursor.Next();
+        cursor.Enter("Root");
+
+        var enter = cursor.Next();
+        cursor.Enter("C", 1);
+        var steps = new List<string> { $"{enter.Kind}:{enter.Node!.Path}" };
+        CursorStep<string> step;
+        do
+        {
+            step = cursor.Next();
+            steps.Add($"{step.Kind}:{step.Node?.Path}");
+        } while (step.Kind != CursorStepKind.Done);
+
+        Assert.That(steps, Is.EqualTo(new[]
+        {
+            "EnterGroup:Root.C", "Field:Root.C.B", "ExitGroup:Root.C", "ExitGroup:Root", "Done:",
+        }));
+    }
+
+    [Test]
+    public void Choice_EnterWithoutIndexOrOutOfRange_Throws()
     {
         var choice = new SchemaChoice { Name = "C", SelectedIndex = 0 };
         choice.ChildList.Add(Field("A"));
         var cursor = new PlanCursor<string>(Build(Group("Root", choice)));
         cursor.Next();
         cursor.Enter("Root");
+        cursor.Next();
 
-        Assert.Throws<NotSupportedException>(() => cursor.Next());
+        Assert.Throws<InvalidOperationException>(() => cursor.Enter("C"));
+        Assert.Throws<InvalidOperationException>(() => cursor.Enter("C", 1));
     }
-
     [Test]
     public void Cursor_CanBeSuspendedBetweenSteps()
     {

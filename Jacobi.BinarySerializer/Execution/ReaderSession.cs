@@ -70,10 +70,20 @@ public sealed class ReaderSession : SessionState
                 case CursorStepKind.EnterGroup:
                 {
                     var group = (GroupInfo)step.Node!;
-                    var scope = step.Scope is null
-                        ? sink
-                        : step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services });
-                    cursor.Enter(scope);
+                    if (step.Scope is null)
+                    {
+                        cursor.Enter(sink);
+                    }
+                    else if (group is ChoiceInfo choice)
+                    {
+                        var index = Resolve(choice.SelectedIndex, choice.Path);
+                        var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services }, index);
+                        cursor.Enter(choiceScope, index);
+                    }
+                    else
+                    {
+                        cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services }));
+                    }
                     BeginLayout(group, ref reader);
                     break;
                 }
@@ -158,6 +168,11 @@ public sealed class ReaderSession : SessionState
         {
             Prepare(_valueContext, valueProcessors[i]);
             logical = ((IValueProcessor)valueProcessors[i].Processor).Read(logical, _valueContext);
+        }
+
+        if (field.PublishesValue)
+        {
+            Publish(PublishedValueKey.ForPath(field.Path), logical.Value);
         }
 
         scope.SetField(new FieldContext { Node = field, Services = _services }, logical);

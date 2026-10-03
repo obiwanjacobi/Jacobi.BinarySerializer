@@ -68,10 +68,20 @@ public sealed class WriterSession : SessionState
                 case CursorStepKind.EnterGroup:
                 {
                     var group = (GroupInfo)step.Node!;
-                    var scope = step.Scope is null
-                        ? source
-                        : step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services });
-                    cursor.Enter(scope);
+                    if (step.Scope is null)
+                    {
+                        cursor.Enter(source);
+                    }
+                    else if (group is ChoiceInfo choice)
+                    {
+                        var index = Resolve(choice.SelectedIndex, choice.Path);
+                        var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services });
+                        cursor.Enter(choiceScope, index);
+                    }
+                    else
+                    {
+                        cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services }));
+                    }
                     BeginLayout(group);
                     break;
                 }
@@ -122,6 +132,11 @@ public sealed class WriterSession : SessionState
         }
 
         // Representation: logical -> encoded
+        if (field.PublishesValue)
+        {
+            Publish(PublishedValueKey.ForPath(field.Path), logical.Value);
+        }
+
         EncodedField encoded;
         switch (pipeline.FieldProcessors.Count)
         {
