@@ -3,7 +3,7 @@ using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
-namespace Jacobi.BinarySerializer.Tests.Processors;
+namespace Jacobi.BinarySerializer.Tests.Processor;
 
 public class DefaultProcessorTests
 {

@@ -14,7 +14,7 @@ namespace Jacobi.BinarySerializer.Processors;
 internal sealed class BitPackerProcessor : ILayoutProcessor
 {
     private const string BitsProperty = "bits";
-    private const string BitOrderProperty = "Endianness";
+    private const string BitOrderProperty = "bitorder";
 
     public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
     {

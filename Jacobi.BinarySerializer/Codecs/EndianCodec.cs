@@ -61,11 +61,11 @@ public static class EndianCodec
         return result;
     }
 
-    private static void ValidateSize(int size)
+    private static void ValidateSize(int sizeInBytes)
     {
-        if (size is < 1 or > 8)
+        if (sizeInBytes is < 1 or > 8)
         {
-            throw new ArgumentOutOfRangeException(nameof(size), size, "Only 1..8 bytes are supported.");
+            throw new ArgumentOutOfRangeException(nameof(sizeInBytes), sizeInBytes, "Only 1..8 bytes are supported.");
         }
     }
 }

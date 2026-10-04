@@ -1,7 +1,7 @@
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Schema;
 
-namespace Jacobi.BinarySerializer.Tests.Processors;
+namespace Jacobi.BinarySerializer.Tests.Processor;
 
 public class DataTypeCodecTests
 {

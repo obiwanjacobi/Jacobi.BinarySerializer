@@ -223,7 +223,7 @@ public class ExecutionPlanStructureTests
     }
 
     private static ExecutionPlan Build(SchemaGroup root)
-        => new ExecutionPlanBuilder(new Processor.ProcessorManager()).Build(root);
+        => new ExecutionPlanBuilder(new BinarySerializer.Processor.ProcessorManager()).Build(root);
 
     private static SchemaField Field(string name)
         => new() { Name = name, Type = SchemaDataType.Int32 };

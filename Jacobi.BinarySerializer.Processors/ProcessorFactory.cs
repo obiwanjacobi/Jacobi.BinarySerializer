@@ -1,4 +1,4 @@
-﻿using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Processor;
 
 namespace Jacobi.BinarySerializer.Processors;
 
@@ -14,6 +14,7 @@ public sealed class ProcessorFactory : IProcessorFactory
         { "sys:varint", new VarIntProcessor() },
         // Loayout Processors
         { "sys:bitpacker", new BitPackerProcessor() },
+        { "sys:bytepacker", new BytePackerProcessor() },
     };
 
     public string Namespace => "sys";
