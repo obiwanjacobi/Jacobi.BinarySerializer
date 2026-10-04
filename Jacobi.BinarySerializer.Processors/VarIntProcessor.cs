@@ -7,7 +7,8 @@ namespace Jacobi.BinarySerializer.Processors;
 
 /// <summary>
 /// Variable-length integers (sys:varint). The 'encoding' property selects the algorithm:
-/// 'leb128' (unsigned, default), 'sleb128' (signed LEB128) or 'zigzag' (protobuf sint: zigzag + LEB128).
+/// 'leb128' (unsigned, default), 'sleb128' (signed LEB128), 'zigzag' (protobuf sint: zigzag + LEB128),
+/// 'vlq' (MIDI big-endian base-128, unsigned) or 'prefix' (UTF-8 style length prefix, unsigned).
 /// </summary>
 internal sealed class VarIntProcessor : IFieldProcessor
 {
@@ -20,15 +21,20 @@ internal sealed class VarIntProcessor : IFieldProcessor
         var path = context.Field.Path;
 
         byte[] bytes;
-        if (encoding == VarIntEncoding.Leb128)
+        if (encoding is VarIntEncoding.Leb128 or VarIntEncoding.Vlq or VarIntEncoding.Prefix)
         {
             var value = ToUnsigned(field.Value, type, path);
-            bytes = VarIntCodec.EncodeUnsigned(value);
+            bytes = encoding switch
+            {
+                VarIntEncoding.Vlq => VlqCodec.Encode(value),
+                VarIntEncoding.Prefix => PrefixVarIntCodec.Encode(value),
+                _ => Leb128Codec.Encode(value)
+            };
         }
         else
         {
             var value = ToSigned(field.Value, type, path);
-            bytes = encoding == VarIntEncoding.SLeb128 ? VarIntCodec.EncodeSigned(value) : VarIntCodec.EncodeZigZag(value);
+            bytes = encoding == VarIntEncoding.SLeb128 ? Sleb128Codec.Encode(value) : ZigZagCodec.Encode(value);
         }
 
         return FieldWriteResult<EncodedField>.Written(new(field.Name, typeof(byte[]), bytes, bytes.Length * 8), bytes.Length * 8);
@@ -51,17 +57,27 @@ internal sealed class VarIntProcessor : IFieldProcessor
         switch (encoding)
         {
             case VarIntEncoding.Leb128:
-                ok = VarIntCodec.TryDecodeUnsigned(bytes, out var u, out length);
+                ok = Leb128Codec.TryDecode(bytes, out var u, out length);
                 if (!ok) { return Incomplete(bytes, encoding, path); }
                 result = FromUnsigned(u, type, path, ref ok);
                 break;
+            case VarIntEncoding.Vlq:
+                ok = VlqCodec.TryDecode(bytes, out var v, out length);
+                if (!ok) { return Incomplete(bytes, encoding, path); }
+                result = FromUnsigned(v, type, path, ref ok);
+                break;
+            case VarIntEncoding.Prefix:
+                ok = PrefixVarIntCodec.TryDecode(bytes, out var p, out length);
+                if (!ok) { return Incomplete(bytes, encoding, path); }
+                result = FromUnsigned(p, type, path, ref ok);
+                break;
             case VarIntEncoding.SLeb128:
-                ok = VarIntCodec.TryDecodeSigned(bytes, out var s, out length);
+                ok = Sleb128Codec.TryDecode(bytes, out var s, out length);
                 if (!ok) { return Incomplete(bytes, encoding, path); }
                 result = FromSigned(s, type, path, ref ok);
                 break;
             default:
-                ok = VarIntCodec.TryDecodeZigZag(bytes, out var z, out length);
+                ok = ZigZagCodec.TryDecode(bytes, out var z, out length);
                 if (!ok) { return Incomplete(bytes, encoding, path); }
                 result = FromSigned(z, type, path, ref ok);
                 break;
@@ -78,7 +94,8 @@ internal sealed class VarIntProcessor : IFieldProcessor
 
     private static FieldReadResult<LogicalField> Incomplete(byte[] bytes, VarIntEncoding encoding, string path)
     {
-        if (bytes.Length >= VarIntCodec.MaxLength)
+        var max = encoding == VarIntEncoding.Prefix ? PrefixVarIntCodec.MaxLength : Leb128Codec.MaxLength;
+        if (bytes.Length >= max)
         {
             throw new InvalidOperationException($"'{path}': invalid {encoding} varint.");
         }
@@ -93,8 +110,10 @@ internal sealed class VarIntProcessor : IFieldProcessor
             null or "leb128" => VarIntEncoding.Leb128,
             "sleb128" => VarIntEncoding.SLeb128,
             "zigzag" => VarIntEncoding.ZigZag,
+            "vlq" => VarIntEncoding.Vlq,
+            "prefix" => VarIntEncoding.Prefix,
             _ => throw new InvalidOperationException(
-                $"Invalid '{context.Properties.FullName(EncodingProperty)}' value '{text}'. Expected 'leb128', 'sleb128' or 'zigzag'.")
+                $"Invalid '{context.Properties.FullName(EncodingProperty)}' value '{text}'. Expected 'leb128', 'sleb128', 'zigzag', 'vlq' or 'prefix'.")
         };
     }
 
@@ -199,13 +218,15 @@ internal sealed class VarIntProcessor : IFieldProcessor
     public PipelineStage Stage => PipelineStage.Representation;
     public IReadOnlyList<PropertyDescriptor> Properties =>
     [
-        new(EncodingProperty, typeof(string), false, description: "'leb128' (unsigned, default), 'sleb128' (signed) or 'zigzag' (protobuf sint).")
+        new(EncodingProperty, typeof(string), false, description: "'leb128' (unsigned, default), 'sleb128' (signed), 'zigzag' (protobuf sint), 'vlq' (MIDI, unsigned) or 'prefix' (length-prefixed, unsigned).")
     ];
 
     private enum VarIntEncoding
     {
         Leb128,
         SLeb128,
-        ZigZag
+        ZigZag,
+        Vlq,
+        Prefix
     }
 }
