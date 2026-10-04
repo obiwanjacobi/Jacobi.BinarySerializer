@@ -15,6 +15,7 @@ public sealed class ProcessorFactory : IProcessorFactory
         // Loayout Processors
         { "sys:bitpacker", new BitPackerProcessor() },
         { "sys:bytepacker", new BytePackerProcessor() },
+        { "sys:align", new AlignProcessor() },
     };
 
     public string Namespace => "sys";
