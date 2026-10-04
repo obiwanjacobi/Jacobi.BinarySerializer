@@ -105,17 +105,18 @@ public class FieldChainTests
         public PipelineStage Stage => PipelineStage.Representation;
         public IReadOnlyList<PropertyDescriptor> Properties => [];
 
-        public EncodedField Write(LogicalField field, FieldProcessorContext context)
+        public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
         {
             log.Add($"Write:{id}");
             var bytes = BitConverter.GetBytes((int)field.Value!);
-            return new EncodedField(field.Name, typeof(byte[]), bytes, 32);
+            return FieldWriteResult<EncodedField>.Written(new EncodedField(field.Name, typeof(byte[]), bytes, 32), 32);
         }
 
-        public LogicalField Read(EncodedField field, FieldProcessorContext context)
+        public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
         {
             log.Add($"Read:{id}");
-            return new LogicalField(field.Name, typeof(int), BitConverter.ToInt32((byte[])field.Value!));
+            return FieldReadResult<LogicalField>.Consumed(
+                new LogicalField(field.Name, typeof(int), BitConverter.ToInt32((byte[])field.Value!)), 32);
         }
     }
 
@@ -130,22 +131,22 @@ public class FieldChainTests
         public PipelineStage Stage => PipelineStage.Representation;
         public IReadOnlyList<PropertyDescriptor> Properties => [];
 
-        public EncodedField Write(LogicalField field, FieldProcessorContext context)
+        public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
             => throw new NotSupportedException("Only valid after a head.");
 
-        public LogicalField Read(EncodedField field, FieldProcessorContext context)
+        public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
             => throw new NotSupportedException("Only valid after a head.");
 
-        public EncodedField Write(EncodedField field, FieldProcessorContext context)
+        public FieldWriteResult<EncodedField> Write(EncodedField field, FieldProcessorContext context)
         {
             log.Add($"Write:{id}");
-            return Transform(field);
+            return FieldWriteResult<EncodedField>.Written(Transform(field), field.BitWidth);
         }
 
-        EncodedField IFieldReader<EncodedField, EncodedField>.Read(EncodedField field, FieldProcessorContext context)
+        FieldReadResult<EncodedField> IFieldReader<EncodedField, EncodedField>.Read(EncodedField field, FieldProcessorContext context)
         {
             log.Add($"Read:{id}");
-            return Transform(field);
+            return FieldReadResult<EncodedField>.Consumed(Transform(field), field.BitWidth);
         }
 
         private EncodedField Transform(EncodedField field)

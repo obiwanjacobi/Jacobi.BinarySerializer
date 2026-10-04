@@ -45,7 +45,7 @@ public sealed class DefaultFieldProcessor : IFieldProcessor
 
     public IReadOnlyList<PropertyDescriptor> Properties => [];
 
-    public EncodedField Write(LogicalField field, FieldProcessorContext context)
+    public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
     {
         var type = context.Field.Field.Type;
         if (!DataTypeCodec.TryEncode(type, field.Value, out var bytes))
@@ -54,10 +54,10 @@ public sealed class DefaultFieldProcessor : IFieldProcessor
                 $"'{context.Field.Path}': cannot encode value '{field.Value ?? "null"}' as {type}.");
         }
 
-        return new(field.Name, typeof(byte[]), bytes, bytes.Length * 8);
+        return FieldWriteResult<EncodedField>.Written(new(field.Name, typeof(byte[]), bytes, bytes.Length * 8), bytes.Length * 8);
     }
 
-    public LogicalField Read(EncodedField field, FieldProcessorContext context)
+    public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
     {
         var type = context.Field.Field.Type;
         if (field.Value is not byte[] bytes || !DataTypeCodec.TryDecode(type, bytes, out var value))
@@ -65,13 +65,17 @@ public sealed class DefaultFieldProcessor : IFieldProcessor
             throw new InvalidOperationException($"'{context.Field.Path}': cannot decode the encoded value as {type}.");
         }
 
-        return new(field.Name, DataTypeCodec.ClrType(type) ?? typeof(object), value);
+        return FieldReadResult<LogicalField>.Consumed(
+            new(field.Name, DataTypeCodec.ClrType(type) ?? typeof(object), value), bytes.Length * 8);
     }
 }
 
 /// <summary>Pass-through: forwards already-encoded bytes unchanged. The session skips empty stages, so this is only used when asked for explicitly.</summary>
 public sealed class DefaultLayoutProcessor : ILayoutProcessor
 {
+    /// <summary>The most bytes offered to a field processor that decides its own width (enough for a 64-bit varint).</summary>
+    public const int OpenWidthWindowBytes = 10;
+
     public ProcessorKey Key => new("default", "layout");
     public string Name => "Default Layout Processor";
     public PipelineStage Stage => PipelineStage.Layout;
@@ -102,32 +106,45 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
 
     public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
-    public ReadResult Read(ref SequenceReader<byte> reader, out EncodedField encodedValue, LayoutProcessorContext context)
+    public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var field = context.Field;
         var name = field?.Name ?? string.Empty;
+
+        if (field is not null && field.Pipeline.FieldProcessors.Count > 0)
+        {
+            // The field processor decides how much of the window it uses (it reports that in its read result);
+            // the engine gives the unused bytes back to the reader.
+            var window = (int)Math.Min(OpenWidthWindowBytes, reader.Remaining);
+            if (window == 0)
+            {
+                return LayoutReadResult<EncodedField>.NeedMoreData();
+            }
+
+            var windowBytes = new byte[window];
+            reader.TryCopyTo(windowBytes);
+            reader.Advance(window);
+            return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), windowBytes, window * 8));
+        }
 
         if (field is not null && DataTypeCodec.FixedSize(field.Field.Type) is { } size)
         {
             if (reader.Remaining < size)
             {
-                encodedValue = new EncodedField(name, typeof(byte[]), null, 0);
-                return ReadResult.NeedMoreData;
+                return LayoutReadResult<EncodedField>.NeedMoreData();
             }
 
             var bytes = new byte[size];
             reader.TryCopyTo(bytes);
             reader.Advance(size);
-            encodedValue = new EncodedField(name, typeof(byte[]), bytes, size * 8);
-            return ReadResult.Success;
+            return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), bytes, size * 8));
         }
 
         // TODO: variable-width fields (String) need length info; all unread bytes are passed on as one value.
         // See if there is a length property in the FieldInfo.
         var remaining = reader.UnreadSequence.ToArray();
         reader.Advance(remaining.Length);
-        encodedValue = new EncodedField(name, typeof(byte[]), remaining, remaining.Length * 8);
-        return ReadResult.Success;
+        return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), remaining, remaining.Length * 8));
     }
     public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
 }

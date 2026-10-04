@@ -318,11 +318,8 @@ public class ExecutionPlanBuilderTests
             => WriteResult.Success;
         public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
         public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
-        public ReadResult Read(ref SequenceReader<byte> reader, out EncodedField outValue, LayoutProcessorContext context)
-        {
-            outValue = new EncodedField(string.Empty, typeof(object), null, 0);
-            return ReadResult.Success;
-        }
+        public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+            => LayoutReadResult<EncodedField>.Success(new EncodedField(string.Empty, typeof(object), null, 0));
         public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
     }
 

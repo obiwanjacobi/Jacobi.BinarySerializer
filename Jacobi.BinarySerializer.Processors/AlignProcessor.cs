@@ -44,14 +44,13 @@ internal sealed class AlignProcessor : ILayoutProcessor, ILayoutWriter<ReadOnlyS
     {
     }
 
-    public ReadResult Read(ref SequenceReader<byte> reader, out EncodedField outValue, LayoutProcessorContext context)
+    public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         if (!TrySkip(ref reader, context))
         {
-            outValue = new EncodedField(context.Field?.Name ?? string.Empty, typeof(byte[]), null, 0);
-            return ReadResult.NeedMoreData;
+            return LayoutReadResult<EncodedField>.NeedMoreData();
         }
-        return ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, out outValue, context);
+        return ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
     }
 
     public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
@@ -69,15 +68,13 @@ internal sealed class AlignProcessor : ILayoutProcessor, ILayoutWriter<ReadOnlyS
         return WriteResult.Success;
     }
 
-    public ReadResult Read(ref SequenceReader<byte> reader, out ReadOnlyMemory<byte> outValue, LayoutProcessorContext context)
+    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         if (!TrySkip(ref reader, context))
         {
-            outValue = default;
-            return ReadResult.NeedMoreData;
+            return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData();
         }
-        outValue = LayoutChain.Unread(reader);
-        return ReadResult.Success;
+        return LayoutReadResult<ReadOnlyMemory<byte>>.Success(LayoutChain.Unread(reader));
     }
 
     private static bool TrySkip(ref SequenceReader<byte> reader, LayoutProcessorContext context)

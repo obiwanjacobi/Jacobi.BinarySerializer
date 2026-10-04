@@ -65,9 +65,10 @@ public class DefaultProcessorTests
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>([7, 8]));
         var context = new LayoutProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
 
-        var result = new DefaultLayoutProcessor().Read(ref reader, out var encoded, context);
+        var result = new DefaultLayoutProcessor().Read(ref reader, context);
+        var encoded = result.Value;
 
-        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That(result.Status, Is.EqualTo(ReadResult.Success));
         Assert.That(encoded.Value, Is.EqualTo(new byte[] { 7, 8 }));
         Assert.That(encoded.BitWidth, Is.EqualTo(16));
         Assert.That(reader.End, Is.True);
@@ -80,9 +81,10 @@ public class DefaultProcessorTests
         var context = new LayoutProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
         context.Field = CreateField(SchemaDataType.Int32);
 
-        var result = new DefaultLayoutProcessor().Read(ref reader, out var encoded, context);
+        var result = new DefaultLayoutProcessor().Read(ref reader, context);
+        var encoded = result.Value;
 
-        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That(result.Status, Is.EqualTo(ReadResult.Success));
         Assert.That(encoded.Value, Is.EqualTo(new byte[] { 1, 0, 0, 0 }));
         Assert.That(encoded.BitWidth, Is.EqualTo(32));
         Assert.That(reader.Remaining, Is.EqualTo(2));
@@ -95,9 +97,9 @@ public class DefaultProcessorTests
         var context = new LayoutProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
         context.Field = CreateField(SchemaDataType.Int32);
 
-        var result = new DefaultLayoutProcessor().Read(ref reader, out _, context);
+        var result = new DefaultLayoutProcessor().Read(ref reader, context);
 
-        Assert.That(result, Is.EqualTo(ReadResult.NeedMoreData));
+        Assert.That(result.Status, Is.EqualTo(ReadResult.NeedMoreData));
         Assert.That(reader.Remaining, Is.EqualTo(2));
     }
 
@@ -107,7 +109,7 @@ public class DefaultProcessorTests
         var context = new FieldProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
         context.Field = CreateField(SchemaDataType.UInt16);
 
-        var encoded = new DefaultFieldProcessor().Write(new LogicalField("F", typeof(int), 258), context);
+        var encoded = new DefaultFieldProcessor().Write(new LogicalField("F", typeof(int), 258), context).Value;
 
         Assert.That(encoded.Value, Is.EqualTo(new byte[] { 2, 1 }));
         Assert.That(encoded.BitWidth, Is.EqualTo(16));
@@ -131,7 +133,7 @@ public class DefaultProcessorTests
         var context = new FieldProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
         context.Field = CreateField(SchemaDataType.Int16);
 
-        var logical = new DefaultFieldProcessor().Read(new EncodedField("F", typeof(byte[]), new byte[] { 0xFE, 0xFF }, 16), context);
+        var logical = new DefaultFieldProcessor().Read(new EncodedField("F", typeof(byte[]), new byte[] { 0xFE, 0xFF }, 16), context).Value;
 
         Assert.That(logical.Value, Is.EqualTo((short)-2));
         Assert.That(logical.LogicalType, Is.EqualTo(typeof(short)));
@@ -147,7 +149,7 @@ public class DefaultProcessorTests
         layoutWrite.Field = field;
         var output = new ArrayBufferWriter<byte>();
 
-        var encoded = new DefaultFieldProcessor().Write(new LogicalField("F", typeof(double), 2.5), writeContext);
+        var encoded = new DefaultFieldProcessor().Write(new LogicalField("F", typeof(double), 2.5), writeContext).Value;
         new DefaultLayoutProcessor().Write(output, encoded, layoutWrite);
 
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(output.WrittenMemory));
@@ -156,8 +158,8 @@ public class DefaultProcessorTests
         var readContext = new FieldProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
         readContext.Field = field;
 
-        new DefaultLayoutProcessor().Read(ref reader, out var readEncoded, layoutRead);
-        var logical = new DefaultFieldProcessor().Read(readEncoded, readContext);
+        var readEncoded = new DefaultLayoutProcessor().Read(ref reader, layoutRead).Value;
+        var logical = new DefaultFieldProcessor().Read(readEncoded, readContext).Value;
 
         Assert.That(logical.Value, Is.EqualTo(2.5));
     }

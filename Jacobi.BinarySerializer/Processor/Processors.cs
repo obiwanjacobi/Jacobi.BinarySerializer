@@ -38,11 +38,32 @@ public interface IValueReader<InT, OutT> : IProcessor
 public interface IFieldProcessor : IFieldWriter<LogicalField, EncodedField>, IFieldReader<EncodedField, LogicalField> { }
 public interface IFieldWriter<InT, OutT> : IProcessor
 {
-    OutT Write(InT field, FieldProcessorContext context);
+    /// <summary>The result states how many bits the encoded value occupies; the engine uses that as the field's BitWidth.</summary>
+    FieldWriteResult<OutT> Write(InT field, FieldProcessorContext context);
 }
 public interface IFieldReader<InT, OutT> : IProcessor
 {
-    OutT Read(InT field, FieldProcessorContext context);
+    /// <summary>The result states how many bits of the provided encoded value were consumed, so a processor cannot forget to.</summary>
+    FieldReadResult<OutT> Read(InT field, FieldProcessorContext context);
+}
+
+/// <summary>The outcome of a field write: the value and the number of bits it occupies.</summary>
+public readonly record struct FieldWriteResult<T>(WriteResult Status, T Value, int BitsWritten)
+{
+    public static FieldWriteResult<T> Written(T value, int bitsWritten) => new(WriteResult.Success, value, bitsWritten);
+    public static FieldWriteResult<T> Failure() => new(WriteResult.Failure, default!, 0);
+}
+
+/// <summary>
+/// The outcome of a field read:
+/// A fixed-width field must consume exactly its width; an open-width field (e.g. varint) is offered a window
+/// (see <see cref="DefaultLayoutProcessor.OpenWidthWindowBytes"/>) and the engine gives back the bytes that were not consumed.
+/// </summary>
+public readonly record struct FieldReadResult<T>(ReadResult Status, T Value, int BitsConsumed)
+{
+    public static FieldReadResult<T> Consumed(T value, int bitsConsumed) => new(ReadResult.Success, value, bitsConsumed);
+    public static FieldReadResult<T> NeedMoreData() => new(ReadResult.NeedMoreData, default!, 0);
+    public static FieldReadResult<T> Failure() => new(ReadResult.Failure, default!, 0);
 }
 
 // Layout pipeline stage: bit packing, alignment, endian conversion, etc.
@@ -65,8 +86,18 @@ public interface ILayoutWriter<InT> : IProcessor where InT : allows ref struct
 public interface ILayoutReader<OutT> : IProcessor
 {
     void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
-    ReadResult Read(ref SequenceReader<byte> reader, out OutT outValue, LayoutProcessorContext context);
+    LayoutReadResult<OutT> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context);
     void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
+}
+
+/// <summary>The outcome of a layout read: the value, or a status why there is none. Widths are measured by the engine (reader.Consumed), not reported.</summary>
+public readonly record struct LayoutReadResult<T>(ReadResult Status, T Value)
+{
+    public static LayoutReadResult<T> Success(T value) => new(ReadResult.Success, value);
+    public static LayoutReadResult<T> NeedMoreData() => new(ReadResult.NeedMoreData, default!);
+    public static LayoutReadResult<T> EndOfData() => new(ReadResult.EndOfData, default!);
+    public static LayoutReadResult<T> Failure() => new(ReadResult.Failure, default!);
+    public static LayoutReadResult<T> WithStatus(ReadResult status) => new(status, default!);
 }
 
 // Stream pipeline stage: framing, compression, encryption, etc.

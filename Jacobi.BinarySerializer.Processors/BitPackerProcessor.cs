@@ -66,21 +66,20 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
         state.Reader = new BitReader(GetBitOrder(context));
     }
 
-    public ReadResult Read(ref SequenceReader<byte> reader, out EncodedField encodedValue, LayoutProcessorContext context)
+    public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var field = context.Field;
         var name = field?.Name ?? String.Empty;
-        encodedValue = new EncodedField(name, typeof(byte[]), null, 0);
 
         if (field is null || DataTypeCodec.FixedSize(field.Field.Type) is not { } size || size > 8)
         {
-            return ReadResult.Failure;
+            return LayoutReadResult<EncodedField>.Failure();
         }
 
         var bits = GetBits(context, size * 8);
         if (bits < 1 || bits > size * 8)
         {
-            return ReadResult.Failure;
+            return LayoutReadResult<EncodedField>.Failure();
         }
 
         var state = context.GetOrCreateState<BitPackerState>();
@@ -89,8 +88,8 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
         if (!state.Reader.TryRead(ref reader, bits, out var value))
         {
             return reader.Remaining == 0 && state.Reader.PendingBits == 0
-                ? ReadResult.EndOfData
-                : ReadResult.NeedMoreData;
+                ? LayoutReadResult<EncodedField>.EndOfData()
+                : LayoutReadResult<EncodedField>.NeedMoreData();
         }
 
         if (IsSigned(field) && bits < 64 && (value & (1UL << (bits - 1))) != 0)
@@ -104,8 +103,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
             result[i] = (byte)(value >> (8 * i));
         }
 
-        encodedValue = new EncodedField(name, typeof(byte[]), result, bits);
-        return ReadResult.Success;
+        return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), result, bits));
     }
 
     public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)

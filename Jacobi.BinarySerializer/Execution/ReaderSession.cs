@@ -149,29 +149,30 @@ public sealed class ReaderSession : SessionState
         _layoutContext.Group = field.Parent!;
         _layoutContext.Field = field;
         EncodedField encoded;
-        ReadResult layoutResult;
+        LayoutReadResult<EncodedField> layoutRead;
         switch (pipeline.LayoutProcessors.Count)
         {
             case 0:
                 Prepare(_layoutContext, null);
                 SetPosition(reader.Consumed);
-                layoutResult = ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, out encoded, _layoutContext);
+                layoutRead = ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, _layoutContext);
                 break;
             case 1:
                 var layoutBinding = pipeline.LayoutProcessors[0];
                 Prepare(_layoutContext, layoutBinding);
                 SetPosition(reader.Consumed);
-                layoutResult = ((ILayoutProcessor)layoutBinding.Processor).Read(ref reader, out encoded, _layoutContext);
+                layoutRead = ((ILayoutProcessor)layoutBinding.Processor).Read(ref reader, _layoutContext);
                 break;
             default:
-                layoutResult = ReadChained(pipeline.LayoutProcessors, ref reader, out encoded);
+                layoutRead = ReadChained(pipeline.LayoutProcessors, ref reader);
                 break;
         }
 
-        if (layoutResult != ReadResult.Success)
+        if (layoutRead.Status != ReadResult.Success)
         {
-            return layoutResult;
+            return layoutRead.Status;
         }
+        encoded = layoutRead.Value;
 
         // Representation: encoded -> logical
         LogicalField logical;
@@ -184,14 +185,27 @@ public sealed class ReaderSession : SessionState
                 }
                 logical = new LogicalField(encoded.Name, DataTypeCodec.ClrType(field.Field.Type) ?? typeof(object), value);
                 break;
-            case 1:
-                var fieldBinding = pipeline.FieldProcessors[0];
-                _fieldContext.Field = field;
-                Prepare(_fieldContext, fieldBinding);
-                logical = ((IFieldProcessor)fieldBinding.Processor).Read(encoded, _fieldContext);
-                break;
             default:
-                logical = ReadChained(pipeline.FieldProcessors, encoded, field);
+                var provided = encoded.BitWidth;
+                _fieldContext.Field = field;
+                var fieldResult = pipeline.FieldProcessors.Count == 1
+                    ? ReadSingle(pipeline.FieldProcessors[0], encoded)
+                    : ReadChained(pipeline.FieldProcessors, encoded, field);
+
+                if (fieldResult.Status != ReadResult.Success)
+                {
+                    reader.Rewind(provided / 8);
+                    return fieldResult.Status;
+                }
+                if (fieldResult.BitsConsumed < 0 || fieldResult.BitsConsumed > provided || fieldResult.BitsConsumed % 8 != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"'{field.Path}': the field processor consumed {fieldResult.BitsConsumed} bits of the {provided} bits provided.");
+                }
+
+                // give back the part of the window the processor did not use.
+                reader.Rewind((provided - fieldResult.BitsConsumed) / 8);
+                logical = fieldResult.Value;
                 break;
         }
 
@@ -250,17 +264,27 @@ public sealed class ReaderSession : SessionState
         _groupStarts.Pop();
     }
 
-    /// <summary>Reverse order of writing: the last stage first (encoded to encoded), the head last (encoded to logical).</summary>
-    private LogicalField ReadChained(IReadOnlyList<ProcessorBinding> chain, EncodedField encoded, FieldInfo field)
+    private FieldReadResult<LogicalField> ReadSingle(ProcessorBinding binding, EncodedField encoded)
+    {
+        Prepare(_fieldContext, binding);
+        return ((IFieldProcessor)binding.Processor).Read(encoded, _fieldContext);
+    }
+
+    /// <summary>Reverse order of writing: the last stage first (encoded to encoded), the head last (encoded to logical). The head decides the consumed width.</summary>
+    private FieldReadResult<LogicalField> ReadChained(IReadOnlyList<ProcessorBinding> chain, EncodedField encoded, FieldInfo field)
     {
         _fieldContext.Field = field;
         for (var i = chain.Count - 1; i >= 1; i--)
         {
             Prepare(_fieldContext, chain[i]);
-            encoded = ((IFieldReader<EncodedField, EncodedField>)chain[i].Processor).Read(encoded, _fieldContext);
+            var step = ((IFieldReader<EncodedField, EncodedField>)chain[i].Processor).Read(encoded, _fieldContext);
+            if (step.Status != ReadResult.Success)
+            {
+                return new(step.Status, default!, 0);
+            }
+            encoded = step.Value;
         }
-        Prepare(_fieldContext, chain[0]);
-        return ((IFieldProcessor)chain[0].Processor).Read(encoded, _fieldContext);
+        return ReadSingle(chain[0], encoded);
     }
 
     private void SetPosition(long consumed)
@@ -273,7 +297,7 @@ public sealed class ReaderSession : SessionState
     /// Reads a field through a chain: the last processor sees the actual input first and passes the unread rest on (towards the head).
     /// The chained stages only strip what they own (e.g. padding); the head reads the field. The actual reader advances by what was consumed in total.
     /// </summary>
-    private ReadResult ReadChained(IReadOnlyList<ProcessorBinding> chain, ref SequenceReader<byte> reader, out EncodedField encoded)
+    private LayoutReadResult<EncodedField> ReadChained(IReadOnlyList<ProcessorBinding> chain, ref SequenceReader<byte> reader)
     {
         var start = reader.Consumed;
         var initialRemaining = reader.Remaining;
@@ -284,20 +308,19 @@ public sealed class ReaderSession : SessionState
             var stageReader = new SequenceReader<byte>(current);
             Prepare(_layoutContext, chain[j]);
             SetPosition(start + (initialRemaining - current.Length));
-            var result = ((ILayoutReader<ReadOnlyMemory<byte>>)chain[j].Processor).Read(ref stageReader, out var rest, _layoutContext);
-            if (result != ReadResult.Success)
+            var result = ((ILayoutReader<ReadOnlyMemory<byte>>)chain[j].Processor).Read(ref stageReader, _layoutContext);
+            if (result.Status != ReadResult.Success)
             {
-                encoded = new EncodedField(_layoutContext.Field?.Name ?? string.Empty, typeof(byte[]), null, 0);
-                return result;
+                return LayoutReadResult<EncodedField>.WithStatus(result.Status);
             }
-            current = new ReadOnlySequence<byte>(rest);
+            current = new ReadOnlySequence<byte>(result.Value);
         }
 
         var headReader = new SequenceReader<byte>(current);
         Prepare(_layoutContext, chain[0]);
         SetPosition(start + (initialRemaining - current.Length));
-        var headResult = ((ILayoutProcessor)chain[0].Processor).Read(ref headReader, out encoded, _layoutContext);
-        if (headResult == ReadResult.Success)
+        var headResult = ((ILayoutProcessor)chain[0].Processor).Read(ref headReader, _layoutContext);
+        if (headResult.Status == ReadResult.Success)
         {
             reader.Advance(initialRemaining - headReader.Remaining);
         }

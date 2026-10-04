@@ -160,10 +160,10 @@ public class LayoutChainTests
         public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
             => log.Add($"Begin:{id}");
 
-        public ReadResult Read(ref SequenceReader<byte> reader, out EncodedField outValue, LayoutProcessorContext context)
+        public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
             log.Add($"Read:{context.RootPosition}/{context.GroupPosition}");
-            return ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, out outValue, context);
+            return ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
         }
 
         public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
@@ -212,21 +212,19 @@ public class LayoutChainTests
         public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
             => log.Add("Begin:align");
 
-        public ReadResult Read(ref SequenceReader<byte> reader, out EncodedField outValue, LayoutProcessorContext context)
-            => ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, out outValue, context);
+        public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+            => ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
 
-        public ReadResult Read(ref SequenceReader<byte> reader, out ReadOnlyMemory<byte> outValue, LayoutProcessorContext context)
+        LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
             log.Add($"Read:{context.RootPosition}/{context.GroupPosition}");
             var padding = Padding(context);
             if (reader.Remaining < padding)
             {
-                outValue = default;
-                return ReadResult.NeedMoreData;
+                return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData();
             }
             reader.Advance(padding);
-            outValue = LayoutChain.Unread(reader);
-            return ReadResult.Success;
+            return LayoutReadResult<ReadOnlyMemory<byte>>.Success(LayoutChain.Unread(reader));
         }
 
         public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)

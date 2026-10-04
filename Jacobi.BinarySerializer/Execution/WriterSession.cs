@@ -205,10 +205,20 @@ public sealed class WriterSession : SessionState
                 var fieldBinding = pipeline.FieldProcessors[0];
                 _fieldContext.Field = field;
                 Prepare(_fieldContext, fieldBinding);
-                encoded = ((IFieldProcessor)fieldBinding.Processor).Write(logical, _fieldContext);
+                var single = ((IFieldProcessor)fieldBinding.Processor).Write(logical, _fieldContext);
+                if (single.Status != WriteResult.Success)
+                {
+                    return single.Status;
+                }
+                encoded = single.Value with { BitWidth = single.BitsWritten };
                 break;
             default:
-                encoded = WriteChained(pipeline.FieldProcessors, logical, field);
+                var chained = WriteChained(pipeline.FieldProcessors, logical, field);
+                if (chained.Status != WriteResult.Success)
+                {
+                    return chained.Status;
+                }
+                encoded = chained.Value with { BitWidth = chained.BitsWritten };
                 break;
         }
 
@@ -232,17 +242,17 @@ public sealed class WriterSession : SessionState
     }
 
     /// <summary>The head turns the logical value into an encoded one, each following stage transforms the encoded value.</summary>
-    private EncodedField WriteChained(IReadOnlyList<ProcessorBinding> chain, LogicalField logical, FieldInfo field)
+    private FieldWriteResult<EncodedField> WriteChained(IReadOnlyList<ProcessorBinding> chain, LogicalField logical, FieldInfo field)
     {
         _fieldContext.Field = field;
         Prepare(_fieldContext, chain[0]);
-        var encoded = ((IFieldProcessor)chain[0].Processor).Write(logical, _fieldContext);
-        for (var i = 1; i < chain.Count; i++)
+        var result = ((IFieldProcessor)chain[0].Processor).Write(logical, _fieldContext);
+        for (var i = 1; i < chain.Count && result.Status == WriteResult.Success; i++)
         {
             Prepare(_fieldContext, chain[i]);
-            encoded = ((IFieldWriter<EncodedField, EncodedField>)chain[i].Processor).Write(encoded, _fieldContext);
+            result = ((IFieldWriter<EncodedField, EncodedField>)chain[i].Processor).Write(result.Value with { BitWidth = result.BitsWritten }, _fieldContext);
         }
-        return encoded;
+        return result;
     }
 
     private void SetPosition()

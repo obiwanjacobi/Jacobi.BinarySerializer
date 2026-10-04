@@ -33,13 +33,13 @@ internal sealed class BytePackerProcessor : ILayoutProcessor
     public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         => ProcessorDefaults.DefaultLayoutProcessor.BeginRead(ref reader, context);
 
-    public ReadResult Read(ref SequenceReader<byte> reader, out EncodedField encodedValue, LayoutProcessorContext context)
+    public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
-        var result = ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, out encodedValue, context);
-        if (result == ReadResult.Success && encodedValue.Value is byte[] bytes && IsFixedWidth(context))
+        var result = ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
+        if (result.Status == ReadResult.Success && result.Value.Value is byte[] bytes && IsFixedWidth(context))
         {
             var converted = EndianCodec.Convert(bytes, GetEndianness(context), Endianness.Little);
-            encodedValue = encodedValue with { Value = converted };
+            return LayoutReadResult<EncodedField>.Success(result.Value with { Value = converted });
         }
 
         return result;

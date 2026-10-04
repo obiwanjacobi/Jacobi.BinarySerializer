@@ -77,15 +77,14 @@ internal static class SessionTestHelpers
         public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
             => log.Add($"Begin:{context.Group.Path}");
 
-        public ReadResult Read(ref SequenceReader<byte> reader, out EncodedField outValue, LayoutProcessorContext context)
+        public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
             log.Add($"Read:{context.Field!.Path}");
             if (fail)
             {
-                outValue = new EncodedField(context.Field.Name, typeof(byte[]), null, 0);
-                return ReadResult.Failure;
+                return LayoutReadResult<EncodedField>.Failure();
             }
-            return ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, out outValue, context);
+            return ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
         }
 
         public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
@@ -116,18 +115,20 @@ internal static class SessionTestHelpers
 
         public IReadOnlyList<PropertyDescriptor> Properties => [];
 
-        public EncodedField Write(LogicalField field, FieldProcessorContext context)
+        public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
         {
             DataTypeCodec.TryEncode(context.Field.Field.Type, field.Value, out var bytes);
             Array.Reverse(bytes);
-            return new EncodedField(field.Name, typeof(byte[]), bytes, bytes.Length * 8);
+            return FieldWriteResult<EncodedField>.Written(new EncodedField(field.Name, typeof(byte[]), bytes, bytes.Length * 8), bytes.Length * 8);
         }
 
-        public LogicalField Read(EncodedField field, FieldProcessorContext context)
+        public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
         {
-            var bytes = ((byte[])field.Value!).Reverse().ToArray();
+            var all = (byte[])field.Value!;
+            var size = DataTypeCodec.FixedSize(context.Field.Field.Type) ?? all.Length;
+            var bytes = all.Take(size).Reverse().ToArray();
             DataTypeCodec.TryDecode(context.Field.Field.Type, bytes, out var value);
-            return new LogicalField(field.Name, value!.GetType(), value);
+            return FieldReadResult<LogicalField>.Consumed(new LogicalField(field.Name, value!.GetType(), value), size * 8);
         }
     }
 
