@@ -18,6 +18,7 @@ public sealed class ReaderSession : SessionState
     private readonly ExecutionPlan _plan;
     private readonly IServiceProvider _services;
     private InstancePath _instance;
+    private readonly Stack<long> _groupStarts = new();
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
@@ -63,6 +64,7 @@ public sealed class ReaderSession : SessionState
         }
 
         var reader = new SequenceReader<byte>(payload);
+        _groupStarts.Clear();
         var cursor = new PlanCursor<IValueSink>(root, range);
         while (true)
         {
@@ -152,16 +154,18 @@ public sealed class ReaderSession : SessionState
         {
             case 0:
                 Prepare(_layoutContext, null);
+                SetPosition(reader.Consumed);
                 layoutResult = ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, out encoded, _layoutContext);
                 break;
             case 1:
                 var layoutBinding = pipeline.LayoutProcessors[0];
                 Prepare(_layoutContext, layoutBinding);
+                SetPosition(reader.Consumed);
                 layoutResult = ((ILayoutProcessor)layoutBinding.Processor).Read(ref reader, out encoded, _layoutContext);
                 break;
             default:
-                // TODO: several layout processors reading from the same input.
-                throw new NotSupportedException($"'{field.Path}': multiple Layout processors are not supported.");
+                layoutResult = ReadChained(pipeline.LayoutProcessors, ref reader, out encoded);
+                break;
         }
 
         if (layoutResult != ReadResult.Success)
@@ -187,8 +191,8 @@ public sealed class ReaderSession : SessionState
                 logical = ((IFieldProcessor)fieldBinding.Processor).Read(encoded, _fieldContext);
                 break;
             default:
-                // TODO: field processors cannot be chained (EncodedField -> LogicalField).
-                throw new NotSupportedException($"'{field.Path}': multiple Representation processors are not supported.");
+                logical = ReadChained(pipeline.FieldProcessors, encoded, field);
+                break;
         }
 
         // Semantic: reverse order of writing
@@ -216,12 +220,15 @@ public sealed class ReaderSession : SessionState
             return;
         }
 
+        _groupStarts.Push(reader.Consumed);
         _layoutContext.Group = group;
         _layoutContext.Field = null;
-        foreach (var binding in group.Pipeline.LayoutProcessors)
+        var chain = group.Pipeline.LayoutProcessors;
+        for (var i = chain.Count - 1; i >= 0; i--)
         {
-            Prepare(_layoutContext, binding);
-            ((ILayoutProcessor)binding.Processor).BeginRead(ref reader, _layoutContext);
+            Prepare(_layoutContext, chain[i]);
+            SetPosition(reader.Consumed);
+            ((ILayoutProcessor)chain[i].Processor).BeginRead(ref reader, _layoutContext);
         }
     }
 
@@ -237,8 +244,64 @@ public sealed class ReaderSession : SessionState
         foreach (var binding in group.Pipeline.LayoutProcessors)
         {
             Prepare(_layoutContext, binding);
+            SetPosition(reader.Consumed);
             ((ILayoutProcessor)binding.Processor).EndRead(ref reader, _layoutContext);
         }
+        _groupStarts.Pop();
+    }
+
+    /// <summary>Reverse order of writing: the last stage first (encoded to encoded), the head last (encoded to logical).</summary>
+    private LogicalField ReadChained(IReadOnlyList<ProcessorBinding> chain, EncodedField encoded, FieldInfo field)
+    {
+        _fieldContext.Field = field;
+        for (var i = chain.Count - 1; i >= 1; i--)
+        {
+            Prepare(_fieldContext, chain[i]);
+            encoded = ((IFieldReader<EncodedField, EncodedField>)chain[i].Processor).Read(encoded, _fieldContext);
+        }
+        Prepare(_fieldContext, chain[0]);
+        return ((IFieldProcessor)chain[0].Processor).Read(encoded, _fieldContext);
+    }
+
+    private void SetPosition(long consumed)
+    {
+        _layoutContext.RootPosition = consumed;
+        _layoutContext.GroupPosition = consumed - (_groupStarts.Count > 0 ? _groupStarts.Peek() : 0);
+    }
+
+    /// <summary>
+    /// Reads a field through a chain: the last processor sees the actual input first and passes the unread rest on (towards the head).
+    /// The chained stages only strip what they own (e.g. padding); the head reads the field. The actual reader advances by what was consumed in total.
+    /// </summary>
+    private ReadResult ReadChained(IReadOnlyList<ProcessorBinding> chain, ref SequenceReader<byte> reader, out EncodedField encoded)
+    {
+        var start = reader.Consumed;
+        var initialRemaining = reader.Remaining;
+        var current = reader.UnreadSequence;
+
+        for (var j = chain.Count - 1; j >= 1; j--)
+        {
+            var stageReader = new SequenceReader<byte>(current);
+            Prepare(_layoutContext, chain[j]);
+            SetPosition(start + (initialRemaining - current.Length));
+            var result = ((ILayoutReader<ReadOnlyMemory<byte>>)chain[j].Processor).Read(ref stageReader, out var rest, _layoutContext);
+            if (result != ReadResult.Success)
+            {
+                encoded = new EncodedField(_layoutContext.Field?.Name ?? string.Empty, typeof(byte[]), null, 0);
+                return result;
+            }
+            current = new ReadOnlySequence<byte>(rest);
+        }
+
+        var headReader = new SequenceReader<byte>(current);
+        Prepare(_layoutContext, chain[0]);
+        SetPosition(start + (initialRemaining - current.Length));
+        var headResult = ((ILayoutProcessor)chain[0].Processor).Read(ref headReader, out encoded, _layoutContext);
+        if (headResult == ReadResult.Success)
+        {
+            reader.Advance(initialRemaining - headReader.Remaining);
+        }
+        return headResult;
     }
 
     /// <summary>Runs the stream stage (reverse order of writing) over the transport input into the payload.</summary>

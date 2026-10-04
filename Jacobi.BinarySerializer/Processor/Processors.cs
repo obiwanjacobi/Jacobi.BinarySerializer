@@ -46,8 +46,17 @@ public interface IFieldReader<InT, OutT> : IProcessor
 }
 
 // Layout pipeline stage: bit packing, alignment, endian conversion, etc.
+// Every layout processor is a chain head (ILayoutProcessor: field <-> bytes).
+// A processor that can also FOLLOW another one in a chain additionally implements the byte-to-byte variants
+// ILayoutWriter<ReadOnlySpan<byte>> and ILayoutReader<ReadOnlyMemory<byte>> (the plan builder checks this).
+// Chain order = declaration order: the first processor is the head, the last one writes to / reads from the actual stream.
+// The engine owns the buffers between the stages; processors stay stateless.
+// Write: Begin runs last-to-first, End runs first-to-last; the bytes a stage emits (also in Begin/End) flow through the later stages.
+// Read: Begin/End work on the actual reader (same order as write). A chained field Read gets a reader over the unread input:
+//       it consumes the bytes it owns (e.g. padding) and returns the rest (see LayoutChain.Unread) for the next stage; keep the length.
+// Context.RootPosition / GroupPosition tell where in the actual stream the call happens.
 public interface ILayoutProcessor : ILayoutWriter<EncodedField>, ILayoutReader<EncodedField> { }
-public interface ILayoutWriter<InT> : IProcessor
+public interface ILayoutWriter<InT> : IProcessor where InT : allows ref struct
 {
     void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context);
     WriteResult Write(IBufferWriter<byte> writer, InT encodedValue, LayoutProcessorContext context);

@@ -27,14 +27,17 @@ public sealed class WriterSession : SessionState
 
     // where layout processors write: the output, or the root payload when the root has stream processors.
     private IBufferWriter<byte> _target;
+    private CountingBufferWriter _counter;
+    private readonly Stack<long> _groupStarts = new();
+    private readonly List<ArrayBufferWriter<byte>> _chainBuffers = [];
 
     public WriterSession(ExecutionPlan plan, IBufferWriter<byte> output, IServiceProvider? services = null)
     {
         _plan = plan ?? throw new ArgumentNullException(nameof(plan));
         _output = output ?? throw new ArgumentNullException(nameof(output));
-        _target = output;
+        _counter = new CountingBufferWriter(output);
+        _target = _counter;
         _services = services ?? EmptyServiceProvider.Instance;
-
         _valueContext = new ValueProcessorContext(this) { Services = _services, Stage = PipelineStage.Semantic };
         _fieldContext = new FieldProcessorContext(this) { Services = _services, Stage = PipelineStage.Representation };
         _layoutContext = new LayoutProcessorContext(this) { Services = _services, Stage = PipelineStage.Layout };
@@ -59,7 +62,9 @@ public sealed class WriterSession : SessionState
 
         var root = _plan.Root;
         var payload = root.Pipeline.StreamProcessors.Count > 0 ? new ArrayBufferWriter<byte>() : null;
-        _target = payload ?? _output;
+        _counter = new CountingBufferWriter(payload ?? _output);
+        _target = _counter;
+        _groupStarts.Clear();
 
         var cursor = new PlanCursor<IValueSource>(root, range);
         while (true)
@@ -203,8 +208,8 @@ public sealed class WriterSession : SessionState
                 encoded = ((IFieldProcessor)fieldBinding.Processor).Write(logical, _fieldContext);
                 break;
             default:
-                // TODO: field processors cannot be chained (LogicalField -> EncodedField).
-                throw new NotSupportedException($"'{field.Path}': multiple Representation processors are not supported.");
+                encoded = WriteChained(pipeline.FieldProcessors, logical, field);
+                break;
         }
 
         // Layout: encoded -> bytes in the target
@@ -214,14 +219,95 @@ public sealed class WriterSession : SessionState
         {
             case 0:
                 Prepare(_layoutContext, null);
+                SetPosition();
                 return ProcessorDefaults.DefaultLayoutProcessor.Write(_target, encoded, _layoutContext);
             case 1:
                 var layoutBinding = pipeline.LayoutProcessors[0];
                 Prepare(_layoutContext, layoutBinding);
+                SetPosition();
                 return ((ILayoutProcessor)layoutBinding.Processor).Write(_target, encoded, _layoutContext);
             default:
-                // TODO: several layout processors writing into the same target.
-                throw new NotSupportedException($"'{field.Path}': multiple Layout processors are not supported.");
+                return WriteChained(pipeline.LayoutProcessors, encoded);
+        }
+    }
+
+    /// <summary>The head turns the logical value into an encoded one, each following stage transforms the encoded value.</summary>
+    private EncodedField WriteChained(IReadOnlyList<ProcessorBinding> chain, LogicalField logical, FieldInfo field)
+    {
+        _fieldContext.Field = field;
+        Prepare(_fieldContext, chain[0]);
+        var encoded = ((IFieldProcessor)chain[0].Processor).Write(logical, _fieldContext);
+        for (var i = 1; i < chain.Count; i++)
+        {
+            Prepare(_fieldContext, chain[i]);
+            encoded = ((IFieldWriter<EncodedField, EncodedField>)chain[i].Processor).Write(encoded, _fieldContext);
+        }
+        return encoded;
+    }
+
+    private void SetPosition()
+    {
+        _layoutContext.RootPosition = _counter.Written;
+        _layoutContext.GroupPosition = _counter.Written - (_groupStarts.Count > 0 ? _groupStarts.Peek() : 0);
+    }
+
+    private List<ArrayBufferWriter<byte>> RentBuffers(int count)
+    {
+        while (_chainBuffers.Count < count)
+        {
+            _chainBuffers.Add(new ArrayBufferWriter<byte>());
+        }
+        for (var i = 0; i < count; i++)
+        {
+            _chainBuffers[i].Clear();
+        }
+        return _chainBuffers;
+    }
+
+    /// <summary>The head writes into the first buffer, each following stage reads the previous buffer; the last one writes to the target.</summary>
+    private WriteResult WriteChained(IReadOnlyList<ProcessorBinding> chain, EncodedField encoded)
+    {
+        var buffers = RentBuffers(chain.Count - 1);
+        Prepare(_layoutContext, chain[0]);
+        SetPosition();
+        var result = ((ILayoutProcessor)chain[0].Processor).Write(buffers[0], encoded, _layoutContext);
+        return result != WriteResult.Success ? result : ForwardWrite(chain, 1, buffers);
+    }
+
+    /// <summary>Pushes the bytes buffered by stage (from - 1) through the stages from..last.</summary>
+    private WriteResult ForwardWrite(IReadOnlyList<ProcessorBinding> chain, int from, List<ArrayBufferWriter<byte>> buffers)
+    {
+        for (var j = from; j < chain.Count; j++)
+        {
+            var input = buffers[j - 1];
+            if (input.WrittenCount == 0)
+            {
+                break;
+            }
+
+            Prepare(_layoutContext, chain[j]);
+            SetPosition();
+            var output = j == chain.Count - 1 ? _target : buffers[j];
+            var result = ((ILayoutWriter<ReadOnlySpan<byte>>)chain[j].Processor).Write(output, input.WrittenSpan, _layoutContext);
+            input.Clear();
+            if (result != WriteResult.Success)
+            {
+                return result;
+            }
+        }
+
+        return WriteResult.Success;
+    }
+
+    private void ForwardGroupWrite(GroupInfo group, IReadOnlyList<ProcessorBinding> chain, int from, List<ArrayBufferWriter<byte>> buffers)
+    {
+        // restore: the forward calls are group-level (no field)
+        _layoutContext.Group = group;
+        _layoutContext.Field = null;
+        var result = ForwardWrite(chain, from, buffers);
+        if (result != WriteResult.Success)
+        {
+            throw new InvalidOperationException($"'{group.Path}': a chained layout processor failed ({result}) while writing group-level output.");
         }
     }
 
@@ -232,12 +318,17 @@ public sealed class WriterSession : SessionState
             return;
         }
 
+        _groupStarts.Push(_counter.Written);
         _layoutContext.Group = group;
         _layoutContext.Field = null;
-        foreach (var binding in group.Pipeline.LayoutProcessors)
+        var chain = group.Pipeline.LayoutProcessors;
+        var buffers = RentBuffers(chain.Count - 1);
+        for (var i = chain.Count - 1; i >= 0; i--)
         {
-            Prepare(_layoutContext, binding);
-            ((ILayoutProcessor)binding.Processor).BeginWrite(_target, _layoutContext);
+            Prepare(_layoutContext, chain[i]);
+            SetPosition();
+            ((ILayoutProcessor)chain[i].Processor).BeginWrite(i == chain.Count - 1 ? _target : buffers[i], _layoutContext);
+            ForwardGroupWrite(group, chain, i + 1, buffers);
         }
     }
 
@@ -250,11 +341,16 @@ public sealed class WriterSession : SessionState
 
         _layoutContext.Group = group;
         _layoutContext.Field = null;
-        foreach (var binding in group.Pipeline.LayoutProcessors)
+        var chain = group.Pipeline.LayoutProcessors;
+        var buffers = RentBuffers(chain.Count - 1);
+        for (var i = 0; i < chain.Count; i++)
         {
-            Prepare(_layoutContext, binding);
-            ((ILayoutProcessor)binding.Processor).EndWrite(_target, _layoutContext);
+            Prepare(_layoutContext, chain[i]);
+            SetPosition();
+            ((ILayoutProcessor)chain[i].Processor).EndWrite(i == chain.Count - 1 ? _target : buffers[i], _layoutContext);
+            ForwardGroupWrite(group, chain, i + 1, buffers);
         }
+        _groupStarts.Pop();
     }
 
     /// <summary>

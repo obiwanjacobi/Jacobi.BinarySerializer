@@ -120,12 +120,21 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
     private FieldInfo BuildField(SchemaField field, SchemaPath path, ProcessorPipeline parentPipeline, BuildState state)
     {
         var processors = BindProcessors(field.Processors, path, state);
+        var fieldPipeline = CreatePipeline(parentPipeline, processors);
+        if (!ReferenceEquals(fieldPipeline.FieldProcessors, parentPipeline.FieldProcessors))
+        {
+            ValidateFieldChain(fieldPipeline.FieldProcessors, path, state);
+        }
+        if (!ReferenceEquals(fieldPipeline.LayoutProcessors, parentPipeline.LayoutProcessors))
+        {
+            ValidateLayoutChain(fieldPipeline.LayoutProcessors, path, state);
+        }
         return new FieldInfo
         {
             Name = field.Name,
             Path = path,
             Field = field,
-            Pipeline = CreatePipeline(parentPipeline, processors),
+            Pipeline = fieldPipeline,
         };
     }
 
@@ -133,7 +142,14 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
     {
         var processors = BindProcessors(group.Processors, path, state);
         var pipeline = CreatePipeline(parentPipeline, processors);
-
+        if (parentPipeline is null || !ReferenceEquals(pipeline.FieldProcessors, parentPipeline.FieldProcessors))
+        {
+            ValidateFieldChain(pipeline.FieldProcessors, path, state);
+        }
+        if (parentPipeline is null || !ReferenceEquals(pipeline.LayoutProcessors, parentPipeline.LayoutProcessors))
+        {
+            ValidateLayoutChain(pipeline.LayoutProcessors, path, state);
+        }
         var children = new List<NodeInfo>(group.Children.Count);
         foreach (var child in group.Children)
         {
@@ -227,6 +243,35 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         }
 
         return new(processor, processorRef.Properties);
+    }
+
+    /// <summary>A layout chain is the head (first) followed by processors that implement the chained (bytes to bytes) interfaces.</summary>
+    private static void ValidateLayoutChain(IReadOnlyList<ProcessorBinding> chain, string path, BuildState state)
+    {
+        for (var i = 1; i < chain.Count; i++)
+        {
+            var processor = chain[i].Processor;
+            if (processor is not ILayoutWriter<ReadOnlySpan<byte>> || processor is not ILayoutReader<ReadOnlyMemory<byte>>)
+            {
+                state.Error(path,
+                    $"Processor '{processor.Key.Namespace}:{processor.Key.Id}' cannot follow '{chain[i - 1].Processor.Key.Namespace}:{chain[i - 1].Processor.Key.Id}' in a layout chain: it does not implement the chained layout interfaces.");
+            }
+        }
+    }
+
+    /// <summary>A field chain is the head (first) followed by processors that implement the chained (EncodedField to EncodedField) interfaces.</summary>
+    private static void ValidateFieldChain(IReadOnlyList<ProcessorBinding> chain, string path, BuildState state)
+    {
+        for (var i = 1; i < chain.Count; i++)
+        {
+            var processor = chain[i].Processor;
+            if (processor is not IFieldWriter<EncodedField, EncodedField> || processor is not IFieldReader<EncodedField, EncodedField>)
+            {
+                var previous = chain[i - 1].Processor.Key;
+                state.Error(path,
+                    $"Processor '{processor.Key.Namespace}:{processor.Key.Id}' cannot follow '{previous.Namespace}:{previous.Id}' in a field chain: it does not implement the chained field interfaces.");
+            }
+        }
     }
 
     private ValueSource<int> BindValueSource(SchemaValueOrRef<int> source, string path, BuildState state)

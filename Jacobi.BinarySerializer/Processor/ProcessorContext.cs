@@ -62,6 +62,12 @@ public sealed class LayoutProcessorContext : ProcessorContext
     /// Null for the group-level calls (Begin/End).
     /// </summary>
     public FieldInfo? Field { get; internal set; }
+
+    /// <summary>Bytes written/read since the start of the message (the layout payload), at the start of the current call.</summary>
+    public long RootPosition { get; internal set; }
+
+    /// <summary>Bytes written/read since the start of the group that owns the layout (see RootPosition for the whole message).</summary>
+    public long GroupPosition { get; internal set; }
 }
 
 public sealed class StreamProcessorContext : ProcessorContext
