@@ -17,20 +17,31 @@ internal static class ProcessorTestHelpers
         return new ExecutionPlanBuilder(manager).Build(root);
     }
 
+    /// <summary>Property names are expanded to the full 'sys:{id}.{name}' form (enum options stay as-is; they are values, not settings).</summary>
     public static SchemaProcessorRef Ref(string id, params (string Name, string Value)[] properties)
     {
         var processor = new SchemaProcessorRef { Processor = new SchemaName($"sys.{id}") };
-        processor.PropertyList.AddRange(properties.Select(p => new SchemaProperty { Name = p.Name, Value = p.Value }));
+        var key = new ProcessorKey("sys", id);
+        processor.PropertyList.AddRange(properties.Select(p => new SchemaProperty
+        {
+            Name = p.Name.Contains(':') ? p.Name : key.PropertyName(p.Name),
+            Value = p.Value
+        }));
         return processor;
     }
 
+    /// <summary>Field properties are expanded to the full 'sys:bitpacker.{name}' form unless already prefixed.</summary>
     public static SchemaField Field(string name, SchemaDataType type, SchemaProcessorRef[]? processors = null, params (string Name, string Value)[] properties)
         => new()
         {
             Name = name,
             Type = type,
             ProcessorsList = [.. processors ?? []],
-            PropertyList = [.. properties.Select(p => new SchemaProperty { Name = p.Name, Value = p.Value })]
+            PropertyList = [.. properties.Select(p => new SchemaProperty
+            {
+                Name = p.Name.Contains(':') ? p.Name : new ProcessorKey("sys", "bitpacker").PropertyName(p.Name),
+                Value = p.Value
+            })]
         };
 
     public static SchemaGroup Group(string name, SchemaProcessorRef[] processors, params SchemaNode[] children)

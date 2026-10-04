@@ -112,13 +112,8 @@ internal sealed class AlignProcessor : ILayoutProcessor, ILayoutWriter<ReadOnlyS
 
     private static int GetAlignment(LayoutProcessorContext context)
     {
-        var property = context.ProcessorProperties
-            .FirstOrDefault(p => p.Name.Equals(BytesProperty, StringComparison.OrdinalIgnoreCase));
-
-        if (property is null)
-        {
-            throw new InvalidOperationException($"Missing required '{BytesProperty}' property on the align processor.");
-        }
+        var property = context.Properties.Find(BytesProperty)
+            ?? throw new InvalidOperationException($"Missing required '{BytesProperty}' property on the align processor.");
         if (!Int32.TryParse(property.Value, out var alignment) || alignment <= 0)
         {
             throw new InvalidOperationException($"Invalid '{BytesProperty}' value '{property.Value}'. Expected a positive integer.");
@@ -128,8 +123,7 @@ internal sealed class AlignProcessor : ILayoutProcessor, ILayoutWriter<ReadOnlyS
 
     private static bool IsRoot(LayoutProcessorContext context)
     {
-        var property = context.ProcessorProperties
-            .FirstOrDefault(p => p.Name.Equals(RelativeProperty, StringComparison.OrdinalIgnoreCase));
+        var property = context.Properties.Find(RelativeProperty);
 
         if (property is null)
         {

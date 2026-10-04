@@ -105,6 +105,36 @@ public class SchemaSetTests
         Assert.That(docB.IsCompiled, Is.False);
     }
 
+    [Test]
+    public void Compile_ProcessorRefProperties_AreExpandedToFullNames()
+    {
+        var schemaSet = new SchemaSet();
+        var root = CreateGroup("Root");
+        var processor = new SchemaProcessorRef { Processor = new SchemaName("sys.align") };
+        processor.PropertyList.Add(new SchemaProperty { Name = "bytes", Value = "4" });
+        processor.PropertyList.Add(new SchemaProperty { Name = "sys:align.relative", Value = "root" });
+        root.ProcessorsList.Add(processor);
+
+        var fieldProperty = new SchemaProperty { Name = "bits", Value = "3" };
+        var field = new SchemaField
+        {
+            Name = "A",
+            Type = SchemaDataType.UInt8,
+            ProcessorsList = [],
+            PropertyList = [fieldProperty]
+        };
+        AddChild(root, field);
+
+        schemaSet.AddDocument(CreateDocument("sys"));
+        schemaSet.AddDocument(CreateDocument("Main", roots: [root]));
+
+        schemaSet.Compile();
+
+        Assert.That(processor.Properties.Select(p => p.Name),
+            Is.EqualTo(new[] { "sys:align.bytes", "sys:align.relative" }));
+        Assert.That(field.Properties.Single().Name, Is.EqualTo("bits"));
+    }
+
     private static SchemaDocument CreateDocument(
         string name,
         IReadOnlyList<SchemaNode>? roots = null,

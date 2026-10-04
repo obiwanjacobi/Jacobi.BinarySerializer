@@ -10,7 +10,7 @@ internal sealed class EnumProcessor : IValueProcessor
 
     public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context)
     {
-        var map = new EnumForwardMap(context.ProcessorProperties);
+        var map = new EnumForwardMap(context.Properties.ShortNames());
         if (!map.Contains(logicalValue.Value?.ToString() ?? String.Empty))
         {
             throw new InvalidOperationException($"Value '{logicalValue.Value}' is not a valid enumeration option.");
@@ -25,7 +25,7 @@ internal sealed class EnumProcessor : IValueProcessor
     {
         if (Int32.TryParse(logicalValue.Value?.ToString(), out var intValue))
         {
-            var map = new EnumReverseMap(context.ProcessorProperties);
+            var map = new EnumReverseMap(context.Properties.ShortNames());
             if (!map.Contains(intValue))
             {
                 throw new InvalidOperationException($"Value '{intValue}' ({logicalValue.Value}) is not a valid enumeration value.");
@@ -49,15 +49,15 @@ internal sealed class EnumProcessor : IValueProcessor
     {
         private readonly Dictionary<string, int> _map = new();
 
-        public EnumForwardMap(IEnumerable<SchemaProperty> properties)
+        public EnumForwardMap(IEnumerable<KeyValuePair<string, string>> properties)
         {
             foreach (var property in properties)
             {
-                if (!_map.ContainsKey(property.Name))
+                if (!_map.ContainsKey(property.Key))
                 {
-                    if (Int32.TryParse(property.Value?.ToString(), out var intValue))
+                    if (Int32.TryParse(property.Value, out var intValue))
                     {
-                        _map.Add(property.Name, intValue);
+                        _map.Add(property.Key, intValue);
                     }
                 }
             }
@@ -84,15 +84,15 @@ internal sealed class EnumProcessor : IValueProcessor
     {
         private readonly Dictionary<int, string> _map = new();
 
-        public EnumReverseMap(IEnumerable<SchemaProperty> properties)
+        public EnumReverseMap(IEnumerable<KeyValuePair<string, string>> properties)
         {
             foreach (var property in properties)
             {
-                if (Int32.TryParse(property.Value?.ToString(), out var intValue))
+                if (Int32.TryParse(property.Value, out var intValue))
                 {
                     if (!_map.ContainsKey(intValue))
                     {
-                        _map.Add(intValue, property.Name);
+                        _map.Add(intValue, property.Key);
                     }
                 }
             }

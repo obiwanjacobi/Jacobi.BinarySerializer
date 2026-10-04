@@ -154,4 +154,7 @@ public readonly record struct ProcessorKey
 
     public string Id { get; init; }
     public string Namespace { get; init; }
+
+    /// <summary>The full property name: 'namespace:id.name'.</summary>
+    public string PropertyName(string name) => $"{Namespace}:{Id}.{name}";
 }

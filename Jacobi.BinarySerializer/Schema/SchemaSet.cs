@@ -63,6 +63,8 @@ public sealed class SchemaSet
             var documentName = queue.Dequeue();
             var document = _documents[documentName];
 
+            ExpandPropertyNames(document);
+
             if (!ResolveReferences(document))
             {
                 throw new InvalidOperationException(
@@ -98,6 +100,82 @@ public sealed class SchemaSet
 
             throw new InvalidOperationException(
                 $"Circular schema dependencies detected: {String.Join(", ", cyclicDocuments)}");
+        }
+    }
+
+    /// <summary>
+    /// Expands short property names on processor refs to their full 'namespace:id.name' form.
+    /// Names that already contain ':' and refs without a namespace (processor-def aliases) are left as is.
+    /// Properties on fields and groups are not touched.
+    /// </summary>
+    private static void ExpandPropertyNames(SchemaDocument document)
+    {
+        foreach (var typeDef in document.TypeDefs)
+        {
+            foreach (var processor in typeDef.Processors)
+            {
+                ExpandPropertyNames(processor);
+            }
+        }
+
+        foreach (var processor in document.ProcessorDefs)
+        {
+            ExpandPropertyNames(processor);
+        }
+
+        foreach (var root in document.Roots)
+        {
+            ExpandPropertyNames(root);
+        }
+    }
+
+    private static void ExpandPropertyNames(SchemaNode node)
+    {
+        var processors = node switch
+        {
+            SchemaField field => field.Processors,
+            SchemaGroup group => group.Processors,
+            _ => []
+        };
+
+        foreach (var processor in processors)
+        {
+            ExpandPropertyNames(processor);
+        }
+
+        if (node is SchemaGroup g)
+        {
+            foreach (var child in g.ChildList)
+            {
+                ExpandPropertyNames(child);
+            }
+        }
+    }
+
+    private static void ExpandPropertyNames(SchemaProcessorRef processor)
+    {
+        var ns = processor.Processor.Namespace;
+        if (String.IsNullOrEmpty(ns))
+        {
+            return;
+        }
+
+        var key = new Processor.ProcessorKey(ns, processor.Processor.Name);
+        var list = processor.PropertyList;
+        for (var i = 0; i < list.Count; i++)
+        {
+            var property = list[i];
+            if (property.Name.Contains(':'))
+            {
+                continue;
+            }
+
+            list[i] = new SchemaProperty
+            {
+                Name = key.PropertyName(property.Name),
+                Value = property.Value,
+                DataType = property.DataType
+            };
         }
     }
 

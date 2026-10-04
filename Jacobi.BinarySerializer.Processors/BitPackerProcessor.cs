@@ -139,8 +139,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
 
     private static int GetBits(LayoutProcessorContext context, int defaultBits)
     {
-        var property = context.Field?.Field.Properties
-            .FirstOrDefault(p => p.Name.Equals(BitsProperty, StringComparison.OrdinalIgnoreCase));
+        var property = context.PropertiesOf(context.Field?.Field.Properties).Find(BitsProperty);
         if (property is null)
         {
             return defaultBits;
@@ -153,10 +152,8 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
 
     private static Endianness GetBitOrder(LayoutProcessorContext context)
     {
-        var property = context.ProcessorProperties
-            .FirstOrDefault(p => p.Name.Equals(BitOrderProperty, StringComparison.OrdinalIgnoreCase))
-            ?? context.Group?.Group.Properties
-                .FirstOrDefault(p => p.Name.Equals(BitOrderProperty, StringComparison.OrdinalIgnoreCase));
+        var property = context.Properties.Find(BitOrderProperty)
+            ?? context.PropertiesOf(context.Group?.Group.Properties).Find(BitOrderProperty);
 
         if (property is null)
         {

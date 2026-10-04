@@ -53,10 +53,8 @@ internal sealed class BytePackerProcessor : ILayoutProcessor
 
     private static Endianness GetEndianness(LayoutProcessorContext context)
     {
-        var property = context.ProcessorProperties
-            .FirstOrDefault(p => p.Name.Equals(EndianProperty, StringComparison.OrdinalIgnoreCase))
-            ?? context.Group?.Group.Properties
-                .FirstOrDefault(p => p.Name.Equals(EndianProperty, StringComparison.OrdinalIgnoreCase));
+        var property = context.Properties.Find(EndianProperty)
+            ?? context.PropertiesOf(context.Group?.Group.Properties).Find(EndianProperty);
 
         if (property is null)
         {

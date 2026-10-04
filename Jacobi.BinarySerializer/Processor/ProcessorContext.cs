@@ -19,6 +19,14 @@ public closed class ProcessorContext
     /// Collected properties for the processor, including properties from the schema and any additional properties (TBD).
     /// </summary>
     public IReadOnlyList<SchemaProperty> ProcessorProperties { get; internal set; } = [];
+
+    /// <summary>Scoped lookup (full 'ns:id.name' names, short-name fallback) over the processor's own properties.</summary>
+    public ProcessorProperties Properties
+        => new(ProcessorProperties, Current is null ? null : Current.Processor.Key);
+
+    /// <summary>Scoped lookup over other properties (e.g. field or group properties) for the current processor.</summary>
+    public ProcessorProperties PropertiesOf(IReadOnlyList<SchemaProperty>? properties)
+        => new(properties ?? [], Current is null ? null : Current.Processor.Key);
     public required IServiceProvider Services { get; init; }
 
     /// <summary>The repeat instance indices that lead to the current node (empty outside repeats; set by the session before each call).</summary>

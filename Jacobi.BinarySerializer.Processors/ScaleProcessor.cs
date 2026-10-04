@@ -34,7 +34,7 @@ internal sealed class ScaleProcessor : IValueProcessor
 
     private static decimal GetScale(ValueProcessorContext context)
     {
-        var property = context.ProcessorProperties.FirstOrDefault(p => p.Name.Equals("scale", StringComparison.OrdinalIgnoreCase))
+        var property = context.Properties.Find("scale")
             ?? throw new InvalidOperationException("The 'scale' property is required by the scale processor.");
 
         if (!Decimal.TryParse(property.Value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var scale)
