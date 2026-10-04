@@ -1,6 +1,6 @@
 using Jacobi.BinarySerializer.Schema;
 
-namespace Jacobi.BinarySerializer.Processor;
+namespace Jacobi.BinarySerializer.Codecs;
 
 /// <summary>
 /// Converts values of the schema data types to and from their canonical fixed-width binary form.

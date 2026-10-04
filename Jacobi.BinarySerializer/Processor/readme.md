@@ -18,7 +18,7 @@ A common set of properties that are used by the mechanism or other processors.
 
 In general the processor key is to be used as a prefix to the property name when specifying properties for a processor.
 
-`sys.enum.map` - where `sys.enum` is the processor key and `map` is the property name.
+`sys:enum.map` - where `sys:enum` is the processor key and `map` is the property name.
 
 However when specifying properties inside the processor-definitions in a schema, the properties are alread listed under the processor key, so the prefix is not needed.
 

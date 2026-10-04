@@ -14,7 +14,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
         throw new NotImplementedException();
     }
 
-    public ProcessorKey Key => new("sys.varint");
+    public ProcessorKey Key => new("sys:varint");
     public string Name => "Variable Integer Processor";
     public PipelineStage Stage => PipelineStage.Semantic;
     public IReadOnlyList<PropertyDescriptor> Properties => [];

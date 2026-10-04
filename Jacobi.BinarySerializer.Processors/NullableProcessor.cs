@@ -14,7 +14,7 @@ internal sealed class NullableProcessor : IValueProcessor
         throw new NotImplementedException();
     }
 
-    public ProcessorKey Key => new("sys.nullable");
+    public ProcessorKey Key => new("sys:nullable");
     public string Name => "Nullable Processor";
     public PipelineStage Stage => PipelineStage.Semantic;
     public IReadOnlyList<PropertyDescriptor> Properties => [];

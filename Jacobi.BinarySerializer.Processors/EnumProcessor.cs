@@ -33,13 +33,13 @@ internal sealed class EnumProcessor : IValueProcessor
 
             var value = map[intValue].FirstOrDefault();
 
-            return new(logicalValue.Name, typeof(int), value);
+            return new(logicalValue.Name, typeof(string), value);
         }
 
-        return new(logicalValue.Name, typeof(int), String.Empty);
+        return logicalValue;
     }
 
-    public ProcessorKey Key => new("sys.enum");
+    public ProcessorKey Key => new("sys:enum");
     public string Name => "Enumeration Processor";
     public PipelineStage Stage => PipelineStage.Semantic;
 

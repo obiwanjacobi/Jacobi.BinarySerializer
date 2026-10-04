@@ -1,4 +1,4 @@
-using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Tests.Processors;
