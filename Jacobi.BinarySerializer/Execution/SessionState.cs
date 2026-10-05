@@ -10,11 +10,17 @@ namespace Jacobi.BinarySerializer.Execution;
 public closed class SessionState
 {
     // private processor state
-    private readonly Dictionary<ProcessorBinding, object> _private = new(ReferenceEqualityComparer.Instance);
+    private readonly record struct PrivateKey(ProcessorBinding Owner, Type StateType, InstancePath Instance);
+    private readonly Dictionary<PrivateKey, object> _private = [];
 
-    // TODO: needs additional key-data to differentiate between processors of the same type, so we use ProcessorBinding as the key
-    internal T GetOrCreate<T>(ProcessorBinding owner) where T : class, new()
-        => (T)(CollectionsMarshal.GetValueRefOrAddDefault(_private, owner, out _) ??= new T());
+    internal T GetOrCreate<T>(ProcessorBinding owner, InstancePath instance = default) where T : class, new()
+        => GetOrCreate<T>(owner, instance, out _);
+
+    internal T GetOrCreate<T>(ProcessorBinding owner, InstancePath instance, out bool exists) where T : class, new()
+    {
+        ref var slot = ref CollectionsMarshal.GetValueRefOrAddDefault(_private, new PrivateKey(owner, typeof(T), instance), out exists);
+        return (T)(slot ??= new T());
+    }
 
     // shared processor state
     private readonly Dictionary<PublishedValueKey, object?> _published = [];

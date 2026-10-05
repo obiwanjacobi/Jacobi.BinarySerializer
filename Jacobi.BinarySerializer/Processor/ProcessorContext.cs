@@ -3,6 +3,14 @@ using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processor;
 
+public enum StateScope
+{
+    /// <summary>One state instance per processor binding, shared by all repeat iterations.</summary>
+    Binding,
+    /// <summary>One state instance per repeat instance (the current <see cref="ProcessorContext.Instance"/> path).</summary>
+    Instance
+}
+
 public closed class ProcessorContext
 {
     private readonly SessionState _state;
@@ -20,25 +28,42 @@ public closed class ProcessorContext
     /// </summary>
     public IReadOnlyList<SchemaProperty> ProcessorProperties { get; internal set; } = [];
 
-    /// <summary>Scoped lookup (full 'ns:id.name' names, short-name fallback) over the processor's own properties.</summary>
+    /// <summary>
+    /// Scoped lookup (full 'ns:id.name' names, short-name fallback) over the processor's own properties.
+    /// </summary>
     public ProcessorProperties Properties
         => new(ProcessorProperties, Current is null ? null : Current.Processor.Key);
 
-    /// <summary>Scoped lookup over other properties (e.g. field or group properties) for the current processor.</summary>
+    /// <summary>
+    /// Scoped lookup over other properties (e.g. field or group properties) for the current processor.
+    /// </summary>
     public ProcessorProperties PropertiesOf(IReadOnlyList<SchemaProperty>? properties)
         => new(properties ?? [], Current is null ? null : Current.Processor.Key);
+
     public required IServiceProvider Services { get; init; }
 
-    /// <summary>The repeat instance indices that lead to the current node (empty outside repeats; set by the session before each call).</summary>
+    /// <summary>
+    /// The repeat instance indices that lead to the current node (empty outside repeats; set by the session before each call).
+    /// </summary>
     public InstancePath Instance { get; internal set; }
 
     // allow processors to store arbitrary state in the context
     // - they cannot read each other's state
     internal ProcessorBinding Current { get; set; } = null!;   // set by the session before each call
-    public T GetOrCreateState<T>() where T : class, new() => _state.GetOrCreate<T>(Current);
+    public T GetOrCreateState<T>(StateScope scope = StateScope.Binding) where T : class, new()
+        => _state.GetOrCreate<T>(Current, scope == StateScope.Instance ? Instance : default);
+
+    /// <summary>
+    /// Same as <see cref="GetOrCreateState{T}(StateScope)"/>; returns true when the state already existed (false when it was just created).
+    /// </summary>
+    public bool GetOrCreateState<T>(StateScope scope, out T state) where T : class, new()
+    {
+        state = _state.GetOrCreate<T>(Current, scope == StateScope.Instance ? Instance : default, out var exists);
+        return exists;
+    }
 
     // publish dynamic values for processors to use, e.g. a data-length value read from the message header.
-    // consume dynamic values published by other processors.
+    // TODO: consume dynamic values published by other processors.
     public void Publish(string ns, string key, object? value) => _state.Publish(ns, key, value);
 }
 
@@ -46,7 +71,9 @@ public sealed class ValueProcessorContext : ProcessorContext
 {
     public ValueProcessorContext(SessionState state) : base(state) { }
 
-    /// <summary>The field being processed (set by the session before each call).</summary>
+    /// <summary>
+    /// The field being processed (set by the session before each call).
+    /// </summary>
     public FieldInfo Field { get; internal set; } = null!;
 }
 
@@ -54,7 +81,9 @@ public sealed class FieldProcessorContext : ProcessorContext
 {
     public FieldProcessorContext(SessionState state) : base(state) { }
 
-    /// <summary>The field being processed (set by the session before each call).</summary>
+    /// <summary>
+    /// The field being processed (set by the session before each call).
+    /// </summary>
     public FieldInfo Field { get; internal set; } = null!;
 }
 
@@ -62,7 +91,9 @@ public sealed class LayoutProcessorContext : ProcessorContext
 {
     public LayoutProcessorContext(SessionState state) : base(state) { }
 
-    /// <summary>The group being laid out (set by the session before each call).</summary>
+    /// <summary>
+    /// The group being laid out (set by the session before each call).
+    /// </summary>
     public GroupInfo Group { get; internal set; } = null!;
 
     /// <summary>
