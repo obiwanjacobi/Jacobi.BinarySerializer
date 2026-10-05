@@ -83,6 +83,7 @@ internal sealed class AlignProcessor : ILayoutProcessor,
         var padding = Padding(context);
         if (reader.Remaining < padding)
         {
+            context.Logger.AlignNeedMoreData(padding);
             return false;
         }
         reader.Advance(padding);
@@ -99,6 +100,7 @@ internal sealed class AlignProcessor : ILayoutProcessor,
 
         writer.GetSpan(padding).Slice(0, padding).Clear();
         writer.Advance(padding);
+        context.Logger.AlignPadded(padding, GetAlignment(context), IsRoot(context) ? context.RootPosition : context.GroupPosition);
     }
 
     private static long Padding(LayoutProcessorContext context)
@@ -111,10 +113,10 @@ internal sealed class AlignProcessor : ILayoutProcessor,
     private static int GetAlignment(LayoutProcessorContext context)
     {
         var property = context.Properties.Find(BytesProperty)
-            ?? throw new InvalidOperationException($"Missing required '{BytesProperty}' property on the align processor.");
+            ?? throw context.Logger.Fail($"Missing required '{BytesProperty}' property on the align processor.");
         if (!Int32.TryParse(property.Value, out var alignment) || alignment <= 0)
         {
-            throw new InvalidOperationException($"Invalid '{BytesProperty}' value '{property.Value}'. Expected a positive integer.");
+            throw context.Logger.Fail($"Invalid '{BytesProperty}' value '{property.Value}'. Expected a positive integer.");
         }
         return alignment;
     }
@@ -132,7 +134,7 @@ internal sealed class AlignProcessor : ILayoutProcessor,
         {
             "group" => false,
             "root" => true,
-            _ => throw new InvalidOperationException($"Invalid '{RelativeProperty}' value '{property.Value}'. Expected 'group' or 'root'.")
+            _ => throw context.Logger.Fail($"Invalid '{RelativeProperty}' value '{property.Value}'. Expected 'group' or 'root'.")
         };
     }
 }

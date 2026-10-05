@@ -60,6 +60,16 @@ public sealed class ProcessorBinding(IProcessor processor, IReadOnlyList<SchemaP
 {
     public IProcessor Processor { get; } = processor;
     public IReadOnlyList<SchemaProperty> Properties { get; } = properties;
+
+    /// <summary>
+    /// The logger category for this processor (plan-time data; the logger itself is per session).
+    /// </summary>
+    public string LogCategory { get; } = processor.Key.ToString();
+
+    /// <summary>
+    /// The C# type name of the processor, logged in the scope of each entry (plan-time data).
+    /// </summary>
+    public string ProcessorType { get; } = processor.GetType().Name;
 }
 
 public enum PipelineStage

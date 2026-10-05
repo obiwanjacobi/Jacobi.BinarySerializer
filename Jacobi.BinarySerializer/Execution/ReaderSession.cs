@@ -29,6 +29,7 @@ public sealed class ReaderSession : SessionState
     {
         _plan = plan ?? throw new ArgumentNullException(nameof(plan));
         _services = services ?? WriterSession.EmptyServiceProvider.Instance;
+        InitializeLogging(_services, "Read");
 
         _valueContext = new ValueProcessorContext(this) { Services = _services, Stage = PipelineStage.Semantic };
         _fieldContext = new FieldProcessorContext(this) { Services = _services, Stage = PipelineStage.Representation };
@@ -65,6 +66,7 @@ public sealed class ReaderSession : SessionState
 
         var reader = new SequenceReader<byte>(payload);
         _groupStarts.Clear();
+        EngineLogger.ReadStarted(root.Path.ToString());
         var cursor = new PlanCursor<IValueSink>(root, range);
         while (true)
         {
@@ -82,13 +84,14 @@ public sealed class ReaderSession : SessionState
                         else if (group is RepeatInfo repeat)
                         {
                             var count = Resolve(repeat.Count, repeat.Path, _instance);
+                            EngineLogger.RepeatCount(repeat.Path.ToString(), count);
                             cursor.EnterRepeat(step.Scope, count);
                         }
                         else if (group is ChoiceInfo choice)
                         {
                             var index = Resolve(choice.SelectedIndex, choice.Path, _instance);
-                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index);
-                            cursor.Enter(choiceScope, index);
+                            EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
+                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index);                            cursor.Enter(choiceScope, index);
                         }
                         else
                         {
@@ -103,9 +106,12 @@ public sealed class ReaderSession : SessionState
 
                 case CursorStepKind.Field:
                     {
-                        var result = ReadField((FieldInfo)step.Node!, step.Scope!, ref reader);
+                        var fieldNode = (FieldInfo)step.Node!;
+                        EngineLogger.ReadingField(fieldNode.Path.ToString(), _instance.ToString());
+                        var result = ReadField(fieldNode, step.Scope!, ref reader);
                         if (result != ReadResult.Success)
                         {
+                            EngineLogger.ReadStopped(fieldNode.Path.ToString(), result);
                             return result;
                         }
                         break;
@@ -136,6 +142,7 @@ public sealed class ReaderSession : SessionState
                     break;
 
                 case CursorStepKind.Done:
+                    EngineLogger.ReadFinished(root.Path.ToString());
                     return ReadResult.Success;
             }
         }
@@ -181,7 +188,7 @@ public sealed class ReaderSession : SessionState
             case 0:
                 if (encoded.Value is not byte[] bytes || !DataTypeCodec.TryDecode(field.Field.Type, bytes, out var value))
                 {
-                    throw new InvalidOperationException($"'{field.Path}': cannot decode the bytes as {field.Field.Type}.");
+                    throw EngineLogger.Fail($"'{field.Path}': cannot decode the bytes as {field.Field.Type}.");
                 }
                 logical = new LogicalField(encoded.Name, DataTypeCodec.ClrType(field.Field.Type) ?? typeof(object), value);
                 break;
@@ -199,7 +206,7 @@ public sealed class ReaderSession : SessionState
                 }
                 if (fieldResult.BitsConsumed < 0 || fieldResult.BitsConsumed > provided || fieldResult.BitsConsumed % 8 != 0)
                 {
-                    throw new InvalidOperationException(
+                    throw EngineLogger.Fail(
                         $"'{field.Path}': the field processor consumed {fieldResult.BitsConsumed} bits of the {provided} bits provided.");
                 }
 
@@ -346,7 +353,7 @@ public sealed class ReaderSession : SessionState
             {
                 if (result == ReadResult.NeedMoreData)
                 {
-                    throw new InvalidOperationException(
+                    throw EngineLogger.Fail(
                         $"'{root.Path}': the stream processor '{binding.Processor.Name}' ({binding.Processor.Key}) needs more data in the input.");
                 }
                 return result;

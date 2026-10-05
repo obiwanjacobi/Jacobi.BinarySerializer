@@ -13,10 +13,11 @@ internal sealed class EnumProcessor : IValueProcessor
         var map = new EnumForwardMap(context.Properties.ShortNames());
         if (!map.Contains(logicalValue.Value?.ToString() ?? String.Empty))
         {
-            throw new InvalidOperationException($"Value '{logicalValue.Value}' is not a valid enumeration option.");
+            throw context.Logger.Fail($"Value '{logicalValue.Value}' is not a valid enumeration option.");
         }
 
         var value = map[logicalValue.Value?.ToString() ?? String.Empty].FirstOrDefault();
+        context.Logger.EnumMapped(context.Field?.Path ?? String.Empty, logicalValue.Value, value);
 
         return new(logicalValue.Name, typeof(int), value);
     }
@@ -28,10 +29,11 @@ internal sealed class EnumProcessor : IValueProcessor
             var map = new EnumReverseMap(context.Properties.ShortNames());
             if (!map.Contains(intValue))
             {
-                throw new InvalidOperationException($"Value '{intValue}' ({logicalValue.Value}) is not a valid enumeration value.");
+                throw context.Logger.Fail($"Value '{intValue}' ({logicalValue.Value}) is not a valid enumeration value.");
             }
 
             var value = map[intValue].FirstOrDefault();
+            context.Logger.EnumMapped(context.Field?.Path ?? String.Empty, intValue, value);
 
             return new(logicalValue.Name, typeof(string), value);
         }

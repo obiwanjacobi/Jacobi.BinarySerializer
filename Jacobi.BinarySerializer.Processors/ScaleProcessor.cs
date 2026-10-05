@@ -15,6 +15,7 @@ internal sealed class ScaleProcessor : IValueProcessor
         var scale = GetScale(context);
         var logical = Convert.ToDecimal(logicalValue.Value, System.Globalization.CultureInfo.InvariantCulture);
         var raw = Math.Round(logical * scale, MidpointRounding.AwayFromZero);
+        context.Logger.Scaled(context.Field?.Path ?? String.Empty, scale, logical, raw);
 
         return new(logicalValue.Name, typeof(long), Convert.ToInt64(raw));
     }
@@ -28,6 +29,7 @@ internal sealed class ScaleProcessor : IValueProcessor
 
         var scale = GetScale(context);
         var raw = Convert.ToDecimal(logicalValue.Value, System.Globalization.CultureInfo.InvariantCulture);
+        context.Logger.Scaled(context.Field?.Path ?? String.Empty, scale, raw, raw / scale);
 
         return new(logicalValue.Name, typeof(decimal), raw / scale);
     }
@@ -35,12 +37,12 @@ internal sealed class ScaleProcessor : IValueProcessor
     private static decimal GetScale(ValueProcessorContext context)
     {
         var property = context.Properties.Find("scale")
-            ?? throw new InvalidOperationException("The 'scale' property is required by the scale processor.");
+            ?? throw context.Logger.Fail("The 'scale' property is required by the scale processor.");
 
         if (!Decimal.TryParse(property.Value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var scale)
             || scale == 0)
         {
-            throw new InvalidOperationException($"Invalid scale value '{property.Value}'.");
+            throw context.Logger.Fail($"Invalid scale value '{property.Value}'.");
         }
 
         return scale;

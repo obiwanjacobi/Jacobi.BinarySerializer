@@ -1,4 +1,6 @@
 ﻿using System.Runtime.InteropServices;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -9,6 +11,31 @@ namespace Jacobi.BinarySerializer.Execution;
 /// </summary>
 public closed class SessionState
 {
+    private ILoggerFactory _loggerFactory = NullLoggerFactory.Instance;
+    private string _direction = String.Empty;
+    private readonly Dictionary<ProcessorBinding, ILogger> _processorLoggers = [];
+
+    /// <summary>
+    /// The logger of the engine itself (category 'Jacobi.BinarySerializer.Engine').
+    /// </summary>
+    protected internal ILogger EngineLogger { get; private set; } = NullLogger.Instance;
+
+    /// <summary>
+    /// Resolves the optional <see cref="ILoggerFactory"/> from the host's services (no-op logging when absent).
+    /// </summary>
+    internal void InitializeLogging(IServiceProvider services, string direction)
+    {
+        _direction = direction;
+        _loggerFactory = (ILoggerFactory?)services.GetService(typeof(ILoggerFactory)) ?? NullLoggerFactory.Instance;
+        EngineLogger = _loggerFactory.CreateLogger("Jacobi.BinarySerializer.Engine");
+    }
+
+    internal ILogger GetLogger(ProcessorBinding binding, ProcessorContext context)
+    {
+        ref var slot = ref CollectionsMarshal.GetValueRefOrAddDefault(_processorLoggers, binding, out _);
+        return slot ??= new ContextLogger(_loggerFactory.CreateLogger(binding.LogCategory), context, binding, _direction);
+    }
+
     // private processor state
     private readonly record struct PrivateKey(ProcessorBinding Owner, Type StateType, InstancePath Instance);
     private readonly Dictionary<PrivateKey, object> _private = [];
@@ -53,7 +80,7 @@ public closed class SessionState
             var key = declared with { Instance = declared.Instance.ResolveRelative(current) };
             if (!_published.TryGetValue(key, out var value))
             {
-                throw new InvalidOperationException($"'{referrer}': the value '{key}' was not published (yet).");
+                throw EngineLogger.Fail($"'{referrer}': the value '{key}' was not published (yet).");
             }
 
             try
@@ -62,11 +89,10 @@ public closed class SessionState
             }
             catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
             {
-                throw new InvalidOperationException($"'{referrer}': the value '{key}' ({value ?? "null"}) is not an integer.", ex);
+                throw EngineLogger.Fail($"'{referrer}': the value '{key}' ({value ?? "null"}) is not an integer.", ex);
             }
         }
 
-        throw new InvalidOperationException($"'{referrer}': the value source is unresolved.");
+        throw EngineLogger.Fail($"'{referrer}': the value source is unresolved.");
     }
-    // buffer state/management
 }

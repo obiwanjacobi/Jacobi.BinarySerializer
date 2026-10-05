@@ -38,6 +38,7 @@ public sealed class WriterSession : SessionState
         _counter = new CountingBufferWriter(output);
         _target = _counter;
         _services = services ?? EmptyServiceProvider.Instance;
+        InitializeLogging(_services, "Write");
         _valueContext = new ValueProcessorContext(this) { Services = _services, Stage = PipelineStage.Semantic };
         _fieldContext = new FieldProcessorContext(this) { Services = _services, Stage = PipelineStage.Representation };
         _layoutContext = new LayoutProcessorContext(this) { Services = _services, Stage = PipelineStage.Layout };
@@ -65,6 +66,7 @@ public sealed class WriterSession : SessionState
         _counter = new CountingBufferWriter(payload ?? _output);
         _target = _counter;
         _groupStarts.Clear();
+        EngineLogger.WriteStarted(root.Path.ToString());
 
         var cursor = new PlanCursor<IValueSource>(root, range);
         while (true)
@@ -84,13 +86,14 @@ public sealed class WriterSession : SessionState
                         {
                             var count = Resolve(repeat.Count, repeat.Path, _instance);
                             CheckItemCount(repeat, step.Scope, count);
+                            EngineLogger.RepeatCount(repeat.Path.ToString(), count);
                             cursor.EnterRepeat(step.Scope, count);
                         }
                         else if (group is ChoiceInfo choice)
                         {
                             var index = Resolve(choice.SelectedIndex, choice.Path, _instance);
-                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance });
-                            cursor.Enter(choiceScope, index);
+                            EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
+                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance });                            cursor.Enter(choiceScope, index);
                         }
                         else
                         {
@@ -105,9 +108,12 @@ public sealed class WriterSession : SessionState
 
                 case CursorStepKind.Field:
                     {
-                        var result = WriteField((FieldInfo)step.Node!, step.Scope!);
+                        var fieldNode = (FieldInfo)step.Node!;
+                        EngineLogger.WritingField(fieldNode.Path.ToString(), _instance.ToString());
+                        var result = WriteField(fieldNode, step.Scope!);
                         if (result != WriteResult.Success)
                         {
+                            EngineLogger.WriteStopped(fieldNode.Path.ToString(), result);
                             return result;
                         }
                         break;
@@ -142,6 +148,7 @@ public sealed class WriterSession : SessionState
                     break;
 
                 case CursorStepKind.Done:
+                    EngineLogger.WriteFinished(root.Path.ToString());
                     return WriteResult.Success;
             }
         }
@@ -161,7 +168,7 @@ public sealed class WriterSession : SessionState
 
         if (modelCount != count)
         {
-            throw new InvalidOperationException(
+            throw EngineLogger.Fail(
                 $"'{repeat.Path}': the schema count is {count} but the value model has {modelCount} items.");
         }
     }
@@ -173,7 +180,7 @@ public sealed class WriterSession : SessionState
         if (!scope.TryGetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, out var logical))
         {
             // TODO: derive values the model does not hold (lengths, counts, discriminators).
-            throw new InvalidOperationException($"'{field.Path}': the value model has no value for the field.");
+            throw EngineLogger.Fail($"'{field.Path}': the value model has no value for the field.");
         }
 
         // Semantic: logical value transforms (chained)
@@ -196,7 +203,7 @@ public sealed class WriterSession : SessionState
             case 0:
                 if (!DataTypeCodec.TryEncode(field.Field.Type, logical.Value, out var bytes))
                 {
-                    throw new InvalidOperationException(
+                    throw EngineLogger.Fail(
                         $"'{field.Path}': cannot encode value '{logical.Value ?? "null"}' as {field.Field.Type}.");
                 }
                 encoded = new EncodedField(logical.Name, typeof(byte[]), bytes, bytes.Length * 8);
@@ -317,7 +324,7 @@ public sealed class WriterSession : SessionState
         var result = ForwardWrite(chain, from, buffers);
         if (result != WriteResult.Success)
         {
-            throw new InvalidOperationException($"'{group.Path}': a chained layout processor failed ({result}) while writing group-level output.");
+            throw EngineLogger.Fail($"'{group.Path}': a chained layout processor failed ({result}) while writing group-level output.");
         }
     }
 
@@ -391,7 +398,7 @@ public sealed class WriterSession : SessionState
             {
                 if (result == WriteResult.NeedMoreSpace)
                 {
-                    throw new InvalidOperationException(
+                    throw EngineLogger.Fail(
                         $"'{root.Path}': the stream processor '{binding.Processor.Name}' ({binding.Processor.Key}) needs more space in the output.");
                 }
                 return result;

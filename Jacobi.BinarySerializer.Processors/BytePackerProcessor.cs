@@ -22,6 +22,7 @@ internal sealed class BytePackerProcessor : ILayoutProcessor
         {
             var converted = EndianCodec.Convert(bytes, Endianness.Little, GetEndianness(context));
             encodedValue = encodedValue with { Value = converted };
+            context.Logger.ByteOrderConverted(context.Field?.Path ?? String.Empty, GetEndianness(context).ToString());
         }
 
         return ProcessorDefaults.DefaultLayoutProcessor.Write(writer, encodedValue, context);
@@ -39,6 +40,7 @@ internal sealed class BytePackerProcessor : ILayoutProcessor
         if (result.Status == ReadResult.Success && result.Value.Value is byte[] bytes && IsFixedWidth(context))
         {
             var converted = EndianCodec.Convert(bytes, GetEndianness(context), Endianness.Little);
+            context.Logger.ByteOrderConverted(context.Field?.Path ?? String.Empty, GetEndianness(context).ToString());
             return LayoutReadResult<EncodedField>.Success(result.Value with { Value = converted });
         }
 
@@ -65,7 +67,7 @@ internal sealed class BytePackerProcessor : ILayoutProcessor
         {
             "little" => Endianness.Little,
             "big" => Endianness.Big,
-            _ => throw new InvalidOperationException($"Invalid '{EndianProperty}' value '{property.Value}'. Expected 'little' or 'big'.")
+            _ => throw context.Logger.Fail($"Invalid '{EndianProperty}' value '{property.Value}'. Expected 'little' or 'big'.")
         };
     }
 

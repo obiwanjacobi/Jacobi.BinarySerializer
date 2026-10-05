@@ -26,6 +26,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
     {
         if (encodedValue.Value is not byte[] bytes || bytes.Length > 8)
         {
+            context.Logger.BitsRejected(context.Field?.Path ?? String.Empty, "the value is not 1 to 8 bytes");
             return WriteResult.Failure;
         }
 
@@ -35,6 +36,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
         var bits = GetBits(context, encodedValue.BitWidth);
         if (bits < 1 || bits > bytes.Length * 8)
         {
+            context.Logger.BitsRejected(context.Field?.Path ?? String.Empty, $"{bits} bits is out of range");
             return WriteResult.Failure;
         }
 
@@ -46,10 +48,12 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
 
         if (!Fits(value, bytes.Length * 8, bits, IsSigned(context.Field)))
         {
+            context.Logger.BitsRejected(context.Field?.Path ?? String.Empty, $"the value does not fit in {bits} bits");
             return WriteResult.Failure;
         }
 
         state.Writer.Write(value, bits);
+        context.Logger.BitsPacked(context.Field?.Path ?? String.Empty, bits);
         return WriteResult.Success;
     }
 
@@ -103,6 +107,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
             result[i] = (byte)(value >> (8 * i));
         }
 
+        context.Logger.BitsUnpacked(name, bits);
         return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), result, bits));
     }
 
@@ -145,7 +150,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
 
         return Int32.TryParse(property.Value, out var bits)
             ? bits
-            : throw new InvalidOperationException($"'{context.Field!.Path}': invalid '{BitsProperty}' value '{property.Value}'.");
+            : throw context.Logger.Fail($"'{context.Field!.Path}': invalid '{BitsProperty}' value '{property.Value}'.");
     }
 
     private static Endianness GetBitOrder(LayoutProcessorContext context)
@@ -162,7 +167,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
         {
             "lsb" => Endianness.Little,
             "msb" => Endianness.Big,
-            _ => throw new InvalidOperationException($"Invalid '{BitOrderProperty}' value '{property.Value}'. Expected 'lsb' or 'msb'.")
+            _ => throw context.Logger.Fail($"Invalid '{BitOrderProperty}' value '{property.Value}'. Expected 'lsb' or 'msb'.")
         };
     }
 

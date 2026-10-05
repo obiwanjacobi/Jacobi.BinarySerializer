@@ -1,5 +1,6 @@
 ﻿using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Schema;
+using Microsoft.Extensions.Logging;
 
 namespace Jacobi.BinarySerializer.Processor;
 
@@ -43,6 +44,20 @@ public closed class ProcessorContext
     public required IServiceProvider Services { get; init; }
 
     /// <summary>
+    /// Logger for the current processor (category identifies the processor); no-op when the host configured no logging.
+    /// </summary>
+    public ILogger Logger => _state.GetLogger(Current, this);
+
+    /// <summary>The schema path of the node being processed (for the log scope).</summary>
+    internal virtual string NodePath => String.Empty;
+
+    /// <summary>The message position (layout stage only; for the log scope).</summary>
+    internal virtual long? ScopeRootPosition => null;
+
+    /// <summary>The group position (layout stage only; for the log scope).</summary>
+    internal virtual long? ScopeGroupPosition => null;
+
+    /// <summary>
     /// The repeat instance indices that lead to the current node (empty outside repeats; set by the session before each call).
     /// </summary>
     public InstancePath Instance { get; internal set; }
@@ -71,6 +86,8 @@ public sealed class ValueProcessorContext : ProcessorContext
 {
     public ValueProcessorContext(SessionState state) : base(state) { }
 
+    internal override string NodePath => Field?.Path.ToString() ?? String.Empty;
+
     /// <summary>
     /// The field being processed (set by the session before each call).
     /// </summary>
@@ -81,6 +98,8 @@ public sealed class FieldProcessorContext : ProcessorContext
 {
     public FieldProcessorContext(SessionState state) : base(state) { }
 
+    internal override string NodePath => Field?.Path.ToString() ?? String.Empty;
+
     /// <summary>
     /// The field being processed (set by the session before each call).
     /// </summary>
@@ -90,6 +109,10 @@ public sealed class FieldProcessorContext : ProcessorContext
 public sealed class LayoutProcessorContext : ProcessorContext
 {
     public LayoutProcessorContext(SessionState state) : base(state) { }
+
+    internal override string NodePath => (Field?.Path ?? Group?.Path)?.ToString() ?? String.Empty;
+    internal override long? ScopeRootPosition => RootPosition;
+    internal override long? ScopeGroupPosition => GroupPosition;
 
     /// <summary>
     /// The group being laid out (set by the session before each call).
@@ -112,6 +135,8 @@ public sealed class LayoutProcessorContext : ProcessorContext
 public sealed class StreamProcessorContext : ProcessorContext
 {
     public StreamProcessorContext(SessionState state) : base(state) { }
+
+    internal override string NodePath => Group?.Path.ToString() ?? String.Empty;
 
     /// <summary>The group whose payload is being processed (set by the session before each call).</summary>
     public GroupInfo Group { get; internal set; } = null!;

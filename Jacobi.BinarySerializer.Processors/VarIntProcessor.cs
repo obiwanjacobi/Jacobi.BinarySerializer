@@ -16,6 +16,30 @@ internal sealed class VarIntProcessor : IFieldProcessor
 
     public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
     {
+        try
+        {
+            return WriteCore(field, context);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw context.Logger.Fail(ex.Message, ex);
+        }
+    }
+
+    public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
+    {
+        try
+        {
+            return ReadCore(field, context);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw context.Logger.Fail(ex.Message, ex);
+        }
+    }
+
+    private static FieldWriteResult<EncodedField> WriteCore(LogicalField field, FieldProcessorContext context)
+    {
         var encoding = GetEncoding(context);
         var type = context.Field.Field.Type;
         var path = context.Field.Path;
@@ -37,10 +61,11 @@ internal sealed class VarIntProcessor : IFieldProcessor
             bytes = encoding == VarIntEncoding.SLeb128 ? Sleb128Codec.Encode(value) : ZigZagCodec.Encode(value);
         }
 
+        context.Logger.VarIntEncoded(path, encoding.ToString(), bytes.Length);
         return FieldWriteResult<EncodedField>.Written(new(field.Name, typeof(byte[]), bytes, bytes.Length * 8), bytes.Length * 8);
     }
 
-    public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
+    private static FieldReadResult<LogicalField> ReadCore(EncodedField field, FieldProcessorContext context)
     {
         var encoding = GetEncoding(context);
         var type = context.Field.Field.Type;
@@ -88,6 +113,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
             throw new InvalidOperationException($"'{path}': invalid {encoding} varint.");
         }
 
+        context.Logger.VarIntDecoded(path, encoding.ToString(), bytes.Length);
         return FieldReadResult<LogicalField>.Consumed(
             new(field.Name, DataTypeCodec.ClrType(type) ?? typeof(object), result), length * 8);
     }
