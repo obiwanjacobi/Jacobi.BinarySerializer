@@ -12,7 +12,8 @@ namespace Jacobi.BinarySerializer.Processors;
 /// Chained after a bit packer, only the bytes the packer emits are aligned. On read, the aligner cannot tell which fields
 /// consumed bits only, so combine them with care.
 /// </remarks>
-internal sealed class AlignProcessor : ILayoutProcessor, ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
+internal sealed class AlignProcessor : ILayoutProcessor,
+    ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
 {
     private const string BytesProperty = "bytes";
     private const string RelativeProperty = "relative";

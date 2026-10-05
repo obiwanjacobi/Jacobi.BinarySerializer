@@ -5,9 +5,9 @@
 
 ### Runtime engine
 
+- [ ] **Processor diagnostics**. The engine currently has no logging. Add a `ILogger` to the sessions and processor context, and log the plan node path and instance indices for each processor call.
 - [ ] **Processor private state per iteration.** State keyed per binding is shared across repeat iterations.
 - [ ] **Detect repeat count mismatches at schema compile time.** A constant count that cannot match the model/referenced count (schema out of sync) should be reported when the plan is built, not only at write time (currently an `InvalidOperationException`).
-- [x] **Instance indices in node refs.** `ref:root.grp[2].fld` targets a specific repeat item; `ref:root.grp[].fld` means the same instance as the referrer; no index means the first item. Only `ref:` node refs take indices (not `pub:`). Values are published per instance; an unpublished instance is a runtime error.
 - [ ] **Derive values the model does not hold.** Lengths, counts and discriminators have no property in the user's model. The writer currently throws "the value model has no value for the field". The engine must compute them (e.g. count = number of items written) and write them.
 - [ ] **String and variable-width fields.** `DataTypeCodec` has no String support, and the default layout read passes all remaining bytes on as one value. Strings need a length, terminator or length-prefix, taken from schema properties on the field.
 - [ ] **Private processor state key.** Processor state in `SessionState` is keyed by `ProcessorBinding`. A TODO notes it may need extra key data to tell two processors of the same type apart (e.g. the same processor bound at different nodes).
@@ -17,12 +17,12 @@
 - [ ] **SchemaField Dummy** to allow filler/dummy/don't-care fields in the schema. The engine currently requires a field to have a data type and a value model property.
 - [ ] **Typed-object API.** Where interfacing is done through client-defined POCOs, not by implementing interfaces.
 
+- [x] **Instance indices in node refs.** `ref:root.grp[2].fld` targets a specific repeat item; `ref:root.grp[].fld` means the same instance as the referrer; no index means the first item. Only `ref:` node refs take indices (not `pub:`). Values are published per instance; an unpublished instance is a runtime error.
 - [x] **Schema Processor Def Properties.** Done: `SchemaSet.Compile` expands short property names to `ns.id.name`, also for aliases (`ref:alias` / `ref:doc.alias`), using the key of the resolved def. Ref properties override def properties.
 - [x] **Processor def/ref split.** `SchemaProcessorDef` (named, in `ProcessorDefs`) and `SchemaProcessorRef` (key or `ref:[doc.]alias`, on nodes and typedefs) in the schema and in the JSON/XML models. Processors on typedefs and roots are resolved at compile time.
 - [x] **More engine tests.** Done in `EngineEdgeCaseTests`: truncated varint through the engine (mid-stream cut), consumed-bits mismatch (throws), and the `FieldWriteResult` failure path.
 - [x] **Field-level layout Begin/End semantics.** Layout `BeginWrite`/`EndWrite` and `BeginRead`/`EndRead` are only called per group. Decide whether fields that declare their own layout processors also get Begin/End calls, and what that means (e.g. a bit-packed field). No: Begin/End are per group, not per field. The layout processor is responsible for any field-level state it needs.
 - [x] **Repeat and choice support.** Done in `PlanCursor`, `ReaderSession` and `WriterSession`: a repeat visits its children `Count` times (`EnterItem`), a choice only the selected alternative (`EnterChoice`). Counts and indexes resolve from constants or the published-values store; reading an unpublished value is a runtime error. `SessionState.Publish` is public so the developer can prefill counts before writing.
-  - Remaining (see the items below): processor state per iteration, `SchemaValueRef` instance indices.
 - [x] **Layout per repeat item.** Layout `Begin`/`End` runs once per item (not once per repeat), in both sessions.
 - [x] **Instance indices in the layout context.** `LayoutProcessorContext.Instance` holds the repeat indices for both the group and the field being laid out.
 - [x] **Instance path type.** `InstancePath` (repeat indices, outermost first) is tracked by `PlanCursor.Instance` and exposed as `Instance` on the value-model contexts (`FieldContext`, `GroupContext`, `RepeatContext`, `ChoiceContext`), so flat models can tell iterations apart.
@@ -32,10 +32,8 @@
 - [x] **Flat API with repeats and choices.** `IFieldSource` / `IFieldSink` no longer need repeat counts or choice indexes: the engine resolves them from constants or published values, and flat models get `Instance` in the contexts. (The writer's count-vs-model check is skipped for flat models.)
 - [x] **Multiple Representation (field) processors per field.** Done: same-signature followers (`IFieldWriter<EncodedField,EncodedField>` / `IFieldReader<EncodedField,EncodedField>`) chain after the head `IFieldProcessor`; the plan builder validates chains (`ValidateFieldChain`). Original note: Only one is allowed; more throws `NotSupportedException`.
 - [x] **Multiple Layout processors per field.** Done: every layout processor is a head; followers also implement `ILayoutWriter<ReadOnlySpan<byte>>` / `ILayoutReader<ReadOnlyMemory<byte>>` and the engine owns the buffers between stages (`ValidateLayoutChain`, `sys:align` is the first follower). Original note: Same limit: only one layout processor can write/read a field.
-- [x] **Variable-length integers (\`sys:varint\`).** Field processor with an \`encoding\` property: \`leb128\` (default, unsigned), \`sleb128\`, \`zigzag\`, \`vlq\` (MIDI) and \`prefix\` (UTF-8 style length prefix). One static codec class per algorithm in \`Codecs\`. Signed field types need \`sleb128\` or \`zigzag\`; \`vlq\` and \`prefix\` are unsigned only.
-  - Remaining: a signed \`prefix\` variant (prefix + zigzag), and varints combined with bit/byte-packer layouts (only \`DefaultLayoutProcessor\` offers the open-width window).
-- [x] **Open-width fields and result types.** \`IFieldReader.Read\` returns \`FieldReadResult<T>\` (status, value, bits consumed) and \`IFieldWriter.Write\` returns \`FieldWriteResult<T>\` (status, value, bits written); layout reads return \`LayoutReadResult<T>\`. With field processors, the default layout offers a window of up to \`OpenWidthWindowBytes\` (10) bytes and the engine rewinds the unused bytes. Layout writes and stream stages still return \`WriteResult\` / \`ReadResult\`.
-  - Remaining: open-width fields in chained layouts (the engine rewinds the actual reader after the head), and stream-stage chaining.
+- [x] **Variable-length integers (`sys:varint`).** Field processor with an `encoding` property: `leb128` (default, unsigned), `sleb128`, `zigzag`, `vlq` (MIDI) and `prefix` (UTF-8 style length prefix). One static codec class per algorithm in `Codecs`. Signed field types need `sleb128` or `zigzag`; `vlq` and `prefix` are unsigned only.
+- [x] **Open-width fields and result types.** `IFieldReader.Read` returns `FieldReadResult<T>` (status, value, bits consumed) and `IFieldWriter.Write` returns `FieldWriteResult<T>` (status, value, bits written); layout reads return `LayoutReadResult<T>`. With field processors, the default layout offers a window of up to `OpenWidthWindowBytes` (10) bytes and the engine rewinds the unused bytes. Layout writes and stream stages still return `WriteResult` / `ReadResult`.
 
 ### Known issues
 
