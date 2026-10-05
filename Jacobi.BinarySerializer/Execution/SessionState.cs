@@ -30,16 +30,21 @@ public closed class SessionState
     /// <summary>Publishes the value of the field at a schema path.</summary>
     public void Publish(SchemaPath path, object? value) => Publish(PublishedValueKey.ForPath(path), value);
 
+    /// <summary>Publishes the value of the field at a schema path for one instance of its repeats.</summary>
+    public void Publish(SchemaPath path, InstancePath instance, object? value) => Publish(PublishedValueKey.ForPath(path, instance), value);
+
     /// <summary>Resolves a constant or a published value to an int. An unpublished value is a runtime error.</summary>
-    internal int Resolve(ValueSource<int> source, SchemaPath referrer)
+    /// <param name="current">The instance of the referring node; replaces the '[.]' markers of the reference.</param>
+    internal int Resolve(ValueSource<int> source, SchemaPath referrer, InstancePath current = default)
     {
         if (source is int constant)
         {
             return constant;
         }
 
-        if (source is PublishedValueKey key)
+        if (source is PublishedValueKey declared)
         {
+            var key = declared with { Instance = declared.Instance.ResolveRelative(current) };
             if (!_published.TryGetValue(key, out var value))
             {
                 throw new InvalidOperationException($"'{referrer}': the value '{key}' was not published (yet).");

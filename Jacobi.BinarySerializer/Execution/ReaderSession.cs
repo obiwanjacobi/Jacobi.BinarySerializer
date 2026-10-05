@@ -81,12 +81,12 @@ public sealed class ReaderSession : SessionState
                         }
                         else if (group is RepeatInfo repeat)
                         {
-                            var count = Resolve(repeat.Count, repeat.Path);
+                            var count = Resolve(repeat.Count, repeat.Path, _instance);
                             cursor.EnterRepeat(step.Scope, count);
                         }
                         else if (group is ChoiceInfo choice)
                         {
-                            var index = Resolve(choice.SelectedIndex, choice.Path);
+                            var index = Resolve(choice.SelectedIndex, choice.Path, _instance);
                             var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index);
                             cursor.Enter(choiceScope, index);
                         }
@@ -220,7 +220,7 @@ public sealed class ReaderSession : SessionState
 
         if (field.PublishesValue)
         {
-            Publish(PublishedValueKey.ForPath(field.Path), logical.Value);
+            Publish(PublishedValueKey.ForPath(field.Path, _instance), logical.Value);
         }
 
         scope.SetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, logical);

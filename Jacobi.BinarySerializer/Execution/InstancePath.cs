@@ -45,6 +45,53 @@ public readonly struct InstancePath : IEquatable<InstancePath>
         return new InstancePath(array);
     }
 
+    /// <summary>In a reference template: 'the same instance as the referring node' at that depth.</summary>
+    public const int Current = -1;
+
+    /// <summary>True when the path holds <see cref="Current"/> markers (a reference template, not an actual instance).</summary>
+    public bool IsRelative
+    {
+        get
+        {
+            foreach (var index in AsSpan())
+            {
+                if (index < 0)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /// <summary>Replaces each <see cref="Current"/> marker with the index at the same depth in <paramref name="current"/>.</summary>
+    public InstancePath ResolveRelative(InstancePath current)
+    {
+        if (!IsRelative)
+        {
+            return this;
+        }
+
+        var source = AsSpan();
+        var array = new int[source.Length];
+        for (var i = 0; i < source.Length; i++)
+        {
+            if (source[i] >= 0)
+            {
+                array[i] = source[i];
+            }
+            else if (i < current.Length)
+            {
+                array[i] = current[i];
+            }
+            else
+            {
+                throw new InvalidOperationException($"The instance {current} has no index at depth {i} to resolve the relative index.");
+            }
+        }
+        return new InstancePath(array);
+    }
+
     public bool Equals(InstancePath other) => AsSpan().SequenceEqual(other.AsSpan());
     public override bool Equals(object? obj) => obj is InstancePath other && Equals(other);
 

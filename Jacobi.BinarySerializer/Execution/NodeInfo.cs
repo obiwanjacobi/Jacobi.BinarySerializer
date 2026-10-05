@@ -53,9 +53,9 @@ public readonly union ValueSource<T>(T, PublishedValueKey);
 /// <summary>
 /// Identifies a public value: a processor-published 'pubns/name', or the value of a field addressed by its schema path.
 /// </summary>
-public readonly record struct PublishedValueKey(string Namespace, string Name)
+public readonly record struct PublishedValueKey(string Namespace, string Name, InstancePath Instance = default)
 {
-    public static PublishedValueKey ForPath(SchemaPath path) => new(string.Empty, path.Value);
+    public static PublishedValueKey ForPath(SchemaPath path, InstancePath instance = default) => new(string.Empty, path.Value, instance);
 
-    public override string ToString() => string.IsNullOrEmpty(Namespace) ? Name : $"{Namespace}/{Name}";
+    public override string ToString() => string.IsNullOrEmpty(Namespace) ? $"{Name}{Instance}" : $"{Namespace}/{Name}{Instance}";
 }

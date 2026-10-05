@@ -170,8 +170,6 @@ public sealed class SchemaProperty
     /// </summary>
     public required string Value { get; init; }
     // TODO: allow complex objects as value, e.g. a list of values/object structures etc.
-
-    public SchemaDataType? DataType { get; init; }
 }
 
 public enum SchemaNodeKind

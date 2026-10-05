@@ -76,7 +76,7 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
     {
         ArgumentNullException.ThrowIfNull(root);
 
-        var state = new BuildState();
+        var state = new BuildState { Root = root };
         var rootInfo = BuildGroup(root, root.Name, parentPipeline: null, state);
         ResolvePathReferences(rootInfo, state);
 
@@ -298,7 +298,51 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
 
         var target = new SchemaPath(nodeRef.Path);
         state.PathReferences.Add((path, target));
-        return PublishedValueKey.ForPath(target);
+        return PublishedValueKey.ForPath(target, BindInstance(nodeRef, target, path, state));
+    }
+
+    /// <summary>
+    /// Builds the instance template of a reference: one entry per repeat on the way to the target (outermost first),
+    /// the explicit index, <see cref="InstancePath.Current"/> for '[.]', or 0 (the first item) when no index is given.
+    /// </summary>
+    private static InstancePath BindInstance(SchemaNodeRef nodeRef, SchemaPath target, SchemaPath referrer, BuildState state)
+    {
+        if (state.RepeatsOnPath(target) is not { } repeats)
+        {
+            return default;   // unknown target: reported when the path references are resolved
+        }
+
+        foreach (var index in nodeRef.Indices)
+        {
+            if (!repeats.Any(r => r.Value == index.Node))
+            {
+                state.Error(referrer, $"Value reference '{nodeRef}': '{index.Node}' is not a repeat on the path to '{target}'.");
+            }
+        }
+
+        var template = new List<int>(repeats.Count);
+        foreach (var repeat in repeats)
+        {
+            var found = nodeRef.Indices.Where(i => i.Node == repeat.Value).Select(i => (SchemaInstanceIndex?)i).FirstOrDefault();
+            if (found is not { } instance)
+            {
+                template.Add(0);
+            }
+            else if (instance.IsCurrent)
+            {
+                if (!referrer.IsSameOrDescendantOf(repeat) || referrer.Equals(repeat))
+                {
+                    state.Error(referrer, $"Value reference '{nodeRef}': '[.]' on '{repeat}' is only valid for a node inside that repeat.");
+                }
+                template.Add(InstancePath.Current);
+            }
+            else
+            {
+                template.Add(instance.Index);
+            }
+        }
+
+        return new InstancePath(template);
     }
 
     private static void ResolvePathReferences(GroupInfo root, BuildState state)
@@ -342,6 +386,42 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
 
     private sealed class BuildState
     {
+        public SchemaGroup? Root { get; init; }
+
+        /// <summary>The repeats (outermost first) on the way to <paramref name="target"/>; null when the target is not in the schema.</summary>
+        public List<SchemaPath>? RepeatsOnPath(SchemaPath target)
+        {
+            var segments = target.Segments.ToArray();
+            if (Root is null || segments.Length == 0 || segments[0] != Root.Name)
+            {
+                return null;
+            }
+
+            var repeats = new List<SchemaPath>();
+            SchemaNode node = Root;
+            var current = new SchemaPath(Root.Name);
+            for (var i = 1; i < segments.Length; i++)
+            {
+                if (node is not SchemaGroup group)
+                {
+                    return null;
+                }
+
+                var child = group.Children.FirstOrDefault(c => c.Name == segments[i]);
+                if (child is null)
+                {
+                    return null;
+                }
+
+                node = child;
+                current = current.Append(segments[i]);
+                if (node is SchemaRepeat)
+                {
+                    repeats.Add(current);
+                }
+            }
+            return repeats;
+        }
         public List<(SchemaPath From, SchemaPath Target)> PathReferences { get; } = [];
 
         public List<string> Errors { get; } = [];

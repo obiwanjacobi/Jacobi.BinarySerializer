@@ -82,13 +82,13 @@ public sealed class WriterSession : SessionState
                         }
                         else if (group is RepeatInfo repeat)
                         {
-                            var count = Resolve(repeat.Count, repeat.Path);
+                            var count = Resolve(repeat.Count, repeat.Path, _instance);
                             CheckItemCount(repeat, step.Scope, count);
                             cursor.EnterRepeat(step.Scope, count);
                         }
                         else if (group is ChoiceInfo choice)
                         {
-                            var index = Resolve(choice.SelectedIndex, choice.Path);
+                            var index = Resolve(choice.SelectedIndex, choice.Path, _instance);
                             var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance });
                             cursor.Enter(choiceScope, index);
                         }
@@ -187,7 +187,7 @@ public sealed class WriterSession : SessionState
         // Representation: logical -> encoded
         if (field.PublishesValue)
         {
-            Publish(PublishedValueKey.ForPath(field.Path), logical.Value);
+            Publish(PublishedValueKey.ForPath(field.Path, _instance), logical.Value);
         }
 
         EncodedField encoded;

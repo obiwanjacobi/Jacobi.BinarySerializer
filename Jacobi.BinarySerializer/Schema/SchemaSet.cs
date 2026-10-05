@@ -178,7 +178,6 @@ public sealed class SchemaSet
             {
                 Name = key.PropertyName(property.Name),
                 Value = property.Value,
-                DataType = property.DataType
             };
         }
     }
