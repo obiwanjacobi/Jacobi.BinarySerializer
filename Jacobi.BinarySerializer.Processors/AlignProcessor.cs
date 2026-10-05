@@ -17,7 +17,7 @@ internal sealed class AlignProcessor : ILayoutProcessor, ILayoutWriter<ReadOnlyS
     private const string BytesProperty = "bytes";
     private const string RelativeProperty = "relative";
 
-    public ProcessorKey Key => new("sys:align");
+    public ProcessorKey Key => new("sys.align");
     public string Name => "Align Processor";
     public PipelineStage Stage => PipelineStage.Layout;
     public IReadOnlyList<PropertyDescriptor> Properties =>

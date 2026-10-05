@@ -1,4 +1,4 @@
-﻿using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Processor;
 
 namespace Jacobi.BinarySerializer.Processors;
 
@@ -46,7 +46,7 @@ internal sealed class ScaleProcessor : IValueProcessor
         return scale;
     }
 
-    public ProcessorKey Key => new("sys:scale");
+    public ProcessorKey Key => new("sys.scale");
     public string Name => "Scale Processor";
     public PipelineStage Stage => PipelineStage.Semantic;
     public IReadOnlyList<PropertyDescriptor> Properties => [new("scale", typeof(decimal), true)];

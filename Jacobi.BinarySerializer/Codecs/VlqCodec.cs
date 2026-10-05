@@ -38,7 +38,7 @@ public static class VlqCodec
             }
 
             var b = bytes[i];
-            result = (result << 7) | (ulong)(b & 0x7F);
+            result = (result << 7) | (byte)(b & 0x7F);
             if ((b & 0x80) == 0)
             {
                 value = result;

@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -39,7 +39,7 @@ internal sealed class EnumProcessor : IValueProcessor
         return logicalValue;
     }
 
-    public ProcessorKey Key => new("sys:enum");
+    public ProcessorKey Key => new("sys.enum");
     public string Name => "Enumeration Processor";
     public PipelineStage Stage => PipelineStage.Semantic;
 

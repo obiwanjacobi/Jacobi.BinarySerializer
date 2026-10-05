@@ -1,4 +1,4 @@
-﻿using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Execution;
@@ -225,8 +225,13 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
 
     private ProcessorBinding? Bind(SchemaProcessorRef processorRef, string path, BuildState state)
     {
-        var processor = processorProvider.CreateProcessor(
-            new ProcessorKey(processorRef.Processor.Namespace, processorRef.Processor.Name));
+        if (processorRef.Key is not { } key)
+        {
+            return state.Error<ProcessorBinding>(path,
+                $"Processor '{processorRef.Processor}' does not designate a processor (unresolved reference or missing namespace).");
+        }
+
+        var processor = processorProvider.CreateProcessor(key);
         var implementsStage = processor.Stage switch
         {
             PipelineStage.Semantic => processor is IValueProcessor,
@@ -242,7 +247,7 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                 $"Processor '{processor.Key}' declares stage {processor.Stage} but does not implement its stage interface.");
         }
 
-        return new(processor, processorRef.Properties);
+        return new(processor, processorRef.EffectiveProperties);
     }
 
     /// <summary>A layout chain is the head (first) followed by processors that implement the chained (bytes to bytes) interfaces.</summary>
@@ -254,7 +259,7 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             if (processor is not ILayoutWriter<ReadOnlySpan<byte>> || processor is not ILayoutReader<ReadOnlyMemory<byte>>)
             {
                 state.Error(path,
-                    $"Processor '{processor.Key.Namespace}:{processor.Key.Id}' cannot follow '{chain[i - 1].Processor.Key.Namespace}:{chain[i - 1].Processor.Key.Id}' in a layout chain: it does not implement the chained layout interfaces.");
+                    $"Processor '{processor.Key}' cannot follow '{chain[i - 1].Processor.Key}' in a layout chain: it does not implement the chained layout interfaces.");
             }
         }
     }
@@ -269,7 +274,7 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             {
                 var previous = chain[i - 1].Processor.Key;
                 state.Error(path,
-                    $"Processor '{processor.Key.Namespace}:{processor.Key.Id}' cannot follow '{previous.Namespace}:{previous.Id}' in a field chain: it does not implement the chained field interfaces.");
+                    $"Processor '{processor.Key}' cannot follow '{previous}' in a field chain: it does not implement the chained field interfaces.");
             }
         }
     }
@@ -278,25 +283,20 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         => source switch
         {
             int value => value,
-            SchemaValueRef valueRef => BindValueRef(valueRef, path, state),
+            SchemaNodeRef nodeRef => BindNodeRef(nodeRef, path, state),
+            SchemaPubRef pubRef => new PublishedValueKey(pubRef.Namespace, pubRef.Name),
             _ => default,   // error already reported (or unresolved)
         };
 
-    private static ValueSource<int> BindValueRef(SchemaValueRef valueRef, SchemaPath path, BuildState state)
+    private static ValueSource<int> BindNodeRef(SchemaNodeRef nodeRef, SchemaPath path, BuildState state)
     {
-        if (string.IsNullOrWhiteSpace(valueRef.Reference))
+        if (string.IsNullOrWhiteSpace(nodeRef.Path))
         {
             state.Error(path, "A value reference cannot be empty.");
             return default;
         }
 
-        if (valueRef.IsPublished)
-        {
-            var index = valueRef.Reference.IndexOf(SchemaValueRef.PublishedSeparator);
-            return new PublishedValueKey(valueRef.Reference[..index], valueRef.Reference[(index + 1)..]);
-        }
-
-        var target = new SchemaPath(valueRef.Reference);
+        var target = new SchemaPath(nodeRef.Path);
         state.PathReferences.Add((path, target));
         return PublishedValueKey.ForPath(target);
     }

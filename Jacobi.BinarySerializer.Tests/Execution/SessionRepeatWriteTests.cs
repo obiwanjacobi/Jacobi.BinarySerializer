@@ -20,7 +20,7 @@ public class SessionRepeatWriteTests
     [Test]
     public void Write_RepeatCountFromField_WritesEachItem()
     {
-        var plan = Plan(new SchemaValueRef { Reference = "Root.Length" });
+        var plan = Plan(new SchemaNodeRef { Path = "Root.Length" });
         var source = new ItemSource(new() { ["Root.Length"] = 2 }, [1, 2]);
         var output = new ArrayBufferWriter<byte>();
 
@@ -34,7 +34,7 @@ public class SessionRepeatWriteTests
     [Test]
     public void Write_RepeatCountPrefilledByDeveloper_WritesEachItem()
     {
-        var plan = Plan(new SchemaValueRef { Reference = "hdr/count" });
+        var plan = Plan(new SchemaPubRef { Namespace = "hdr", Name = "count" });
         var source = new ItemSource(new() { ["Root.Length"] = 3 }, [7, 8, 9]);
         var output = new ArrayBufferWriter<byte>();
         var session = new WriterSession(plan, output);
@@ -60,7 +60,7 @@ public class SessionRepeatWriteTests
     [Test]
     public void Write_RepeatCountDiffersFromModel_Throws()
     {
-        var plan = Plan(new SchemaValueRef { Reference = "Root.Length" });
+        var plan = Plan(new SchemaNodeRef { Path = "Root.Length" });
         var source = new ItemSource(new() { ["Root.Length"] = 3 }, [1, 2]);
 
         var ex = Assert.Throws<InvalidOperationException>(
@@ -72,7 +72,7 @@ public class SessionRepeatWriteTests
     [Test]
     public void Write_RepeatReferencesUnpublishedValue_Throws()
     {
-        var plan = Plan(new SchemaValueRef { Reference = "hdr/count" });
+        var plan = Plan(new SchemaPubRef { Namespace = "hdr", Name = "count" });
         var source = new ItemSource(new() { ["Root.Length"] = 1 }, [1]);
 
         var ex = Assert.Throws<InvalidOperationException>(

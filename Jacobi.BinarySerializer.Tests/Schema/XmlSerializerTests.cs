@@ -85,8 +85,8 @@ public class XmlSerializerTests
         var xml = """
             <schema name="TestSchema">
               <processorDefs>
-                <processor processor="rootProcessor" />
-                <processor processor="deltaProcessor">
+                <processor name="rootProcessor" processor="sys.align" />
+                <processor name="deltaProcessor" processor="sys.scale">
                   <properties>
                     <property name="bits" value="7" />
                   </properties>
@@ -129,17 +129,17 @@ public class XmlSerializerTests
         var document = new SchemaSet().LoadFromXml(xml);
 
         Assert.That(document.ProcessorDefs.Count, Is.EqualTo(2));
-        Assert.That(document.ProcessorDefs.Any(p => p.Processor.FullName == "rootProcessor"));
-        Assert.That(document.ProcessorDefs.Any(p => p.Processor.FullName == "deltaProcessor" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
+        Assert.That(document.ProcessorDefs.Any(p => p.Name == "rootProcessor" && p.Processor.ToString() == "sys.align"));
+        Assert.That(document.ProcessorDefs.Any(p => p.Name == "deltaProcessor" && p.Processor.ToString() == "sys.scale" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
         Assert.That(document.TypeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.FullName == "ref:deltaProcessor") && t.Type == SchemaDataType.Int32));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.FullName == "ref:rootProcessor") && t.Type == SchemaDataType.None));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.Type == SchemaDataType.Int32));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.Type == SchemaDataType.None));
 
         var rootGroup = document.Roots.Single();
         var rootField = rootGroup.Children.OfType<SchemaField>().Single();
-        Assert.That(rootGroup.Processors.Single().Processor.FullName, Is.EqualTo("ref:rootProcessor"));
-        Assert.That(rootField.Processors.Single().Processor.FullName, Is.EqualTo("ref:deltaProcessor"));
+        Assert.That(rootGroup.Processors.Single().Processor.ToString(), Is.EqualTo("ref:rootProcessor"));
+        Assert.That(rootField.Processors.Single().Processor.ToString(), Is.EqualTo("ref:deltaProcessor"));
     }
 
     [Test]
@@ -148,14 +148,14 @@ public class XmlSerializerTests
         var xml = """
             <schema name="RoundTripSchema">
               <processorDefs>
-                <processor processor="counterProcessor" />
-                <processor processor="selectorProcessor" />
+                <processor name="counterProcessor" processor="sys.align" />
+                <processor name="selectorProcessor" processor="sys.align" />
               </processorDefs>
               <children>
                 <repeat name="RepeatGroup">
-                  <count ref="hdr/count" />
+                  <count ref="pub:hdr.count" />
                   <processors>
-                    <processor processor="rootProcessor" />
+                    <processor processor="sys.align" />
                   </processors>
                   <children>
                     <field name="Value" type="Int32">
@@ -182,7 +182,7 @@ public class XmlSerializerTests
 
         Assert.That(serialized, Does.Contain("processorDefs"));
         Assert.That(serialized, Does.Contain("<processors>"));
-        Assert.That(serialized, Does.Contain("ref=\"hdr/count\""));
+        Assert.That(serialized, Does.Contain("ref=\"pub:hdr.count\""));
         Assert.That(serialized, Does.Contain("selectedIndex=\"2\""));
         Assert.That(serialized, Does.Not.Contain("codec"));
         Assert.That(serialized, Does.Not.Contain("pipeline"));
@@ -191,7 +191,7 @@ public class XmlSerializerTests
         var repeat = roundTripped.Roots.OfType<SchemaRepeat>().Single();
         var choice = roundTripped.Roots.OfType<SchemaChoice>().Single();
 
-        Assert.That(repeat.Count is SchemaValueRef repeatCount && repeatCount.Reference == "hdr/count");
+        Assert.That(repeat.Count is SchemaPubRef repeatCount && repeatCount.Namespace == "hdr" && repeatCount.Name == "count");
         Assert.That(choice.SelectedIndex is int selected && selected == 2);
     }
 }

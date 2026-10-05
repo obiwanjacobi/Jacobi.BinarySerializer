@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Jacobi.BinarySerializer.Processor;
 
 namespace Jacobi.BinarySerializer.Schema.Json;
 
@@ -13,7 +14,7 @@ internal static class JsonSchemaMapper
             Name = jsonSchema.Name,
             ChildList = children,
             TypeDefs = jsonSchema.TypeDefs.Select(ToSchemaTypeDef).ToList(),
-            ProcessorDefs = jsonSchema.ProcessorDefs.Select(ToSchemaProcessorRef).ToList(),
+            ProcessorDefs = jsonSchema.ProcessorDefs.Select(ToSchemaProcessorDef).ToList(),
             Includes = jsonSchema.Includes.Select(include => new SchemaDocumentRef
             {
                 Schema = include.Schema,
@@ -43,7 +44,7 @@ internal static class JsonSchemaMapper
             Name = schema.Name,
             Children = schema.Children.Select(FromSchemaNode).ToList(),
             TypeDefs = schema.TypeDefs.Select(FromSchemaTypeDef).ToList(),
-            ProcessorDefs = schema.ProcessorDefs.Select(FromSchemaProcessorRef).ToList(),
+            ProcessorDefs = schema.ProcessorDefs.Select(FromSchemaProcessorDef).ToList(),
             Includes = schema.Includes.Select(include => new JsonSchemaDocumentRef
             {
                 Schema = include.Schema,
@@ -55,7 +56,7 @@ internal static class JsonSchemaMapper
 
     private static SchemaNode ToSchemaNode(JsonSchemaNode jsonNode, bool parentAllowsField)
     {
-        if (jsonNode is JsonSchemaFieldNode fieldNode)
+        if (jsonNode is JsonSchemaField fieldNode)
         {
             if (!parentAllowsField)
             {
@@ -65,7 +66,7 @@ internal static class JsonSchemaMapper
             return ToSchemaField(fieldNode);
         }
 
-        if (jsonNode is JsonSchemaGroupNode groupNode)
+        if (jsonNode is JsonSchemaGroup groupNode)
         {
             return ToSchemaGroup(groupNode);
         }
@@ -73,7 +74,7 @@ internal static class JsonSchemaMapper
         throw new JsonException($"Unsupported JSON schema node type '{jsonNode.GetType().Name}'.");
     }
 
-    private static SchemaField ToSchemaField(JsonSchemaFieldNode jsonField)
+    private static SchemaField ToSchemaField(JsonSchemaField jsonField)
     {
         return new SchemaField
         {
@@ -95,21 +96,31 @@ internal static class JsonSchemaMapper
         };
     }
 
-    private static SchemaProcessorRef ToSchemaProcessorRef(JsonSchemaProcessorRef processor)
+    private static SchemaProcessorDef ToSchemaProcessorDef(JsonSchemaProcessorDef processor)
     {
-        return new SchemaProcessorRef
+        return new SchemaProcessorDef
         {
-            Processor = new SchemaName(processor.Processor),
+            Name = processor.Name,
+            Processor = new ProcessorKey(processor.Processor),
             PropertyList = processor.Properties.Select(ToSchemaProperty).ToList()
         };
     }
 
-    private static SchemaGroup ToSchemaGroup(JsonSchemaGroupNode jsonGroup)
+    private static SchemaProcessorRef ToSchemaProcessorRef(JsonSchemaProcessorRef processor)
+    {
+        return new SchemaProcessorRef
+        {
+            Processor = new SchemaProcessorName(processor.Processor),
+            PropertyList = processor.Properties.Select(ToSchemaProperty).ToList()
+        };
+    }
+
+    private static SchemaGroup ToSchemaGroup(JsonSchemaGroup jsonGroup)
     {
         var children = new List<SchemaNode>();
 
         SchemaGroup group;
-        if (jsonGroup is JsonSchemaRepeatNode repeat)
+        if (jsonGroup is JsonSchemaRepeat repeat)
         {
             group = new SchemaRepeat
             {
@@ -120,7 +131,7 @@ internal static class JsonSchemaMapper
                 PropertyList = MergeProperties(repeat.Properties, repeat.AdditionalData)
             };
         }
-        else if (jsonGroup is JsonSchemaChoiceNode choice)
+        else if (jsonGroup is JsonSchemaChoice choice)
         {
             group = new SchemaChoice
             {
@@ -155,7 +166,17 @@ internal static class JsonSchemaMapper
     {
         if (valueOrRef is JsonSchemaValueRef valueRef)
         {
-            return new SchemaValueRef { Reference = valueRef.Reference };
+            if (SchemaNodeRef.TryParse(valueRef.Reference, out var nodeRef))
+            {
+                return nodeRef;
+            }
+
+            if (SchemaPubRef.TryParse(valueRef.Reference, out var pubRef))
+            {
+                return pubRef;
+            }
+
+            throw new JsonException($"Invalid value reference '{valueRef.Reference}'. Expected 'ref:path' or 'pub:namespace.name'.");
         }
 
         if (valueOrRef is int value)
@@ -170,7 +191,7 @@ internal static class JsonSchemaMapper
     {
         return schemaNode switch
         {
-            SchemaField field => new JsonSchemaFieldNode
+            SchemaField field => new JsonSchemaField
             {
                 Name = field.Name,
                 Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
@@ -193,11 +214,11 @@ internal static class JsonSchemaMapper
         };
     }
 
-    private static JsonSchemaGroupNode CreateJsonGroupNode(SchemaGroup group)
+    private static JsonSchemaGroup CreateJsonGroupNode(SchemaGroup group)
     {
         if (group is SchemaRepeat repeat)
         {
-            return new JsonSchemaRepeatNode
+            return new JsonSchemaRepeat
             {
                 Name = repeat.Name,
                 Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
@@ -209,7 +230,7 @@ internal static class JsonSchemaMapper
 
         if (group is SchemaChoice choice)
         {
-            return new JsonSchemaChoiceNode
+            return new JsonSchemaChoice
             {
                 Name = choice.Name,
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
@@ -224,9 +245,14 @@ internal static class JsonSchemaMapper
 
     private static JsonSchemaValueOrRef<int> FromSchemaValueOrRef(SchemaValueOrRef<int> valueOrRef)
     {
-        if (valueOrRef is SchemaValueRef valueRef)
+        if (valueOrRef is SchemaNodeRef nodeRef)
         {
-            return new JsonSchemaValueRef { Reference = valueRef.Reference };
+            return new JsonSchemaValueRef { Reference = nodeRef.ToString() };
+        }
+
+        if (valueOrRef is SchemaPubRef pubRef)
+        {
+            return new JsonSchemaValueRef { Reference = pubRef.ToString() };
         }
 
         if (valueOrRef is int value)
@@ -235,6 +261,16 @@ internal static class JsonSchemaMapper
         }
 
         throw new JsonException($"Unsupported schema value type '{valueOrRef.GetType().Name}'.");
+    }
+
+    private static JsonSchemaProcessorDef FromSchemaProcessorDef(SchemaProcessorDef processorDef)
+    {
+        return new JsonSchemaProcessorDef
+        {
+            Name = processorDef.Name,
+            Processor = processorDef.Processor.ToString(),
+            Properties = processorDef.Properties.Select(FromSchemaProperty).ToList()
+        };
     }
 
     private static JsonSchemaProcessorRef FromSchemaProcessorRef(SchemaProcessorRef processorRef)

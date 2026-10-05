@@ -19,7 +19,7 @@ public class SessionChoiceTests
     }
 
     private static ExecutionPlan PlanByKind()
-        => Plan(new SchemaValueRef { Reference = "Root.Kind" });
+        => Plan(new SchemaNodeRef { Path = "Root.Kind" });
 
     [Test]
     public void Write_ChoiceByFieldValue_WritesOnlySelectedAlternative()
@@ -61,7 +61,7 @@ public class SessionChoiceTests
     public void Write_ChoiceReferencesUnpublishedValue_Throws()
     {
         var source = new Source(new() { ["Root.Kind"] = 1 }, []);
-        var plan = Plan(new SchemaValueRef { Reference = "hdr/kind" });
+        var plan = Plan(new SchemaPubRef { Namespace = "hdr", Name = "kind" });
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(source));

@@ -1,4 +1,6 @@
-﻿namespace Jacobi.BinarySerializer.Schema;
+using Jacobi.BinarySerializer.Processor;
+
+namespace Jacobi.BinarySerializer.Schema;
 
 public closed class SchemaNode
 {
@@ -73,7 +75,7 @@ public class Schema : SchemaGroup
     }
 
     public required IReadOnlyList<SchemaTypeDef> TypeDefs { get; init; }
-    public required IReadOnlyList<SchemaProcessorRef> ProcessorDefs { get; init; }
+    public required IReadOnlyList<SchemaProcessorDef> ProcessorDefs { get; init; }
 
     public required IReadOnlyList<SchemaDocumentRef> Includes { get; init; }
 }
@@ -100,29 +102,64 @@ public sealed class SchemaDocumentRef
     public SchemaDocument? SchemaDocument { get; internal set; }
 }
 
-public sealed class SchemaProcessorRef
+public abstract class SchemaProcessorBase
 {
-    // Either the processor-id name or the ProcessorDefs name.
-    public required SchemaName Processor { get; init; }
     public IReadOnlyList<SchemaProperty> Properties => PropertyList;
     internal List<SchemaProperty> PropertyList { get; init; } = [];
 }
 
-public union SchemaValueOrRef<T>(SchemaValueRef, T) { }
+/// <summary>
+/// A named processor declaration in the ProcessorDefs of a schema (document):
+/// a processor key with default properties that can be referenced (by name) with a <see cref="SchemaProcessorRef"/>.
+/// </summary>
+public sealed class SchemaProcessorDef : SchemaProcessorBase
+{
+    /// <summary>The name used to reference this definition ('ref:name', or 'ref:document.name' from another document).</summary>
+    public required string Name { get; init; }
+    public required ProcessorKey Processor { get; init; }
+}
 
 /// <summary>
-/// A reference to a (public) value: either a value published by a processor ('pubns/name')
-/// or the value of a field addressed by its schema path ('Root.Header.Length').
+/// The use of a processor on a node or typedef: either a processor key ('namespace.id')
+/// or a reference to a <see cref="SchemaProcessorDef"/> ('ref:name' or 'ref:document.name').
+/// The properties of the ref override the properties of the definition.
 /// </summary>
-public sealed class SchemaValueRef
+public sealed class SchemaProcessorRef : SchemaProcessorBase
 {
-    public const char PublishedSeparator = '/';
+    public required SchemaProcessorName Processor { get; init; }
 
-    public required string Reference { get; init; }
+    /// <summary>Filled when a reference is resolved (compiled).</summary>
+    public SchemaProcessorDef? Definition { get; internal set; }
 
-    /// <summary>True for 'pubns/name', false for a schema path.</summary>
-    public bool IsPublished => Reference.Contains(PublishedSeparator);
+    /// <summary>The processor to use. Null when a reference is not (yet) resolved or a name has no namespace.</summary>
+    public ProcessorKey? Key
+        => Processor.IsReference
+            ? Definition?.Processor
+            : String.IsNullOrEmpty(Processor.Namespace) ? null : Processor.ToProcessorKey();
+
+    /// <summary>The properties of the definition (if any) overridden by the properties of this ref.</summary>
+    public IReadOnlyList<SchemaProperty> EffectiveProperties
+    {
+        get
+        {
+            if (Definition is null)
+            {
+                return Properties;
+            }
+
+            var merged = new List<SchemaProperty>(Definition.Properties);
+            foreach (var property in Properties)
+            {
+                merged.RemoveAll(p => p.Name == property.Name);
+                merged.Add(property);
+            }
+            return merged;
+        }
+    }
 }
+
+/// <summary>A constant, a reference to a field value ('ref:') or a reference to a published value ('pub:').</summary>
+public union SchemaValueOrRef<T>(SchemaNodeRef, SchemaPubRef, T) { }
 
 public sealed class SchemaProperty
 {

@@ -211,6 +211,6 @@ public class VarIntProcessorTests
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
             Write(root, new Dictionary<string, object?> { ["Root.A"] = 1u }, out _));
-        Assert.That(ex!.Message, Does.Contain("sys:varint.encoding"));
+        Assert.That(ex!.Message, Does.Contain("sys.varint.encoding"));
     }
 }

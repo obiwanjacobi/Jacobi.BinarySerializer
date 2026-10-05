@@ -20,11 +20,11 @@ internal static class ProcessorTestHelpers
     /// <summary>Property names are expanded to the full 'sys:{id}.{name}' form (enum options stay as-is; they are values, not settings).</summary>
     public static SchemaProcessorRef Ref(string id, params (string Name, string Value)[] properties)
     {
-        var processor = new SchemaProcessorRef { Processor = new SchemaName($"sys.{id}") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName($"sys.{id}") };
         var key = new ProcessorKey("sys", id);
         processor.PropertyList.AddRange(properties.Select(p => new SchemaProperty
         {
-            Name = p.Name.Contains(':') ? p.Name : key.PropertyName(p.Name),
+            Name = p.Name.Contains('.') ? p.Name : key.PropertyName(p.Name),
             Value = p.Value
         }));
         return processor;
@@ -39,7 +39,7 @@ internal static class ProcessorTestHelpers
             ProcessorsList = [.. processors ?? []],
             PropertyList = [.. properties.Select(p => new SchemaProperty
             {
-                Name = p.Name.Contains(':') ? p.Name : new ProcessorKey("sys", "bitpacker").PropertyName(p.Name),
+                Name = p.Name.Contains('.') ? p.Name : new ProcessorKey("sys", "bitpacker").PropertyName(p.Name),
                 Value = p.Value
             })]
         };

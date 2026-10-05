@@ -9,7 +9,7 @@ namespace Jacobi.BinarySerializer.Tests.Execution;
 /// <summary>Repeat counts / choice indexes that refer to a public value or a field by schema path.</summary>
 public class ValueReferenceTests
 {
-    private static SchemaGroup Schema(SchemaValueRef count)
+    private static SchemaGroup Schema(SchemaValueOrRef<int> count)
     {
         var repeat = new SchemaRepeat { Name = "Items", Count = count };
         repeat.ChildList.Add(Field("Item"));
@@ -19,7 +19,7 @@ public class ValueReferenceTests
     [Test]
     public void Build_PathReference_FlagsTargetFieldAndBindsKey()
     {
-        var plan = Build(Schema(new SchemaValueRef { Reference = "Root.Length" }));
+        var plan = Build(Schema(new SchemaNodeRef { Path = "Root.Length" }));
 
         var length = (FieldInfo)plan.Root.Children[0];
         var repeat = (RepeatInfo)plan.Root.Children[1];
@@ -30,7 +30,7 @@ public class ValueReferenceTests
     [Test]
     public void Build_PublishedReference_BindsNamespaceAndName()
     {
-        var plan = Build(Schema(new SchemaValueRef { Reference = "hdr/count" }));
+        var plan = Build(Schema(new SchemaPubRef { Namespace = "hdr", Name = "count" }));
 
         var length = (FieldInfo)plan.Root.Children[0];
         var repeat = (RepeatInfo)plan.Root.Children[1];
@@ -41,7 +41,7 @@ public class ValueReferenceTests
     [Test]
     public void Build_PathReferenceToTargetAfterTheReferrer_IsAllowed()
     {
-        var repeat = new SchemaRepeat { Name = "Items", Count = new SchemaValueRef { Reference = "Root.Length" } };
+        var repeat = new SchemaRepeat { Name = "Items", Count = new SchemaNodeRef { Path = "Root.Length" } };
         repeat.ChildList.Add(Field("Item"));
         var root = Group("Root", [], repeat, Field("Length"));
 
@@ -54,7 +54,7 @@ public class ValueReferenceTests
     public void Build_PathReferenceToUnknownNode_ThrowsWithPaths()
     {
         var ex = Assert.Throws<ExecutionPlanException>(
-            () => Build(Schema(new SchemaValueRef { Reference = "Root.Nope" })));
+            () => Build(Schema(new SchemaNodeRef { Path = "Root.Nope" })));
 
         Assert.That(ex!.Errors, Has.Count.EqualTo(1));
         Assert.That(ex.Errors[0], Does.Contain("Root.Items").And.Contain("Root.Nope"));
@@ -64,7 +64,7 @@ public class ValueReferenceTests
     public void Build_PathReferenceToGroup_Throws()
     {
         var ex = Assert.Throws<ExecutionPlanException>(
-            () => Build(Schema(new SchemaValueRef { Reference = "Root.Items" })));
+            () => Build(Schema(new SchemaNodeRef { Path = "Root.Items" })));
 
         Assert.That(ex!.Errors[0], Does.Contain("must refer to a field"));
     }
@@ -72,7 +72,7 @@ public class ValueReferenceTests
     [Test]
     public void Build_ChoiceIndexPathReference_FlagsTargetField()
     {
-        var choice = new SchemaChoice { Name = "Pick", SelectedIndex = new SchemaValueRef { Reference = "Root.Kind" } };
+        var choice = new SchemaChoice { Name = "Pick", SelectedIndex = new SchemaNodeRef { Path = "Root.Kind" } };
         choice.ChildList.Add(Field("A"));
         choice.ChildList.Add(Field("B"));
 
@@ -93,7 +93,7 @@ public class ValueReferenceTests
                   <children>
                     <field name="Length" type="Int32" />
                     <repeat name="Items">
-                      <count ref="Root.Length" />
+                      <count ref="ref:Root.Length" />
                       <children>
                         <field name="Item" type="Int32" />
                       </children>
@@ -110,8 +110,8 @@ public class ValueReferenceTests
         var root = new SchemaSet().LoadFromXml(serialized).Roots.OfType<SchemaGroup>().Single();
         var repeat = root.Children.OfType<SchemaRepeat>().Single();
 
-        Assert.That(serialized, Does.Contain("ref=\"Root.Length\""));
-        Assert.That(repeat.Count is SchemaValueRef r && r.Reference == "Root.Length");
+        Assert.That(serialized, Does.Contain("ref=\"ref:Root.Length\""));
+        Assert.That(repeat.Count is SchemaNodeRef r && r.Path == "Root.Length");
     }
 
     [Test]
@@ -124,7 +124,7 @@ public class ValueReferenceTests
                 {
                   "kind": "repeat",
                   "name": "Items",
-                  "count": { "reference": "hdr/count" },
+                  "count": { "reference": "pub:hdr.count" },
                   "children": [
                     { "kind": "field", "name": "Item", "type": "Int32" }
                   ]
@@ -137,6 +137,6 @@ public class ValueReferenceTests
         var serialized = JsonSerializer.Serialize(document);
         var repeat = JsonSerializer.Deserialize(serialized).Roots.OfType<SchemaRepeat>().Single();
 
-        Assert.That(repeat.Count is SchemaValueRef r && r.Reference == "hdr/count");
+        Assert.That(repeat.Count is SchemaPubRef r && r.Namespace == "hdr" && r.Name == "count");
     }
 }

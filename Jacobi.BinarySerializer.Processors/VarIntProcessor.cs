@@ -213,7 +213,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
         };
     }
 
-    public ProcessorKey Key => new("sys:varint");
+    public ProcessorKey Key => new("sys.varint");
     public string Name => "Variable Integer Processor";
     public PipelineStage Stage => PipelineStage.Representation;
     public IReadOnlyList<PropertyDescriptor> Properties =>

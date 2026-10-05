@@ -165,12 +165,14 @@ public sealed record EncodedField(string Name, Type PhysicalType, object? Value,
 
 public readonly record struct ProcessorKey
 {
+    public const char Separator = '.';
+
     public ProcessorKey(string fullname)
     {
-        var i = fullname.LastIndexOf(':');
+        var i = fullname.LastIndexOf(Separator);
         if (i < 0)
         {
-            throw new ArgumentException($"Invalid processor fullname '{fullname}'. Expected format 'namespace:id'.");
+            throw new ArgumentException($"Invalid processor fullname '{fullname}'. Expected format 'namespace{Separator}id'.");
         }
 
         Namespace = fullname[..i];
@@ -186,6 +188,9 @@ public readonly record struct ProcessorKey
     public string Id { get; init; }
     public string Namespace { get; init; }
 
-    /// <summary>The full property name: 'namespace:id.name'.</summary>
-    public string PropertyName(string name) => $"{Namespace}:{Id}.{name}";
+    /// <summary>The full property name: 'namespace.id.name'.</summary>
+    public string PropertyName(string name)
+        => $"{Namespace}{Separator}{Id}{Separator}{name}";
+
+    public override string ToString() => $"{Namespace}{Separator}{Id}";
 }

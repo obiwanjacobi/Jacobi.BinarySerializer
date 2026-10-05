@@ -124,7 +124,7 @@ public class ExecutionPlanBuilderTests
     [Test]
     public void Build_Repeat_WithValueRefCount_BindsPublishedKey()
     {
-        var repeat = new SchemaRepeat { Name = "Items", Count = new SchemaValueRef { Reference = "hdr/count" } };
+        var repeat = new SchemaRepeat { Name = "Items", Count = new SchemaPubRef { Namespace = "hdr", Name = "count" } };
         var root = CreateGroup("Root");
         root.ChildList.Add(repeat);
 
@@ -263,7 +263,7 @@ public class ExecutionPlanBuilderTests
     }
 
     private static SchemaProcessorRef Ref(string id)
-        => new() { Processor = new SchemaName($"{Ns}.{id}") };
+        => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
 
     private static SchemaGroup CreateGroup(string name, params SchemaProcessorRef[] processors)
         => new() { Name = name, ProcessorsList = [.. processors] };

@@ -166,7 +166,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
         };
     }
 
-    public ProcessorKey Key => new("sys:bitpacker");
+    public ProcessorKey Key => new("sys.bitpacker");
     public string Name => "Bit-Packer Processor";
     public PipelineStage Stage => PipelineStage.Layout;
     public IReadOnlyList<PropertyDescriptor> Properties =>

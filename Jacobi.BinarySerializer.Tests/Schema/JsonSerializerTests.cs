@@ -1,4 +1,4 @@
-﻿using Jacobi.BinarySerializer.Schema;
+using Jacobi.BinarySerializer.Schema;
 using Jacobi.BinarySerializer.Schema.Json;
 
 namespace Jacobi.BinarySerializer.Tests.Schema;
@@ -99,10 +99,10 @@ public class JsonSerializerTests
             ""name"": ""TestSchema"",
             ""processorDefs"": [
                 {
-                    ""processor"": ""rootProcessor""
+                    ""name"": ""rootProcessor"", ""processor"": ""sys.align""
                 },
                 {
-                    ""processor"": ""deltaProcessor"",
+                    ""name"": ""deltaProcessor"", ""processor"": ""sys.scale"",
                     ""properties"": [
                         { ""name"": ""bits"", ""value"": ""7"" }
                     ]
@@ -164,18 +164,18 @@ public class JsonSerializerTests
         var document = JsonSerializer.Deserialize(json);
 
         Assert.That(document.ProcessorDefs.Count, Is.EqualTo(2));
-        Assert.That(document.ProcessorDefs.Any(p => p.Processor.FullName == "rootProcessor"));
-        Assert.That(document.ProcessorDefs.Any(p => p.Processor.FullName == "deltaProcessor" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
+        Assert.That(document.ProcessorDefs.Any(p => p.Name == "rootProcessor" && p.Processor.ToString() == "sys.align"));
+        Assert.That(document.ProcessorDefs.Any(p => p.Name == "deltaProcessor" && p.Processor.ToString() == "sys.scale" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
         Assert.That(document.TypeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.FullName == "ref:deltaProcessor") && t.Type == SchemaDataType.Int32));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.FullName == "ref:rootProcessor") && t.Type == SchemaDataType.None));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.Type == SchemaDataType.Int32));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.Type == SchemaDataType.None));
 
         // Resolver not implemented yet: usage remains as raw references.
         var rootGroup = document.Roots.Single();
         var rootField = rootGroup.Children.OfType<SchemaField>().Single();
-        Assert.That(rootGroup.Processors.Single().Processor.FullName, Is.EqualTo("ref:rootProcessor"));
-        Assert.That(rootField.Processors.Single().Processor.FullName, Is.EqualTo("ref:deltaProcessor"));
+        Assert.That(rootGroup.Processors.Single().Processor.ToString(), Is.EqualTo("ref:rootProcessor"));
+        Assert.That(rootField.Processors.Single().Processor.ToString(), Is.EqualTo("ref:deltaProcessor"));
     }
 
     [Test]
@@ -185,14 +185,14 @@ public class JsonSerializerTests
             {
               "name": "RoundTripSchema",
               "processorDefs": [
-                { "processor": "counterProcessor" },
-                { "processor": "selectorProcessor" }
+                { "name": "counterProcessor", "processor": "sys.align" },
+                { "name": "selectorProcessor", "processor": "sys.align" }
               ],
               "children": [
                 {
                   "kind": "repeat",
                   "name": "RepeatGroup",
-                  "count": { "reference": "hdr/count" },
+                  "count": { "reference": "pub:hdr.count" },
                   "processors": [
                     { "processor": "rootProcessor" }
                   ],
@@ -245,7 +245,7 @@ public class JsonSerializerTests
         var repeat = roundTripped.Roots.OfType<SchemaRepeat>().Single();
         var choice = roundTripped.Roots.OfType<SchemaChoice>().Single();
 
-        Assert.That(repeat.Count is SchemaValueRef repeatCount && repeatCount.Reference == "hdr/count");
+        Assert.That(repeat.Count is SchemaPubRef repeatCount && repeatCount.Namespace == "hdr" && repeatCount.Name == "count");
         Assert.That(choice.SelectedIndex is int selected && selected == 2);
     }
 }

@@ -1,3 +1,4 @@
+using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Tests.Schema;
@@ -110,9 +111,9 @@ public class SchemaSetTests
     {
         var schemaSet = new SchemaSet();
         var root = CreateGroup("Root");
-        var processor = new SchemaProcessorRef { Processor = new SchemaName("sys.align") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("sys.align") };
         processor.PropertyList.Add(new SchemaProperty { Name = "bytes", Value = "4" });
-        processor.PropertyList.Add(new SchemaProperty { Name = "sys:align.relative", Value = "root" });
+        processor.PropertyList.Add(new SchemaProperty { Name = "sys.align.relative", Value = "root" });
         root.ProcessorsList.Add(processor);
 
         var fieldProperty = new SchemaProperty { Name = "bits", Value = "3" };
@@ -131,15 +132,106 @@ public class SchemaSetTests
         schemaSet.Compile();
 
         Assert.That(processor.Properties.Select(p => p.Name),
-            Is.EqualTo(new[] { "sys:align.bytes", "sys:align.relative" }));
+            Is.EqualTo(new[] { "sys.align.bytes", "sys.align.relative" }));
         Assert.That(field.Properties.Single().Name, Is.EqualTo("bits"));
+    }
+
+    [Test]
+    public void Compile_LocalProcessorAlias_ResolvesDefinition()
+    {
+        var root = CreateGroup("Root");
+        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:aligned") };
+        root.ProcessorsList.Add(processor);
+        var def = new SchemaProcessorDef { Name = "aligned", Processor = new ProcessorKey("sys.align") };
+
+        var schemaSet = new SchemaSet();
+        schemaSet.AddDocument(CreateDocument("Main", roots: [root], processorDefs: [def]));
+        schemaSet.Compile();
+
+        Assert.That(processor.Definition, Is.SameAs(def));
+        Assert.That(processor.Key, Is.EqualTo(new ProcessorKey("sys.align")));
+    }
+
+    [Test]
+    public void Compile_CrossDocumentProcessorAlias_ResolvesDefinition()
+    {
+        var def = new SchemaProcessorDef { Name = "aligned", Processor = new ProcessorKey("sys.align") };
+        var shared = CreateDocument("Shared", processorDefs: [def]);
+
+        var root = CreateGroup("Root");
+        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:Shared.aligned") };
+        root.ProcessorsList.Add(processor);
+        var main = CreateDocument("Main", roots: [root], includes: [new SchemaDocumentRef { Schema = "Shared" }]);
+
+        var schemaSet = new SchemaSet();
+        schemaSet.AddDocument(shared);
+        schemaSet.AddDocument(main);
+        schemaSet.Compile();
+
+        Assert.That(processor.Definition, Is.SameAs(def));
+        Assert.That(processor.Key, Is.EqualTo(new ProcessorKey("sys.align")));
+    }
+
+    [Test]
+    public void Compile_ProcessorAlias_RefPropertiesOverrideDefinition()
+    {
+        var def = new SchemaProcessorDef { Name = "aligned", Processor = new ProcessorKey("sys.align") };
+        def.PropertyList.Add(new SchemaProperty { Name = "bytes", Value = "4" });
+        def.PropertyList.Add(new SchemaProperty { Name = "relative", Value = "root" });
+
+        var root = CreateGroup("Root");
+        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:aligned") };
+        processor.PropertyList.Add(new SchemaProperty { Name = "bytes", Value = "8" });
+        root.ProcessorsList.Add(processor);
+
+        var schemaSet = new SchemaSet();
+        schemaSet.AddDocument(CreateDocument("Main", roots: [root], processorDefs: [def]));
+        schemaSet.Compile();
+
+        var effective = processor.EffectiveProperties.ToDictionary(p => p.Name, p => p.Value);
+        Assert.That(effective["sys.align.bytes"], Is.EqualTo("8"));
+        Assert.That(effective["sys.align.relative"], Is.EqualTo("root"));
+    }
+
+    [Test]
+    public void Compile_TypeDefProcessorAlias_ResolvesDefinition()
+    {
+        var def = new SchemaProcessorDef { Name = "aligned", Processor = new ProcessorKey("sys.align") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:aligned") };
+        var typeDef = new SchemaTypeDef
+        {
+            Name = "CommonField",
+            Type = SchemaDataType.Int32,
+            Processors = [processor]
+        };
+
+        var schemaSet = new SchemaSet();
+        schemaSet.AddDocument(CreateDocument("Main", typeDefs: [typeDef], processorDefs: [def]));
+        schemaSet.Compile();
+
+        Assert.That(processor.Definition, Is.SameAs(def));
+    }
+
+    [Test]
+    public void Compile_UnresolvedProcessorAlias_Throws()
+    {
+        var root = CreateGroup("Root");
+        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:missing") };
+        root.ProcessorsList.Add(processor);
+
+        var schemaSet = new SchemaSet();
+        var main = CreateDocument("Main", roots: [root]);
+        schemaSet.AddDocument(main);
+
+        Assert.Throws<InvalidOperationException>(() => schemaSet.Compile());
+        Assert.That(processor.Key, Is.Null);
     }
 
     private static SchemaDocument CreateDocument(
         string name,
         IReadOnlyList<SchemaNode>? roots = null,
         IReadOnlyList<SchemaTypeDef>? typeDefs = null,
-        IReadOnlyList<SchemaProcessorRef>? processorDefs = null,
+        IReadOnlyList<SchemaProcessorDef>? processorDefs = null,
         IReadOnlyList<SchemaDocumentRef>? includes = null)
     {
         var rootList = roots?.OfType<SchemaGroup>().ToList() ?? [];

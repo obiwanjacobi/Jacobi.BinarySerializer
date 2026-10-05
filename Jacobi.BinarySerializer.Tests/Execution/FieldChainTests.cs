@@ -17,7 +17,7 @@ public class FieldChainTests
     }
 
     private static SchemaProcessorRef Ref(string id)
-        => new() { Processor = new SchemaName($"{Ns}.{id}") };
+        => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
 
     private static SchemaGroup Root(params string[] chain)
     {
@@ -80,7 +80,7 @@ public class FieldChainTests
     {
         var ex = Assert.Throws<ExecutionPlanException>(() => Build(Root("head", "plainhead"), []));
 
-        Assert.That(ex!.Message, Does.Contain("fc:plainhead").And.Contain("field chain"));
+        Assert.That(ex!.Message, Does.Contain("fc.plainhead").And.Contain("field chain"));
     }
 
     private sealed class Factory(List<string> log) : IProcessorFactory

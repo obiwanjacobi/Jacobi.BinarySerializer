@@ -4,7 +4,7 @@ using Jacobi.BinarySerializer.Schema;
 namespace Jacobi.BinarySerializer.Processor;
 
 /// <summary>
-/// Property lookup scoped to one processor. Full property names are '{namespace}:{id}.{name}'.
+/// Property lookup scoped to one processor. Full property names are '{namespace}.{id}.{name}'.
 /// Lookup by short name is accepted as a fallback (processor-defs may omit the prefix).
 /// </summary>
 public sealed class ProcessorProperties : IReadOnlyList<SchemaProperty>
@@ -41,7 +41,7 @@ public sealed class ProcessorProperties : IReadOnlyList<SchemaProperty>
             {
                 yield return new(property.Name[prefix.Length..], property.Value);
             }
-            else if (!property.Name.Contains(':'))
+            else if (!property.Name.Contains('.'))
             {
                 yield return new(property.Name, property.Value);
             }
@@ -68,7 +68,7 @@ public sealed class ProcessorProperties : IReadOnlyList<SchemaProperty>
         => Find(name)?.Value
             ?? throw new InvalidOperationException(
                 $"The '{FullName(name)}' property is required" +
-                (_owner is { } key ? $" by the '{key.Namespace}:{key.Id}' processor." : "."));
+                (_owner is { } key ? $" by the '{key}' processor." : "."));
 
     public bool TryGet<T>(string name, out T value) where T : IParsable<T>
     {

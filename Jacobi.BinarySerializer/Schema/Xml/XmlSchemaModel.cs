@@ -10,17 +10,17 @@ public sealed class XmlSchema
     public string Name { get; set; } = string.Empty;
 
     [XmlArray("children")]
-    [XmlArrayItem("field", typeof(XmlSchemaFieldNode))]
-    [XmlArrayItem("group", typeof(XmlSchemaGroupNode))]
-    [XmlArrayItem("repeat", typeof(XmlSchemaRepeatNode))]
-    [XmlArrayItem("choice", typeof(XmlSchemaChoiceNode))]
+    [XmlArrayItem("field", typeof(XmlSchemaField))]
+    [XmlArrayItem("group", typeof(XmlSchemaGroup))]
+    [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
+    [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode> Children { get; set; } = [];
 
     [XmlArray("typeDefs")]
-    [XmlArrayItem("field", typeof(XmlSchemaFieldNode))]
-    [XmlArrayItem("group", typeof(XmlSchemaGroupNode))]
-    [XmlArrayItem("repeat", typeof(XmlSchemaRepeatNode))]
-    [XmlArrayItem("choice", typeof(XmlSchemaChoiceNode))]
+    [XmlArrayItem("field", typeof(XmlSchemaField))]
+    [XmlArrayItem("group", typeof(XmlSchemaGroup))]
+    [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
+    [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode> TypeDefs { get; set; } = [];
 
     [XmlArray("processors")]
@@ -29,7 +29,7 @@ public sealed class XmlSchema
 
     [XmlArray("processorDefs")]
     [XmlArrayItem("processor")]
-    public List<XmlSchemaProcessorRef> ProcessorDefs { get; set; } = [];
+    public List<XmlSchemaProcessorDef> ProcessorDefs { get; set; } = [];
 
     [XmlArray("includes")]
     [XmlArrayItem("include")]
@@ -62,7 +62,7 @@ public abstract class XmlSchemaNode
     public XmlElement[]? AdditionalElements { get; set; }
 }
 
-public sealed class XmlSchemaFieldNode : XmlSchemaNode
+public sealed class XmlSchemaField : XmlSchemaNode
 {
     [XmlElement("processor")]
     public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
@@ -71,20 +71,35 @@ public sealed class XmlSchemaFieldNode : XmlSchemaNode
     public SchemaDataType Type { get; set; }
 }
 
-public class XmlSchemaGroupNode : XmlSchemaNode
+public class XmlSchemaGroup : XmlSchemaNode
 {
     [XmlArray("processors")]
     [XmlArrayItem("processor")]
     public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
 
     [XmlArray("children")]
-    [XmlArrayItem("field", typeof(XmlSchemaFieldNode))]
-    [XmlArrayItem("group", typeof(XmlSchemaGroupNode))]
-    [XmlArrayItem("repeat", typeof(XmlSchemaRepeatNode))]
-    [XmlArrayItem("choice", typeof(XmlSchemaChoiceNode))]
+    [XmlArrayItem("field", typeof(XmlSchemaField))]
+    [XmlArrayItem("group", typeof(XmlSchemaGroup))]
+    [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
+    [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode> Children { get; set; } = [];
 }
 
+/// <summary>A named processor declaration: 'name' is used in a 'ref:name' (or 'ref:document.name').</summary>
+public sealed class XmlSchemaProcessorDef
+{
+    [XmlAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [XmlAttribute("processor")]
+    public string Processor { get; set; } = string.Empty;
+
+    [XmlArray("properties")]
+    [XmlArrayItem("property")]
+    public List<XmlSchemaProperty> Properties { get; set; } = [];
+}
+
+/// <summary>A processor key ('namespace.id') or a reference to a processor declaration ('ref:name').</summary>
 public sealed class XmlSchemaProcessorRef
 {
     [XmlAttribute("processor")]
@@ -104,7 +119,7 @@ public sealed class XmlSchemaDocumentRef
     public string? Path { get; set; }
 }
 
-public sealed class XmlSchemaRepeatNode : XmlSchemaGroupNode
+public sealed class XmlSchemaRepeat : XmlSchemaGroup
 {
     /// <summary>A constant count (attribute); use <see cref="CountRef"/> to refer to a value.</summary>
     [XmlAttribute("count")]
@@ -114,7 +129,7 @@ public sealed class XmlSchemaRepeatNode : XmlSchemaGroupNode
     public XmlSchemaValueRef? CountRef { get; set; }
 }
 
-public sealed class XmlSchemaChoiceNode : XmlSchemaGroupNode
+public sealed class XmlSchemaChoice : XmlSchemaGroup
 {
     /// <summary>A constant index (attribute); use <see cref="SelectedIndexRef"/> to refer to a value.</summary>
     [XmlAttribute("selectedIndex")]

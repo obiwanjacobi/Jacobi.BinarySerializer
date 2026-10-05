@@ -20,7 +20,7 @@ internal static class SessionTestHelpers
     }
 
     public static SchemaProcessorRef Ref(string id)
-        => new() { Processor = new SchemaName($"{Ns}.{id}") };
+        => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
 
     public static SchemaField Field(string name, SchemaDataType type = SchemaDataType.Int32)
         => new() { Name = name, Type = type };

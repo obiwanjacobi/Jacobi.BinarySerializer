@@ -9,6 +9,12 @@ public readonly struct SchemaName : IEquatable<SchemaName>, IEquatable<string>
 
     public SchemaName(string moniker)
     {
+        if (moniker.StartsWith("ref:", StringComparison.Ordinal))
+        {
+            moniker = moniker[4..];
+            IsReference = true;
+        }
+
         var i = moniker.LastIndexOf(Separator);
         if (i == -1)
         {
@@ -25,6 +31,8 @@ public readonly struct SchemaName : IEquatable<SchemaName>, IEquatable<string>
     public string Namespace { get; } = String.Empty;
     public string FullName
         => String.IsNullOrEmpty(Namespace) ? Name : $"{Namespace}.{Name}";
+
+    public bool IsReference { get; }
 
     override public string ToString()
         => FullName;

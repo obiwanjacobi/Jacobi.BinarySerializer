@@ -17,7 +17,7 @@ public class LayoutChainTests
     }
 
     private static SchemaProcessorRef Ref(string id)
-        => new() { Processor = new SchemaName($"{Ns}.{id}") };
+        => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
 
     private static SchemaField Field(string name, SchemaDataType type = SchemaDataType.UInt8)
         => new() { Name = name, Type = type };
@@ -116,7 +116,7 @@ public class LayoutChainTests
         var ex = Assert.Throws<ExecutionPlanException>(
             () => Build(Group("Root", [Ref("head"), Ref("plainhead")], Field("A")), log));
 
-        Assert.That(ex!.Message, Does.Contain("ch:plainhead").And.Contain("chained"));
+        Assert.That(ex!.Message, Does.Contain("ch.plainhead").And.Contain("chained"));
     }
 
     private sealed class Factory(List<string> log) : IProcessorFactory

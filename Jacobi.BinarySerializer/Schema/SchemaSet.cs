@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Jacobi.BinarySerializer.Schema.Json;
 using Jacobi.BinarySerializer.Schema.Xml;
@@ -104,8 +104,8 @@ public sealed class SchemaSet
     }
 
     /// <summary>
-    /// Expands short property names on processor refs to their full 'namespace:id.name' form.
-    /// Names that already contain ':' and refs without a namespace (processor-def aliases) are left as is.
+    /// Expands short property names on processor refs to their full 'namespace.id.name' form.
+    /// Names that already contain '.' are left as is. Properties of a 'ref:' are expanded when it is resolved.
     /// Properties on fields and groups are not touched.
     /// </summary>
     private static void ExpandPropertyNames(SchemaDocument document)
@@ -152,20 +152,24 @@ public sealed class SchemaSet
         }
     }
 
+    private static void ExpandPropertyNames(SchemaProcessorDef processor)
+        => ExpandPropertyNames(processor, processor.Processor);
+
     private static void ExpandPropertyNames(SchemaProcessorRef processor)
     {
-        var ns = processor.Processor.Namespace;
-        if (String.IsNullOrEmpty(ns))
+        if (processor.Key is { } key)
         {
-            return;
+            ExpandPropertyNames(processor, key);
         }
+    }
 
-        var key = new Processor.ProcessorKey(ns, processor.Processor.Name);
+    private static void ExpandPropertyNames(SchemaProcessorBase processor, Processor.ProcessorKey key)
+    {
         var list = processor.PropertyList;
         for (var i = 0; i < list.Count; i++)
         {
             var property = list[i];
-            if (property.Name.Contains(':'))
+            if (property.Name.Contains(Processor.ProcessorKey.Separator))
             {
                 continue;
             }
@@ -196,13 +200,8 @@ public sealed class SchemaSet
             AddSchemaDependency(typeDef.TypeDef, document.Name, dependencies);
             foreach (var processor in typeDef.Processors)
             {
-                AddSchemaDependency(processor.Processor, document.Name, dependencies);
+                AddSchemaDependency(processor, document.Name, dependencies);
             }
-        }
-
-        foreach (var processor in document.ProcessorDefs)
-        {
-            AddSchemaDependency(processor.Processor, document.Name, dependencies);
         }
 
         foreach (var root in document.Roots)
@@ -223,7 +222,7 @@ public sealed class SchemaSet
             {
                 foreach (var processor in field.Processors)
                 {
-                    AddSchemaDependency(processor.Processor, documentName, dependencies);
+                    AddSchemaDependency(processor, documentName, dependencies);
                 }
             }
 
@@ -231,11 +230,19 @@ public sealed class SchemaSet
             {
                 foreach (var processor in group.Processors)
                 {
-                    AddSchemaDependency(processor.Processor, documentName, dependencies);
+                    AddSchemaDependency(processor, documentName, dependencies);
                 }
 
                 CollectNodeDependencies(group.ChildList, documentName, dependencies);
             }
+        }
+    }
+
+    private void AddSchemaDependency(SchemaProcessorRef processorRef, string documentName, HashSet<string> dependencies)
+    {
+        if (processorRef.Processor.IsReference)
+        {
+            AddSchemaDependency(processorRef.Processor.ToSchemaName(), documentName, dependencies);
         }
     }
 
@@ -253,7 +260,7 @@ public sealed class SchemaSet
         }
     }
 
-    public void AddDocument(SchemaDocument document)
+    internal void AddDocument(SchemaDocument document)
     {
         if (document is null)
         {
@@ -328,8 +335,27 @@ public sealed class SchemaSet
     {
         bool allResolved = ResolveIncludes(document);
 
+        foreach (var typeDef in document.TypeDefs)
+        {
+            foreach (var processor in typeDef.Processors)
+            {
+                if (!TryResolveProcessorRef(document, processor))
+                {
+                    allResolved = false;
+                }
+            }
+        }
+
         foreach (var group in document.Roots)
         {
+            foreach (var processor in group.Processors)
+            {
+                if (!TryResolveProcessorRef(document, processor))
+                {
+                    allResolved = false;
+                }
+            }
+
             if (!ResolveReferences(document, group.ChildList))
             {
                 allResolved = false;
@@ -482,7 +508,7 @@ public sealed class SchemaSet
         var mergedProcessors = new List<SchemaProcessorRef>(processors);
         foreach (var overrideProcessor in overrides)
         {
-            var existingProcessor = mergedProcessors.FirstOrDefault(c => c.Processor.FullName == overrideProcessor.Processor.FullName);
+            var existingProcessor = mergedProcessors.FirstOrDefault(c => c.Processor == overrideProcessor.Processor);
             if (existingProcessor != null)
             {
                 mergedProcessors.Remove(existingProcessor);
@@ -492,21 +518,31 @@ public sealed class SchemaSet
         return mergedProcessors;
     }
 
+    /// <summary>
+    /// Resolves a 'ref:name' (this document) or 'ref:document.name' (any other document) to its definition.
+    /// A processor key ('namespace.id') needs no resolving.
+    /// </summary>
     private bool TryResolveProcessorRef(SchemaDocument document, SchemaProcessorRef processorRef)
     {
-        bool allResolved = true;
-
-        if (document.TryFindProcessor(processorRef.Processor, out var processorDecl) ||
-            TryFindTypeDef(processorRef.Processor, out var processorDeclNode))
+        if (!processorRef.Processor.IsReference)
         {
-            // merge properties from decl and ref
-        }
-        else
-        {
-            allResolved = false;
+            return true;
         }
 
-        return allResolved;
+        var ns = processorRef.Processor.Namespace;
+        var definingDocument = String.IsNullOrEmpty(ns) || String.Equals(ns, document.Name, StringComparison.OrdinalIgnoreCase)
+            ? document
+            : _documents.GetValueOrDefault(ns);
+
+        if (definingDocument is null ||
+            !definingDocument.TryFindProcessorDef(processorRef.Processor.Name, out var definition))
+        {
+            return false;
+        }
+
+        processorRef.Definition = definition;
+        ExpandPropertyNames(processorRef, definition.Processor);
+        return true;
     }
 
     private bool TryFindTypeDef(SchemaName schemaName, [NotNullWhen(true)] out SchemaTypeDef? typeDef)
@@ -536,16 +572,10 @@ internal static class SchemaDocumentExtensions
         return false;
     }
 
-    public static bool TryFindProcessor(this SchemaDocument document, SchemaName schemaName, [NotNullWhen(true)] out SchemaProcessorRef? processor)
+    public static bool TryFindProcessorDef(this SchemaDocument document, string name, [NotNullWhen(true)] out SchemaProcessorDef? processorDef)
     {
-        if (String.IsNullOrEmpty(schemaName.Namespace))
-        {
-            processor = document.ProcessorDefs.FirstOrDefault(n => n.Processor.Name == schemaName.Name);
-            return processor != null;
-        }
-
-        processor = null;
-        return false;
+        processorDef = document.ProcessorDefs.FirstOrDefault(n => n.Name == name);
+        return processorDef != null;
     }
 }
 

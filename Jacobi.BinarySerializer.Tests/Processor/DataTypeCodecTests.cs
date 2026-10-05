@@ -56,7 +56,7 @@ public class DataTypeCodecTests
 
         Assert.That(DataTypeCodec.TryDecode(type, bytes, out var decoded), Is.True);
         Assert.That(decoded, Is.EqualTo(value));
-        Assert.That(decoded, Is.TypeOf(DataTypeCodec.ClrType(type)));
+        Assert.That(decoded, Is.TypeOf(DataTypeCodec.ClrType(type)!));
     }
 
     [Test]
