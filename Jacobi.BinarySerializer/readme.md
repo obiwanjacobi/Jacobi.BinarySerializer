@@ -54,6 +54,11 @@ serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, services);
 - [ ] **SchemaField Dummy** to allow filler/dummy/don't-care fields in the schema. The engine currently requires a field to have a data type and a value model property.
 - [ ] **Complex schema property values.** `SchemaProperty.Value` is a single string that the processor interprets. Allow richer values, e.g. lists or object structures (`SchemaNode.cs`).
 - [ ] **Typed-object API.** Where interfacing is done through client-defined POCOs, not by implementing interfaces.
+- [ ] **Expected-value stage.** A field `Value` (constant/ref) is compared against the logical value (after the semantic stage). Make the stage explicitly selectable (default logical).
+- [ ] **Suppress constants in the reader.** The sink currently still receives constant-valued fields via `SetField`. Add an option to skip them.
+- [ ] **Bare JSON `value` literals.** `SchemaField.Value` is a string union, so a bare JSON number or boolean (`"value": 42`) is not supported; only strings (e.g. `"0x2A"`).
+- [ ] **Rethink `SchemaDataType`.** Under reconsideration; constant literal parsing (`DataTypeCodec.TryParse`) depends on it.
+- [ ] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, typedef instantiation.
 
 - [x] **Derive values the model does not hold.** Done: a field that a sibling repeat's `Count` refers to is derived from `IValueSource.GetCount` when the model has no value (flat `IFieldSource` models must be explicit).
 - [x] **String and variable-width fields.** `sys:string` field processor: `encoding` (default UTF-8), fixed `length` (padded with `padding`, trimmed on read) or single-byte `terminator`.

@@ -1,6 +1,6 @@
 # Processor
 
-An object that converts/translates data from one format to another. 
+An object that converts/translates data from one format to another.
 
 - [ ] define a list of global/well-known properties (names and datatypes).
 - [ ] 

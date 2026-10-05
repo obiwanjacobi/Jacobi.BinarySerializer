@@ -1,6 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -77,22 +78,59 @@ public closed class SessionState
 
         if (source is PublishedValueKey declared)
         {
-            var key = declared with { Instance = declared.Instance.ResolveRelative(current) };
-            if (!_published.TryGetValue(key, out var value))
-            {
-                throw EngineLogger.Fail($"'{referrer}': the value '{key}' was not published (yet).");
-            }
-
+            var value = ResolvePublished(declared, referrer, current);
             try
             {
                 return Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture);
             }
             catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
             {
-                throw EngineLogger.Fail($"'{referrer}': the value '{key}' ({value ?? "null"}) is not an integer.", ex);
+                throw EngineLogger.Fail($"'{referrer}': the value '{declared}' ({value ?? "null"}) is not an integer.", ex);
             }
         }
 
         throw EngineLogger.Fail($"'{referrer}': the value source is unresolved.");
+    }
+
+    /// <summary>Gets a published value. An unpublished value is a runtime error.</summary>
+    internal object? ResolvePublished(PublishedValueKey declared, SchemaPath referrer, InstancePath current = default)
+    {
+        var key = declared with { Instance = declared.Instance.ResolveRelative(current) };
+        if (!_published.TryGetValue(key, out var value))
+        {
+            throw EngineLogger.Fail($"'{referrer}': the value '{key}' was not published (yet).");
+        }
+        return value;
+    }
+
+    /// <summary>
+    /// Gets the value a field must have (its constant, or the published value it refers to), converted to the CLR type of the field.
+    /// </summary>
+    internal object? ResolveExpected(FieldInfo field, InstancePath current)
+    {
+        var expected = field.ValueReference is { } key ? ResolvePublished(key, field.Path, current) : field.ConstantValue;
+        if (expected is null || DataTypeCodec.ClrType(field.Field.Type) is not { } clrType || clrType.IsInstanceOfType(expected))
+        {
+            return expected;
+        }
+
+        try
+        {
+            return Convert.ChangeType(expected, clrType, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+        {
+            throw EngineLogger.Fail($"'{field.Path}': the value '{expected}' cannot be converted to {field.Field.Type}.", ex);
+        }
+    }
+
+    /// <summary>Fails when <paramref name="actual"/> differs from the value the field must have.</summary>
+    internal void CheckExpected(FieldInfo field, object? actual, InstancePath current)
+    {
+        var expected = ResolveExpected(field, current);
+        if (!Equals(expected, actual))
+        {
+            throw EngineLogger.Fail($"'{field.Path}': the value is '{actual ?? "null"}' but the schema requires '{expected ?? "null"}'.");
+        }
     }
 }

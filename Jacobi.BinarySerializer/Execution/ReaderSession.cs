@@ -244,6 +244,11 @@ public sealed class ReaderSession : SessionState
             logical = ((IValueProcessor)valueProcessors[i].Processor).Read(logical, _valueContext);
         }
 
+        if (field.HasExpectedValue)
+        {
+            CheckExpected(field, logical.Value, _instance);
+        }
+
         if (field.PublishesValue)
         {
             Publish(PublishedValueKey.ForPath(field.Path, _instance), logical.Value);

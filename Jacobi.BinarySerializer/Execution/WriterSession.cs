@@ -179,14 +179,25 @@ public sealed class WriterSession : SessionState
 
         if (!scope.TryGetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, out var logical))
         {
-            if (field.CountOf is not { } countOf)
+            if (field.CountOf is { } countOf)
+            {
+                var count = scope.GetCount(new RepeatContext { Node = countOf, Services = _services, Instance = _instance });
+                logical = new LogicalField(field.Name, DataTypeCodec.ClrType(field.Field.Type) ?? typeof(int), count);
+            }
+            else if (field.HasExpectedValue)
+            {
+                var expected = ResolveExpected(field, _instance);
+                logical = new LogicalField(field.Name, DataTypeCodec.ClrType(field.Field.Type) ?? typeof(object), expected);
+            }
+            else
             {
                 // TODO: derive other values the model does not hold (lengths, discriminators).
                 throw EngineLogger.Fail($"'{field.Path}': the value model has no value for the field.");
             }
-
-            var count = scope.GetCount(new RepeatContext { Node = countOf, Services = _services, Instance = _instance });
-            logical = new LogicalField(field.Name, DataTypeCodec.ClrType(field.Field.Type) ?? typeof(int), count);
+        }
+        else if (field.HasExpectedValue)
+        {
+            CheckExpected(field, logical.Value, _instance);
         }
 
         // Semantic: logical value transforms (chained)

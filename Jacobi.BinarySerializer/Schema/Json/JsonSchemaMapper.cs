@@ -81,6 +81,7 @@ internal static class JsonSchemaMapper
             Name = jsonField.Name,
             ProcessorsList = jsonField.Processors.Select(ToSchemaProcessorRef).ToList(),
             Type = jsonField.Type,
+            Value = ToSchemaValueOrRef(jsonField.Value),
             PropertyList = MergeProperties(jsonField.Properties, jsonField.AdditionalData)
         };
     }
@@ -196,6 +197,7 @@ internal static class JsonSchemaMapper
                 Name = field.Name,
                 Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Type = field.Type,
+                Value = FromSchemaValueOrRef(field.Value),
                 Properties = field.Properties.Select(FromSchemaProperty).ToList()
             },
             SchemaGroup group => CreateJsonGroupNode(group),
@@ -262,6 +264,36 @@ internal static class JsonSchemaMapper
 
         throw new JsonException($"Unsupported schema value type '{valueOrRef.GetType().Name}'.");
     }
+
+    /// <summary>An unset value (optional) maps to the default (unset) value.</summary>
+    private static SchemaValueOrRef<string> ToSchemaValueOrRef(JsonSchemaValueOrRef<string> valueOrRef)
+    {
+        if (valueOrRef is JsonSchemaValueRef valueRef)
+        {
+            if (SchemaNodeRef.TryParse(valueRef.Reference, out var nodeRef))
+            {
+                return nodeRef;
+            }
+
+            if (SchemaPubRef.TryParse(valueRef.Reference, out var pubRef))
+            {
+                return pubRef;
+            }
+
+            throw new JsonException($"Invalid value reference '{valueRef.Reference}'. Expected 'ref:path' or 'pub:namespace.name'.");
+        }
+
+        return valueOrRef is string value ? value : default;
+    }
+
+    private static JsonSchemaValueOrRef<string> FromSchemaValueOrRef(SchemaValueOrRef<string> valueOrRef)
+        => valueOrRef switch
+        {
+            SchemaNodeRef nodeRef => new JsonSchemaValueRef { Reference = nodeRef.ToString() },
+            SchemaPubRef pubRef => new JsonSchemaValueRef { Reference = pubRef.ToString() },
+            string value => value,
+            _ => default,
+        };
 
     private static JsonSchemaProcessorDef FromSchemaProcessorDef(SchemaProcessorDef processorDef)
     {

@@ -69,6 +69,13 @@ public sealed class XmlSchemaField : XmlSchemaNode
 
     [XmlAttribute("type")]
     public SchemaDataType Type { get; set; }
+
+    /// <summary>A constant value (attribute); use <see cref="ValueRef"/> to refer to a value.</summary>
+    [XmlAttribute("value")]
+    public string? Value { get; set; }
+
+    [XmlElement("value")]
+    public XmlSchemaValueRef? ValueRef { get; set; }
 }
 
 public class XmlSchemaGroup : XmlSchemaNode

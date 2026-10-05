@@ -1,3 +1,4 @@
+using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -135,8 +136,32 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             Path = path,
             Field = field,
             Pipeline = fieldPipeline,
+            ConstantValue = BindConstant(field, path, state),
+            ValueReference = BindValueReference(field, path, state),
         };
     }
+
+    private static object? BindConstant(SchemaField field, SchemaPath path, BuildState state)
+    {
+        if (field.Value is not string text)
+        {
+            return null;
+        }
+
+        if (!DataTypeCodec.TryParse(field.Type, text, out var constant))
+        {
+            state.Error(path, $"The constant '{text}' is not a valid {field.Type} value.");
+        }
+        return constant;
+    }
+
+    private static PublishedValueKey? BindValueReference(SchemaField field, SchemaPath path, BuildState state)
+        => field.Value switch
+        {
+            SchemaNodeRef nodeRef => BindKey(nodeRef, path, state),
+            SchemaPubRef pubRef => new PublishedValueKey(pubRef.Namespace, pubRef.Name),
+            _ => null,
+        };
 
     private GroupInfo BuildGroup(SchemaGroup group, SchemaPath path, ProcessorPipeline? parentPipeline, BuildState state)
     {
@@ -289,11 +314,14 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         };
 
     private static ValueSource<int> BindNodeRef(SchemaNodeRef nodeRef, SchemaPath path, BuildState state)
+        => BindKey(nodeRef, path, state) is { } key ? key : default;
+
+    private static PublishedValueKey? BindKey(SchemaNodeRef nodeRef, SchemaPath path, BuildState state)
     {
         if (string.IsNullOrWhiteSpace(nodeRef.Path))
         {
             state.Error(path, "A value reference cannot be empty.");
-            return default;
+            return null;
         }
 
         var target = new SchemaPath(nodeRef.Path);

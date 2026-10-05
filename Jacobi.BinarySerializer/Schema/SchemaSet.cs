@@ -447,6 +447,7 @@ public sealed class SchemaSet
             {
                 Name = node.Name,
                 Type = typeDef.Type,
+                Value = fieldNode.Value,
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(typeDef.Processors, fieldNode.Processors),
             };

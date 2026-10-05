@@ -30,6 +30,13 @@ public sealed class SchemaField : SchemaNode
     public IReadOnlyList<SchemaProcessorRef> Processors => ProcessorsList;
     public List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
     public required SchemaDataType Type { get; init; }
+
+    /// <summary>
+    /// Optional constant (a literal parsed by <see cref="Type"/>) or a reference to another value that this field must have.
+    /// The writer supplies the value when the model holds none; the reader fails when the value read differs.
+    /// The value compared is the logical value (after the semantic processors).
+    /// </summary>
+    public SchemaValueOrRef<string> Value { get; init; }
 }
 
 public class SchemaGroup : SchemaNode

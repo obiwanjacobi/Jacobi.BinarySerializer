@@ -49,6 +49,8 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaField.Name),
         nameof(XmlSchemaField.Processors),
         nameof(XmlSchemaField.Type),
+        nameof(XmlSchemaField.Value),
+        nameof(XmlSchemaField.ValueRef),
         nameof(XmlSchemaField.Properties)
     };
 
@@ -136,6 +138,7 @@ internal static class XmlSchemaMapper
             Name = xmlField.Name,
             ProcessorsList = xmlField.Processors.Select(ToSchemaProcessorRef).ToList(),
             Type = xmlField.Type,
+            Value = ToSchemaValueOrText(xmlField.Value, xmlField.ValueRef),
             PropertyList = MergeProperties(
                 xmlField.Properties,
                 xmlField.AdditionalAttributes,
@@ -330,6 +333,8 @@ internal static class XmlSchemaMapper
                 Name = field.Name,
                 Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Type = field.Type,
+                Value = ToConstantText(field.Value),
+                ValueRef = ToXmlValueRef(field.Value),
                 Properties = field.Properties.Select(FromSchemaProperty).ToList()
             };
         }
@@ -423,6 +428,39 @@ internal static class XmlSchemaMapper
 
     private static string? ToConstantText(SchemaValueOrRef<int> value)
         => value is int number ? number.ToString(CultureInfo.InvariantCulture) : null;
+
+    private static string? ToConstantText(SchemaValueOrRef<string> value)
+        => value is string text ? text : null;
+
+    /// <summary>An unset value (optional) maps to the default (unset) value.</summary>
+    private static SchemaValueOrRef<string> ToSchemaValueOrText(string? constant, XmlSchemaValueRef? valueRef)
+    {
+        if (valueRef is not null)
+        {
+            if (SchemaNodeRef.TryParse(valueRef.Reference, out var nodeRef))
+            {
+                return nodeRef;
+            }
+
+            if (SchemaPubRef.TryParse(valueRef.Reference, out var pubRef))
+            {
+                return pubRef;
+            }
+
+            throw new InvalidOperationException(
+                $"Invalid value reference '{valueRef.Reference}'. Expected 'ref:path' or 'pub:namespace.name'.");
+        }
+
+        return constant is null ? default : constant;
+    }
+
+    private static XmlSchemaValueRef? ToXmlValueRef(SchemaValueOrRef<string> value)
+        => value switch
+        {
+            SchemaNodeRef nodeRef => new XmlSchemaValueRef { Reference = nodeRef.ToString() },
+            SchemaPubRef pubRef => new XmlSchemaValueRef { Reference = pubRef.ToString() },
+            _ => null
+        };
 
     private static XmlSchemaValueRef? ToXmlValueRef(SchemaValueOrRef<int> value)
         => value switch

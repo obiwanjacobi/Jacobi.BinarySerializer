@@ -90,6 +90,60 @@ public static class DataTypeCodec
     }
 
     /// <summary>
+    /// Parses a literal (schema constant) as the CLR type of <paramref name="type"/>, in the invariant culture.
+    /// Integers are decimal or hexadecimal with a '0x' prefix; booleans are 'true' or 'false'; DateTime is ISO 8601 (round-trip).
+    /// Returns false for unsupported types and literals that are invalid or do not fit.
+    /// </summary>
+    public static bool TryParse(SchemaDataType type, string text, out object? value)
+    {
+        value = null;
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        var hex = text.StartsWith("0x", StringComparison.OrdinalIgnoreCase);
+        var styles = hex ? System.Globalization.NumberStyles.AllowHexSpecifier : System.Globalization.NumberStyles.Integer;
+        var digits = hex ? text[2..] : text;
+
+        switch (type)
+        {
+            case SchemaDataType.String: value = text; return true;
+            case SchemaDataType.Boolean:
+                if (Boolean.TryParse(text, out var flag)) { value = flag; return true; }
+                return false;
+            case SchemaDataType.Int8:
+                if (SByte.TryParse(digits, styles, culture, out var i8)) { value = i8; return true; }
+                return false;
+            case SchemaDataType.UInt8:
+                if (Byte.TryParse(digits, styles, culture, out var u8)) { value = u8; return true; }
+                return false;
+            case SchemaDataType.Int16:
+                if (Int16.TryParse(digits, styles, culture, out var i16)) { value = i16; return true; }
+                return false;
+            case SchemaDataType.UInt16:
+                if (UInt16.TryParse(digits, styles, culture, out var u16)) { value = u16; return true; }
+                return false;
+            case SchemaDataType.Int32:
+                if (Int32.TryParse(digits, styles, culture, out var i32)) { value = i32; return true; }
+                return false;
+            case SchemaDataType.UInt32:
+                if (UInt32.TryParse(digits, styles, culture, out var u32)) { value = u32; return true; }
+                return false;
+            case SchemaDataType.Int64:
+                if (Int64.TryParse(digits, styles, culture, out var i64)) { value = i64; return true; }
+                return false;
+            case SchemaDataType.UInt64:
+                if (UInt64.TryParse(digits, styles, culture, out var u64)) { value = u64; return true; }
+                return false;
+            case SchemaDataType.Double:
+                if (Double.TryParse(text, System.Globalization.NumberStyles.Float, culture, out var number)) { value = number; return true; }
+                return false;
+            case SchemaDataType.DateTime:
+                if (DateTime.TryParse(text, culture, System.Globalization.DateTimeStyles.RoundtripKind, out var date)) { value = date; return true; }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
     /// Decodes the fixed-width, little-endian form of <paramref name="type"/>.
     /// Returns false when the type has no fixed width or <paramref name="bytes"/> has the wrong length.
     /// </summary>

@@ -41,6 +41,7 @@ internal sealed class JsonSchemaField : JsonSchemaNode
 {
     public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
     public required SchemaDataType Type { get; init; }
+    public JsonSchemaValueOrRef<string> Value { get; init; }
 }
 
 internal class JsonSchemaGroup : JsonSchemaNode

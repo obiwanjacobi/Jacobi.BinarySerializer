@@ -29,6 +29,15 @@ public sealed class FieldInfo : NodeInfo
     /// </summary>
     public RepeatInfo? CountOf { get; internal set; }
 
+    /// <summary>The parsed constant of <see cref="SchemaField.Value"/> (null when the field has no constant).</summary>
+    public object? ConstantValue { get; internal set; }
+
+    /// <summary>The published value that <see cref="SchemaField.Value"/> refers to (null when the field has no reference).</summary>
+    public PublishedValueKey? ValueReference { get; internal set; }
+
+    /// <summary>True when the field has a constant or a referenced value that it must have.</summary>
+    public bool HasExpectedValue => ConstantValue is not null || ValueReference is not null;
+
     // previous FieldInfo
     // next FieldInfo
 }
