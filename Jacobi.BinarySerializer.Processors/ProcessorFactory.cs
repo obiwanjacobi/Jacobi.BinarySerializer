@@ -12,6 +12,7 @@ public sealed class ProcessorFactory : IProcessorFactory
         { "sys.scale", new ScaleProcessor() },
         // Field Processors
         { "sys.varint", new VarIntProcessor() },
+        { "sys.string", new StringProcessor() },
         // Loayout Processors
         { "sys.bitpacker", new BitPackerProcessor() },
         { "sys.bytepacker", new BytePackerProcessor() },

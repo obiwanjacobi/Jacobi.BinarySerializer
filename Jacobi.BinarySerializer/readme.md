@@ -8,23 +8,24 @@ How to setup and interface with the binary serializer.
 // load the schema definitions of the binary formats you wish to serialize.
 SchemaSet schemas = new();
 schemas.LoadFile(".json|.xml|.yml|.yaml");
-schemas.LoadFromAssembly(Asembly | "*.dll|*.exe");
+schemas.LoadFromAssembly(Asembly|"*.dll|*.exe");
 ...
 schemas.Compile(); // resolve references, validate
 
 // load the processors (code) that perform transformation and other logic.
 ProcessorManager processors = new();
-processors.LoadFromAssembly(Assembly | "*.dll|*.exe");
+processors.LoadFromAssembly(Assembly|"*.dll|*.exe");
 processors.Register(IProcessorFactory);
 
 // serialize will ask you for logical values
-IValueSource valueSource = new ValueSource(...);
+IValueSource valueSource = ...
 // deserialize will give you logical values
-IValueSink valueSink = new ValueSink(...);
+IValueSink valueSink = ...
 
-var outputStream = MemoryStream | IBinaryWriter;
-var inputStream = MemoryStream | SequenceReader<byte>;
+var outputStream = Stream|IBinaryWriter;
+var inputStream = Stream|SequenceReader<byte>;
 
+// available to processors
 IServiceProvider services = ...;
 
 // bring it together in the serializer
@@ -32,17 +33,21 @@ static BinarySerializer serializer = new(schemas, processors|services?);
 ExecutionPlan plan = serializer.MakePlan("schemaName");
 
 // write logical to binary
-serializer.Serialize(plan, valueSource, outputStream, services);
+serializer.Serialize(plan, IValueSource|IFieldSource, outputStream, services);
 // read binary to logical
-serializer.Deserialize(plan, valueSink, inputStream, services);
+serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, services);
 ```
 
 ## TODOs
 
+- [ ] **API: Add `Assembly` overloads**: to `LoadFromAssembly` in `SchemaSet` and `ProcessorManager`.
+- [ ] **API: Allow `IProcessorFactory` through `IServiceProvider`**: Perhaps bypass the `ProcessManager` entirely.
+- [ ] **API: Add `Serializer` root object** as a container for all dependencies. How do we deal with cachable/static `ExecutionPlan`s?
+- [ ] **API: Allow `Stream` for both input and output.** The engine currently requires `IBinaryWriter` and `SequenceReader<byte>`. Do we create adapters, or add `Stream` overloads to the engine and the processors?
 - [ ] **Detect repeat count mismatches at schema compile time.** A constant count that cannot match the model/referenced count (schema out of sync) should be reported when the plan is built, not only at write time (currently an `InvalidOperationException`).
-- [ ] **Derive values the model does not hold.** Lengths, counts and discriminators have no property in the user's model. The writer currently throws "the value model has no value for the field". The engine must compute them (e.g. count = number of items written) and write them.
-- [ ] **String and variable-width fields.** `DataTypeCodec` has no String support, and the default layout read passes all remaining bytes on as one value. Strings need a length, terminator or length-prefix, taken from schema properties on the field.
-- [ ] **Resume a read after `NeedMoreData`.** When input is short, the caller currently reads again from the start with more data. The cursor and frame stack were designed to be resumable, so the session could continue where it stopped.
+- [ ] **Derive length prefixes and choice discriminators.** Lengths that precede the data they measure: buffer the group, then write the length field (see the back-patch optimization below). Choice discriminators (the selected index) derived from the model are last.
+- [ ] **String follow-ups.** `length` as `ref:`/`pub:` (processor property values are constants only, see complex property values), publishing the detected length, a length prefix (see above), multi-byte terminators for UTF-16/32, and reporting property errors at plan build instead of at read time. A field processor that needs more data than the open-width window (10 bytes) is retried by the reader with a doubled window while more input is available.
+- [ ] **Optimization: back-patch forward-referenced values when the output is seekable.** Values that depend on later output (e.g. a byte length written before its string) are first handled by buffering the group; with a seekable writer the slot could be reserved and patched instead.
 - [ ] **Stream processors on non-root groups.** Only the root group's stream processors run (framing, compression, encryption of the whole message). A nested group with its own stream processors (e.g. an encrypted sub-block) is not supported, but must not become impossible.
 - [ ] **Unknown processors throw from the builder.** `ExecutionPlanBuilder.Bind` throws for an unknown processor namespace or id instead of adding an error to `ExecutionPlanException`, so a schema with several problems reports only the first. Fix: use `TryCreateProcessor` and report it with the node path.
 - [ ] **Repeat stream processors.** Stream processors on a repeat group should run once per repeat (around all items), not per item. The cursor already has that point (the repeat's EnterGroup/ExitGroup); builds on the non-root stream processor item below.
@@ -50,6 +55,8 @@ serializer.Deserialize(plan, valueSink, inputStream, services);
 - [ ] **Complex schema property values.** `SchemaProperty.Value` is a single string that the processor interprets. Allow richer values, e.g. lists or object structures (`SchemaNode.cs`).
 - [ ] **Typed-object API.** Where interfacing is done through client-defined POCOs, not by implementing interfaces.
 
+- [x] **Derive values the model does not hold.** Done: a field that a sibling repeat's `Count` refers to is derived from `IValueSource.GetCount` when the model has no value (flat `IFieldSource` models must be explicit).
+- [x] **String and variable-width fields.** `sys:string` field processor: `encoding` (default UTF-8), fixed `length` (padded with `padding`, trimmed on read) or single-byte `terminator`.
 - [x] **Processor diagnostics**. The engine currently has no logging. Add a `ILogger` to the sessions and processor context, and log the plan node path and instance indices for each processor call.
 - [x] **Private processor state key.** Processor state in `SessionState` is keyed by `ProcessorBinding`. A TODO notes it may need extra key data to tell two processors of the same type apart (e.g. the same processor bound at different nodes).
 - [x] **Processor private state per iteration.** State keyed per binding is shared across repeat iterations.

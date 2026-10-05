@@ -179,8 +179,14 @@ public sealed class WriterSession : SessionState
 
         if (!scope.TryGetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, out var logical))
         {
-            // TODO: derive values the model does not hold (lengths, counts, discriminators).
-            throw EngineLogger.Fail($"'{field.Path}': the value model has no value for the field.");
+            if (field.CountOf is not { } countOf)
+            {
+                // TODO: derive other values the model does not hold (lengths, discriminators).
+                throw EngineLogger.Fail($"'{field.Path}': the value model has no value for the field.");
+            }
+
+            var count = scope.GetCount(new RepeatContext { Node = countOf, Services = _services, Instance = _instance });
+            logical = new LogicalField(field.Name, DataTypeCodec.ClrType(field.Field.Type) ?? typeof(int), count);
         }
 
         // Semantic: logical value transforms (chained)

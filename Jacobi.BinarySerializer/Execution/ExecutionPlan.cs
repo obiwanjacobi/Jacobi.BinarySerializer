@@ -354,6 +354,10 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             {
                 case FieldInfo field:
                     field.PublishesValue = true;
+                    if (Find(root, from) is RepeatInfo repeat && repeat.Parent is not null && ReferenceEquals(repeat.Parent, field.Parent))
+                    {
+                        field.CountOf = repeat;
+                    }
                     break;
                 case null:
                     state.Error(from, $"Value reference '{target}' does not match any node in the schema.");

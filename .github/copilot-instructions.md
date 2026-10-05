@@ -21,6 +21,9 @@
 - Don't add a plan for single-area changes; keep edits minimal and don't refactor unrelated code.
 - Don't paste code blocks of changes in replies; keep answers short.
 - Add tests for new engine behavior in the Tests project, next to similar existing tests.
+- Editing safety: the edit tool replaces whole lines, so `oldString`/`newString` must cover complete lines (never start or end mid-line). Re-read the target lines right before editing (the user edits files too, e.g. ticking TODO items), and re-read them after editing to verify. This matters most for `readme.md` TODO lists.
+- Do not add interfaces to processors to solve engine needs (e.g. a read-window interface); extend the contexts or the engine instead.
+- Truncated input is an error: callers must supply a complete message. Do not design for resuming/streaming reads.
 
 ## Domain Terms
 - Processor kinds: Semantic/value (value <-> value), Representation/field (value <-> encoded field), Layout (bytes in a group/field, e.g. align), Stream (whole-message: framing, compression, encryption).
@@ -32,3 +35,4 @@
 - In this codebase targeting .NET 11 / C# 15, `closed` and `union` are intentionally used as new C# 15 keywords in type declarations.
 - Don't call static methods on compiler aliases: e.g. use `String.IsNullOrEmpty()` instead of `string.IsNullOrEmpty()`.
 - Write doc-comments on new lines. Not ///<summary>...</summary> on the same line. Except for very short descriptions.
+- Don't add interfaces to processors without user consent. Ever. The user prefers to keep the processor API minimal and stable.

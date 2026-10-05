@@ -24,6 +24,11 @@ public sealed class FieldInfo : NodeInfo
     /// <summary>True when another node refers to this field's value by schema path; the session publishes it.</summary>
     public bool PublishesValue { get; internal set; }
 
+    /// <summary>
+    /// The sibling repeat whose count refers to this field. When the model holds no value for the field, the writer derives it from the repeat's item count.
+    /// </summary>
+    public RepeatInfo? CountOf { get; internal set; }
+
     // previous FieldInfo
     // next FieldInfo
 }

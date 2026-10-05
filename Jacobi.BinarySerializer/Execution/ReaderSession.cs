@@ -150,6 +150,24 @@ public sealed class ReaderSession : SessionState
 
     private ReadResult ReadField(FieldInfo field, IValueSink scope, ref SequenceReader<byte> reader)
     {
+        // A field processor decides its own width. When it needs more data than the window offered and the input has more,
+        // retry with a bigger window; only when the window already covered all unread input is it NeedMoreData for the caller.
+        var window = DefaultLayoutProcessor.OpenWidthWindowBytes;
+        while (true)
+        {
+            _layoutContext.OpenWidthWindowBytes = window;
+            var result = ReadFieldWindow(field, scope, ref reader, out var needsLargerWindow);
+            if (!needsLargerWindow)
+            {
+                return result;
+            }
+            window = window > Int32.MaxValue / 2 ? Int32.MaxValue : window * 2;
+        }
+    }
+
+    private ReadResult ReadFieldWindow(FieldInfo field, IValueSink scope, ref SequenceReader<byte> reader, out bool needsLargerWindow)
+    {
+        needsLargerWindow = false;
         var pipeline = field.Pipeline;
 
         // Layout: bytes -> encoded
@@ -202,6 +220,7 @@ public sealed class ReaderSession : SessionState
                 if (fieldResult.Status != ReadResult.Success)
                 {
                     reader.Rewind(provided / 8);
+                    needsLargerWindow = fieldResult.Status == ReadResult.NeedMoreData && reader.Remaining > provided / 8;
                     return fieldResult.Status;
                 }
                 if (fieldResult.BitsConsumed < 0 || fieldResult.BitsConsumed > provided || fieldResult.BitsConsumed % 8 != 0)

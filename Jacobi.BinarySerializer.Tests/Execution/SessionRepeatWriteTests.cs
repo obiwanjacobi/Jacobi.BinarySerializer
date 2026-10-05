@@ -70,6 +70,19 @@ public class SessionRepeatWriteTests
     }
 
     [Test]
+    public void Write_RepeatCountFieldMissingInModel_DerivesFromItemCount()
+    {
+        var plan = Plan(new SchemaNodeRef { Path = "Root.Length" });
+        var source = new ItemSource([], [1, 2]);
+        var output = new ArrayBufferWriter<byte>();
+
+        var result = new WriterSession(plan, output).Write(source);
+
+        Assert.That(result, Is.EqualTo(WriteResult.Success));
+        Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 2, 0, 0, 0, 1, 0, 2, 0 }));
+    }
+
+    [Test]
     public void Write_RepeatReferencesUnpublishedValue_Throws()
     {
         var plan = Plan(new SchemaPubRef { Namespace = "hdr", Name = "count" });

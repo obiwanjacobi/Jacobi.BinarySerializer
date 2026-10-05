@@ -130,6 +130,9 @@ public sealed class LayoutProcessorContext : ProcessorContext
 
     /// <summary>Bytes written/read since the start of the group that owns the layout (see RootPosition for the whole message).</summary>
     public long GroupPosition { get; internal set; }
+
+    /// <summary>The most bytes the default layout read offers to a field processor that decides its own width; the session grows it when the processor needs more data.</summary>
+    public int OpenWidthWindowBytes { get; internal set; } = DefaultLayoutProcessor.OpenWidthWindowBytes;
 }
 
 public sealed class StreamProcessorContext : ProcessorContext

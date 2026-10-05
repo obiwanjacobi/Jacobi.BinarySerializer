@@ -115,7 +115,7 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
         {
             // The field processor decides how much of the window it uses (it reports that in its read result);
             // the engine gives the unused bytes back to the reader.
-            var window = (int)Math.Min(OpenWidthWindowBytes, reader.Remaining);
+            var window = (int)Math.Min(context.OpenWidthWindowBytes, reader.Remaining);
             if (window == 0)
             {
                 return LayoutReadResult<EncodedField>.NeedMoreData();
@@ -140,8 +140,7 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
             return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), bytes, size * 8));
         }
 
-        // TODO: variable-width fields (String) need length info; all unread bytes are passed on as one value.
-        // See if there is a length property in the FieldInfo.
+        // variable-width fields without a field processor (String) get all unread bytes as one value; use sys:string to delimit them.
         var remaining = reader.UnreadSequence.ToArray();
         reader.Advance(remaining.Length);
         return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), remaining, remaining.Length * 8));
@@ -149,7 +148,7 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
     public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
 }
 
-/// <summary>Pass-through: copies the unread input to the output unchanged. The session skips empty stages, so this is only used when asked for explicitly.</summary>
+/// <summary>Pass-through: copies the unread input to the output unchanged.
 public sealed class DefaultStreamProcessor : IStreamProcessor
 {
     public ProcessorKey Key => new("default", "stream");
