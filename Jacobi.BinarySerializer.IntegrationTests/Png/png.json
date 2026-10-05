@@ -1,0 +1,50 @@
+{
+  "name": "Png",
+  "children": [
+    {
+      "name": "Png",
+      "kind": "group",
+      "processors": [ { "processor": "sys.bytepacker" } ],
+      "properties": [ { "name": "byteorder", "value": "big" } ],
+      "children": [
+        { "name": "Signature", "kind": "field", "type": "UInt64", "value": "0x89504E470D0A1A0A" },
+        {
+          "name": "Ihdr",
+          "kind": "group",
+          "children": [
+            { "name": "Length", "kind": "field", "type": "UInt32" },
+            {
+              "name": "Type",
+              "kind": "field",
+              "type": "String",
+              "value": "IHDR",
+              "processors": [
+                {
+                  "processor": "sys.string",
+                  "properties": [
+                    { "name": "length", "value": 4 },
+                    { "name": "encoding", "value": "ascii" }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Data",
+              "kind": "group",
+              "children": [
+                { "name": "Width", "kind": "field", "type": "UInt32" },
+                { "name": "Height", "kind": "field", "type": "UInt32" },
+                { "name": "BitDepth", "kind": "field", "type": "UInt8" },
+                { "name": "ColorType", "kind": "field", "type": "UInt8" },
+                { "name": "Compression", "kind": "field", "type": "UInt8" },
+                { "name": "Filter", "kind": "field", "type": "UInt8" },
+                { "name": "Interlace", "kind": "field", "type": "UInt8" }
+              ]
+            },
+            { "name": "Crc", "kind": "field", "type": "UInt32" }
+          ]
+        }
+      ]
+    }
+  ]
+}

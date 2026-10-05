@@ -194,4 +194,29 @@ public class XmlSerializerTests
         Assert.That(repeat.Count is SchemaPubRef repeatCount && repeatCount.Namespace == "hdr" && repeatCount.Name == "count");
         Assert.That(choice.SelectedIndex is int selected && selected == 2);
     }
+
+    [Test]
+    public void Serialize_RoundTrip_PreservesFieldValues()
+    {
+        var xml = """
+            <schema name="ValueSchema">
+              <children><group name="Root"><children>
+                <field name="Constant" type="UInt32" value="0x89504E47" />
+                <field name="Published" type="Int32"><value ref="pub:hdr.magic" /></field>
+                <field name="Node" type="Int32"><value ref="ref:Constant" /></field>
+                <field name="None" type="Int32" />
+              </children></group></children>
+              <properties />
+            </schema>
+            """;
+
+        var document = new SchemaSet().LoadFromXml(xml);
+        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+        var fields = roundTripped.Groups.Single().Children.OfType<SchemaField>().ToDictionary(f => f.Name);
+
+        Assert.That(fields["Constant"].Value is string text && text == "0x89504E47");
+        Assert.That(fields["Published"].Value is SchemaPubRef pub && pub.Namespace == "hdr" && pub.Name == "magic");
+        Assert.That(fields["Node"].Value is SchemaNodeRef);
+        Assert.That(fields["None"].Value is string or SchemaPubRef or SchemaNodeRef, Is.False);
+    }
 }

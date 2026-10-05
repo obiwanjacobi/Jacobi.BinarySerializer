@@ -248,4 +248,30 @@ public class JsonSerializerTests
         Assert.That(repeat.Count is SchemaPubRef repeatCount && repeatCount.Namespace == "hdr" && repeatCount.Name == "count");
         Assert.That(choice.SelectedIndex is int selected && selected == 2);
     }
+
+    [Test]
+    public void Serialize_RoundTrip_PreservesFieldValues()
+    {
+        var json = """
+            {
+              "name": "ValueSchema",
+              "children": [ { "kind": "group", "name": "Root", "children": [
+                { "kind": "field", "name": "Constant", "type": "UInt32", "value": "0x89504E47" },
+                { "kind": "field", "name": "Published", "type": "Int32", "value": { "reference": "pub:hdr.magic" } },
+                { "kind": "field", "name": "Node", "type": "Int32", "value": { "reference": "ref:Constant" } },
+                { "kind": "field", "name": "None", "type": "Int32" }
+              ] } ],
+              "properties": []
+            }
+            """;
+
+        var document = JsonSerializer.Deserialize(json);
+        var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
+        var fields = roundTripped.Groups.Single().Children.OfType<SchemaField>().ToDictionary(f => f.Name);
+
+        Assert.That(fields["Constant"].Value is string text && text == "0x89504E47");
+        Assert.That(fields["Published"].Value is SchemaPubRef pub && pub.Namespace == "hdr" && pub.Name == "magic");
+        Assert.That(fields["Node"].Value is SchemaNodeRef);
+        Assert.That(fields["None"].Value is string or SchemaPubRef or SchemaNodeRef, Is.False);
+    }
 }
