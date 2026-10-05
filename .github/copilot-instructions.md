@@ -8,5 +8,5 @@
 - Keep these rules for the engine: scopes live on the session's frame stack (resumable, no call-stack state); nodes are identified by plan `NodeInfo` (Name/Path); schema fields without a model member (lengths, counts, discriminators) are derived by the engine, not required from the model; derived values (repeat count, choice index) are resolved in the engine, not in the adapters.
 
 ## Code Style
-- In this codebase targeting .NET 11 / C# 15, `closed` is intentionally used as a new C# 15 keyword in type declarations.
+- In this codebase targeting .NET 11 / C# 15, `closed` and `union` are intentionally used as new C# 15 keywords in type declarations.
 - Don't call static methods on compiler aliases: e.g. use `String.IsNullOrEmpty()` instead of `string.IsNullOrEmpty()`.

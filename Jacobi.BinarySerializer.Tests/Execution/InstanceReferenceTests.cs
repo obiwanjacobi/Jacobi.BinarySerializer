@@ -5,7 +5,7 @@ using static Jacobi.BinarySerializer.Tests.Execution.SessionTestHelpers;
 
 namespace Jacobi.BinarySerializer.Tests.Execution;
 
-/// <summary>'ref:Root.Rows[2].Len' and 'ref:Root.Rows[.].Len': node references that target an instance of a repeat.</summary>
+/// <summary>'ref:Root.Rows[2].Len' and 'ref:Root.Rows[].Len': node references that target an instance of a repeat.</summary>
 public class InstanceReferenceTests
 {
     [Test]
@@ -19,17 +19,16 @@ public class InstanceReferenceTests
     [Test]
     public void Parse_ExplicitAndCurrentIndices()
     {
-        Assert.That(SchemaNodeRef.TryParse("ref:Root.Grid[2].Cells[.].Len", out var nodeRef), Is.True);
+        Assert.That(SchemaNodeRef.TryParse("ref:Root.Grid[2].Cells[].Len", out var nodeRef), Is.True);
         Assert.That(nodeRef!.Path, Is.EqualTo("Root.Grid.Cells.Len"));
         Assert.That(nodeRef.Indices, Is.EqualTo(new[]
         {
             new SchemaInstanceIndex("Root.Grid", 2),
             new SchemaInstanceIndex("Root.Grid.Cells", SchemaInstanceIndex.Current),
         }));
-        Assert.That(nodeRef.ToString(), Is.EqualTo("ref:Root.Grid[2].Cells[.].Len"));
+        Assert.That(nodeRef.ToString(), Is.EqualTo("ref:Root.Grid[2].Cells[].Len"));
     }
 
-    [TestCase("ref:Root.Rows[].Len")]
     [TestCase("ref:Root.Rows[x].Len")]
     [TestCase("ref:Root.Rows[-1].Len")]
     [TestCase("ref:Root.Rows[1.Len")]
@@ -82,9 +81,9 @@ public class InstanceReferenceTests
     [Test]
     public void Build_CurrentIndexOutsideTheRepeat_Throws()
     {
-        var ex = Assert.Throws<ExecutionPlanException>(() => IndexedPlan("ref:Root.Lens[.].Len"));
+        var ex = Assert.Throws<ExecutionPlanException>(() => IndexedPlan("ref:Root.Lens[].Len"));
 
-        Assert.That(ex!.Errors[0], Does.Contain("[.]").And.Contain("Root.Lens"));
+        Assert.That(ex!.Errors[0], Does.Contain("[]").And.Contain("Root.Lens"));
     }
 
     [Test]
@@ -122,10 +121,10 @@ public class InstanceReferenceTests
         Assert.That(sink.Values["Root.Items.Item"], Is.EqualTo((short)10));
     }
 
-    // Root { Rows: repeat(2) { Len, Vals: repeat(ref:Root.Rows[.].Len) { Item:Int16 } } }
+    // Root { Rows: repeat(2) { Len, Vals: repeat(ref:Root.Rows[].Len) { Item:Int16 } } }
     private static ExecutionPlan RowsPlan()
     {
-        SchemaNodeRef.TryParse("ref:Root.Rows[.].Len", out var nodeRef);
+        SchemaNodeRef.TryParse("ref:Root.Rows[].Len", out var nodeRef);
         var vals = new SchemaRepeat { Name = "Vals", Count = nodeRef! };
         vals.ChildList.Add(Field("Item", SchemaDataType.Int16));
         var rows = new SchemaRepeat { Name = "Rows", Count = 2 };
@@ -186,7 +185,7 @@ public class InstanceReferenceTests
                 <group name="Root">
                   <children>
                     <repeat name="Items">
-                      <count ref="ref:Root.Lens[.].Len" />
+                      <count ref="ref:Root.Lens[].Len" />
                       <children>
                         <field name="Item" type="Int32" />
                       </children>
@@ -203,14 +202,14 @@ public class InstanceReferenceTests
         var repeat = new SchemaSet().LoadFromXml(serialized).Roots.OfType<SchemaGroup>().Single()
             .Children.OfType<SchemaRepeat>().Single();
 
-        Assert.That(serialized, Does.Contain("ref:Root.Lens[.].Len"));
+        Assert.That(serialized, Does.Contain("ref:Root.Lens[].Len"));
         Assert.That(repeat.Count is SchemaNodeRef r && r.Indices.Single().IsCurrent);
 
         var json = Jacobi.BinarySerializer.Schema.Json.JsonSerializer.Serialize(document);
         var jsonRepeat = Jacobi.BinarySerializer.Schema.Json.JsonSerializer.Deserialize(json)
             .Roots.OfType<SchemaGroup>().Single().Children.OfType<SchemaRepeat>().Single();
 
-        Assert.That(json, Does.Contain("ref:Root.Lens[.].Len"));
+        Assert.That(json, Does.Contain("ref:Root.Lens[].Len"));
         Assert.That(jsonRepeat.Count is SchemaNodeRef jr && jr.Indices.Single().IsCurrent);
     }
 }

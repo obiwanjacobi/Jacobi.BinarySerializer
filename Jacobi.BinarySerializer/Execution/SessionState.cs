@@ -34,7 +34,7 @@ public closed class SessionState
     public void Publish(SchemaPath path, InstancePath instance, object? value) => Publish(PublishedValueKey.ForPath(path, instance), value);
 
     /// <summary>Resolves a constant or a published value to an int. An unpublished value is a runtime error.</summary>
-    /// <param name="current">The instance of the referring node; replaces the '[.]' markers of the reference.</param>
+    /// <param name="current">The instance of the referring node; replaces the '[]' markers of the reference.</param>
     internal int Resolve(ValueSource<int> source, SchemaPath referrer, InstancePath current = default)
     {
         if (source is int constant)

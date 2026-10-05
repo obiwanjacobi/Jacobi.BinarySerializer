@@ -303,7 +303,7 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
 
     /// <summary>
     /// Builds the instance template of a reference: one entry per repeat on the way to the target (outermost first),
-    /// the explicit index, <see cref="InstancePath.Current"/> for '[.]', or 0 (the first item) when no index is given.
+    /// the explicit index, <see cref="InstancePath.Current"/> for '[]', or 0 (the first item) when no index is given.
     /// </summary>
     private static InstancePath BindInstance(SchemaNodeRef nodeRef, SchemaPath target, SchemaPath referrer, BuildState state)
     {
@@ -326,13 +326,14 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             var found = nodeRef.Indices.Where(i => i.Node == repeat.Value).Select(i => (SchemaInstanceIndex?)i).FirstOrDefault();
             if (found is not { } instance)
             {
+                // no index given for this repeat: use the first item (0)
                 template.Add(0);
             }
             else if (instance.IsCurrent)
             {
                 if (!referrer.IsSameOrDescendantOf(repeat) || referrer.Equals(repeat))
                 {
-                    state.Error(referrer, $"Value reference '{nodeRef}': '[.]' on '{repeat}' is only valid for a node inside that repeat.");
+                    state.Error(referrer, $"Value reference '{nodeRef}': '[]' on '{repeat}' is only valid for a node inside that repeat.");
                 }
                 template.Add(InstancePath.Current);
             }
