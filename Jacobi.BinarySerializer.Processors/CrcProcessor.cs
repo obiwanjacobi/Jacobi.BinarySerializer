@@ -20,7 +20,6 @@ internal sealed class CrcProcessor : ILayoutProcessor,
     private sealed class CrcState
     {
         public ulong Crc;
-        public bool Started;
     }
 
     public ProcessorKey Key => new("sys.crc");

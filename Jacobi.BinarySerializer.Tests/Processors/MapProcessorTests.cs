@@ -1,4 +1,8 @@
+using System.Buffers;
+using Jacobi.BinarySerializer.Execution;
+using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
+using Jacobi.BinarySerializer.Tests.Execution;
 using static Jacobi.BinarySerializer.Tests.Processors.ProcessorTestHelpers;
 
 namespace Jacobi.BinarySerializer.Tests.Processors;
@@ -49,6 +53,44 @@ public class MapProcessorTests
             Field("A", SchemaDataType.Int32, [Ref("map", ("logical", "Int32"), ("x", "1"))]));
 
         Assert.That(() => Write(root, new() { ["Root.A"] = 1 }, out _),
+            Throws.InstanceOf<InvalidOperationException>());
+    }
+
+    private static SchemaGroup StringRootWithDefault()
+    {
+        var map = Ref("map", ("logical", "Int32"), ("0", "IHDR"));
+        map.PropertyList.Add(new SchemaProperty { Name = new ProcessorKey("sys", "map").PropertyName("4"), Value = null });
+        return Group("Root", [],
+            Field("Type", SchemaDataType.String, [map, Ref("string", ("length", "4"), ("encoding", "ascii"))]));
+    }
+
+    [Test]
+    public void Read_UnmappedPhysicalValue_ReturnsTheDefaultsLogicalValue()
+    {
+        var plan = Build(StringRootWithDefault());
+        var sink = new DictSink();
+
+        var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>("ABCD"u8.ToArray()), sink);
+
+        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That(Convert.ToInt32(sink.Values["Root.Type"]), Is.EqualTo(4));
+    }
+
+    [Test]
+    public void Read_MappedPhysicalValue_IgnoresTheDefault()
+    {
+        var plan = Build(StringRootWithDefault());
+        var sink = new DictSink();
+
+        new ReaderSession(plan).Read(new ReadOnlySequence<byte>("IHDR"u8.ToArray()), sink);
+
+        Assert.That(Convert.ToInt32(sink.Values["Root.Type"]), Is.EqualTo(0));
+    }
+
+    [Test]
+    public void Write_DefaultsLogicalValue_Throws()
+    {
+        Assert.That(() => Write(StringRootWithDefault(), new() { ["Root.Type"] = 4 }, out _),
             Throws.InstanceOf<InvalidOperationException>());
     }
 }
