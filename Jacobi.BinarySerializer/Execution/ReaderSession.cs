@@ -83,13 +83,13 @@ public sealed class ReaderSession : SessionState
                         }
                         else if (group is RepeatInfo repeat)
                         {
-                            var count = Resolve(repeat.Count, repeat.Path, _instance);
+                            var count = Resolve(repeat.Count, repeat, _valueContext, _instance);
                             EngineLogger.RepeatCount(repeat.Path.ToString(), count);
                             cursor.EnterRepeat(step.Scope, count);
                         }
                         else if (group is ChoiceInfo choice)
                         {
-                            var index = Resolve(choice.SelectedIndex, choice.Path, _instance);
+                            var index = Resolve(choice.SelectedIndex, choice, _valueContext, _instance);
                             EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
                             var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index);                            cursor.Enter(choiceScope, index);
                         }

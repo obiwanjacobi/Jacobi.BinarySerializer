@@ -60,6 +60,12 @@ public sealed class SchemaRepeat : SchemaGroup
     }
 
     public required SchemaValueOrRef<int> Count { get; init; }
+
+    /// <summary>
+    /// Semantic (value) processors that convert the referenced count value into the (int) count.
+    /// </summary>
+    public IReadOnlyList<SchemaProcessorRef> ValueProcessors => ValueProcessorsList;
+    public List<SchemaProcessorRef> ValueProcessorsList { get; init; } = [];
 }
 
 public sealed class SchemaChoice : SchemaGroup
@@ -70,6 +76,12 @@ public sealed class SchemaChoice : SchemaGroup
     }
 
     public required SchemaValueOrRef<int> SelectedIndex { get; init; }
+
+    /// <summary>
+    /// Semantic (value) processors that convert the referenced value into the (int) selected index.
+    /// </summary>
+    public IReadOnlyList<SchemaProcessorRef> ValueProcessors => ValueProcessorsList;
+    public List<SchemaProcessorRef> ValueProcessorsList { get; init; } = [];
 }
 
 public readonly union SchemaObject(SchemaField, SchemaGroup, SchemaRepeat, SchemaChoice);

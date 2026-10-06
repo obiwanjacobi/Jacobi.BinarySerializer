@@ -48,6 +48,14 @@ public class GroupInfo : NodeInfo
     public required SchemaGroup Group { get; init; }
     public required IReadOnlyList<NodeInfo> Children { get; init; }
 
+    /// <summary>
+    /// Semantic processors that convert the referenced value of a repeat count or choice index into the int (empty for other groups).
+    /// </summary>
+    public IReadOnlyList<ProcessorBinding> ValueProcessors { get; init; } = [];
+
+    /// <summary>The data type of the field the count/index refers to (null for constants and published values).</summary>
+    public SchemaDataType? ValueType { get; internal set; }
+
     // previous GroupInfo
     // next GroupInfo
 }

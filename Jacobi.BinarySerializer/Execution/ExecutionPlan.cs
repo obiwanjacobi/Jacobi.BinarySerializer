@@ -201,6 +201,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                 Children = children,
                 Pipeline = pipeline,
                 Count = BindValueSource(repeat.Count, path, state),
+                ValueProcessors = BindValueProcessors(repeat.ValueProcessors, path, state),
             },
             SchemaChoice choice => new ChoiceInfo
             {
@@ -210,6 +211,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                 Children = children,
                 Pipeline = pipeline,
                 SelectedIndex = BindValueSource(choice.SelectedIndex, path, state),
+                ValueProcessors = BindValueProcessors(choice.ValueProcessors, path, state),
             },
             _ => new GroupInfo
             {
@@ -313,6 +315,19 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         }
     }
 
+    private List<ProcessorBinding> BindValueProcessors(IReadOnlyList<SchemaProcessorRef> refs, string path, BuildState state)
+    {
+        var bindings = BindProcessors(refs, path, state);
+        foreach (var binding in bindings)
+        {
+            if (binding.Processor.Stage != PipelineStage.Semantic)
+            {
+                state.Error(path, $"Processor '{binding.Processor.Key}' is not a value (semantic) processor and cannot process a repeat count or choice index.");
+            }
+        }
+        return bindings;
+    }
+
     private ValueSource<int> BindValueSource(SchemaValueOrRef<int> source, string path, BuildState state)
         => source switch
         {
@@ -391,6 +406,10 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             {
                 case FieldInfo field:
                     field.PublishesValue = true;
+                    if (Find(root, from) is GroupInfo { ValueProcessors.Count: > 0 } valueGroup)
+                    {
+                        valueGroup.ValueType = field.Field.Type;
+                    }
                     if (Find(root, from) is RepeatInfo repeat && repeat.Parent is not null && ReferenceEquals(repeat.Parent, field.Parent))
                     {
                         field.CountOf = repeat;

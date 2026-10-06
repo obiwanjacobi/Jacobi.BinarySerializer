@@ -31,6 +31,7 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaRepeat.Children),
         nameof(XmlSchemaRepeat.Count),
         nameof(XmlSchemaRepeat.CountRef),
+        nameof(XmlSchemaRepeat.ValueProcessors),
         nameof(XmlSchemaRepeat.Properties)
     };
 
@@ -41,6 +42,7 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaChoice.Children),
         nameof(XmlSchemaChoice.SelectedIndex),
         nameof(XmlSchemaChoice.SelectedIndexRef),
+        nameof(XmlSchemaChoice.ValueProcessors),
         nameof(XmlSchemaChoice.Properties)
     };
 
@@ -247,6 +249,7 @@ internal static class XmlSchemaMapper
             ProcessorsList = xmlRepeat.Processors.Select(ToSchemaProcessorRef).ToList(),
             ChildList = children,
             Count = ToSchemaValue(xmlRepeat.Count, xmlRepeat.CountRef),
+            ValueProcessorsList = xmlRepeat.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
                 xmlRepeat.Properties,
                 xmlRepeat.AdditionalAttributes,
@@ -272,6 +275,7 @@ internal static class XmlSchemaMapper
             ProcessorsList = xmlChoice.Processors.Select(ToSchemaProcessorRef).ToList(),
             ChildList = children,
             SelectedIndex = ToSchemaValue(xmlChoice.SelectedIndex, xmlChoice.SelectedIndexRef),
+            ValueProcessorsList = xmlChoice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
                 xmlChoice.Properties,
                 xmlChoice.AdditionalAttributes,
@@ -348,6 +352,7 @@ internal static class XmlSchemaMapper
                 Children = repeat.Children.Select(FromSchemaNode).ToList(),
                 Count = ToConstantText(repeat.Count),
                 CountRef = ToXmlValueRef(repeat.Count),
+                ValueProcessors = repeat.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = repeat.Properties.Select(FromSchemaProperty).ToList()
             };
         }
@@ -361,6 +366,7 @@ internal static class XmlSchemaMapper
                 Children = choice.Children.Select(FromSchemaNode).ToList(),
                 SelectedIndex = ToConstantText(choice.SelectedIndex),
                 SelectedIndexRef = ToXmlValueRef(choice.SelectedIndex),
+                ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()
             };
         }

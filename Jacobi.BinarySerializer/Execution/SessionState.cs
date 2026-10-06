@@ -67,6 +67,59 @@ public closed class SessionState
     /// <summary>Publishes the value of the field at a schema path for one instance of its repeats.</summary>
     public void Publish(SchemaPath path, InstancePath instance, object? value) => Publish(PublishedValueKey.ForPath(path, instance), value);
 
+    /// <summary>
+    /// Resolves the count/index of a repeat or choice: the constant or published value, converted by the value processors of the node (if any).
+    /// The processors always run in the read direction: the referenced value is the input, the int the output.
+    /// </summary>
+    internal int Resolve(ValueSource<int> source, GroupInfo node, ValueProcessorContext context, InstancePath current = default)
+    {
+        if (node.ValueProcessors.Count == 0)
+        {
+            return Resolve(source, node.Path, current);
+        }
+
+        object? value;
+        if (source is int constant)
+        {
+            value = constant;
+        }
+        else if (source is PublishedValueKey declared)
+        {
+            value = ResolvePublished(declared, node.Path, current);
+        }
+        else
+        {
+            throw EngineLogger.Fail($"'{node.Path}': the value source is unresolved.");
+        }
+
+        context.Field = null!;
+        context.Group = node;
+        try
+        {
+            var logical = new LogicalField(node.Name, value?.GetType() ?? typeof(object), value);
+            foreach (var binding in node.ValueProcessors)
+            {
+                context.Current = binding;
+                context.ProcessorProperties = binding.Properties;
+                logical = ((IValueProcessor)binding.Processor).Read(logical, context);
+            }
+            value = logical.Value;
+        }
+        finally
+        {
+            context.Group = null;
+        }
+
+        try
+        {
+            return Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+        {
+            throw EngineLogger.Fail($"'{node.Path}': the processed value ({value ?? "null"}) is not an integer.", ex);
+        }
+    }
+
     /// <summary>Resolves a constant or a published value to an int. An unpublished value is a runtime error.</summary>
     /// <param name="current">The instance of the referring node; replaces the '[]' markers of the reference.</param>
     internal int Resolve(ValueSource<int> source, SchemaPath referrer, InstancePath current = default)

@@ -53,11 +53,13 @@ internal class JsonSchemaGroup : JsonSchemaNode
 internal sealed class JsonSchemaRepeat : JsonSchemaGroup
 {
     public JsonSchemaValueOrRef<int> Count { get; init; }
+    public IReadOnlyList<JsonSchemaProcessorRef> ValueProcessors { get; init; } = [];
 }
 
 internal sealed class JsonSchemaChoice : JsonSchemaGroup
 {
     public JsonSchemaValueOrRef<int> SelectedIndex { get; init; }
+    public IReadOnlyList<JsonSchemaProcessorRef> ValueProcessors { get; init; } = [];
 }
 
 /// <summary>A value reference object ({ "reference": "..." }) or a constant.</summary>

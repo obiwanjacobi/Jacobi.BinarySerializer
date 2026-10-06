@@ -86,12 +86,19 @@ public sealed class ValueProcessorContext : ProcessorContext
 {
     public ValueProcessorContext(SessionState state) : base(state) { }
 
-    internal override string NodePath => Field?.Path.ToString() ?? String.Empty;
+    internal override string NodePath => Field?.Path.ToString() ?? Group?.Path.ToString() ?? String.Empty;
 
     /// <summary>
     /// The field being processed (set by the session before each call).
+    /// Null when a repeat count or choice index is processed: see <see cref="Group"/>.
     /// </summary>
     public FieldInfo Field { get; internal set; } = null!;
+
+    /// <summary>The repeat or choice whose count/index value is being processed (null when processing a field).</summary>
+    public GroupInfo? Group { get; internal set; }
+
+    /// <summary>The data type of the value being processed (null when unknown).</summary>
+    public SchemaDataType? DataType => Field is not null ? Field.Field.Type : Group?.ValueType;
 }
 
 public sealed class FieldProcessorContext : ProcessorContext

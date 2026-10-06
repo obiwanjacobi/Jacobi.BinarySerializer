@@ -215,7 +215,7 @@ public sealed class SchemaSet
             _ => []
         };
 
-        foreach (var processor in processors)
+        foreach (var processor in processors.Concat(ValueProcessorsOf(node)))
         {
             ExpandPropertyNames(processor);
         }
@@ -304,7 +304,7 @@ public sealed class SchemaSet
 
             if (node is SchemaGroup group)
             {
-                foreach (var processor in group.Processors)
+                foreach (var processor in group.Processors.Concat(ValueProcessorsOf(group)))
                 {
                     AddSchemaDependency(processor, documentName, dependencies);
                 }
@@ -440,7 +440,7 @@ public sealed class SchemaSet
 
             if (node is SchemaGroup group)
             {
-                foreach (var processor in group.Processors)
+                foreach (var processor in group.Processors.Concat(ValueProcessorsOf(group)))
                 {
                     if (!TryResolveProcessorRef(document, processor))
                     {
@@ -460,6 +460,14 @@ public sealed class SchemaSet
 
         return allResolved;
     }
+
+    private static IEnumerable<SchemaProcessorRef> ValueProcessorsOf(SchemaNode node)
+        => node switch
+        {
+            SchemaRepeat repeat => repeat.ValueProcessors,
+            SchemaChoice choice => choice.ValueProcessors,
+            _ => []
+        };
 
     private SchemaNode InstantiateType(SchemaNode node, SchemaTypeDef typeDef)
     {
@@ -483,6 +491,7 @@ public sealed class SchemaSet
                 ProcessorsList = MergeProcessors(typeDef.Processors, repeatNode.Processors),
                 ChildList = [.. repeatNode.ChildList],
                 Count = repeatNode.Count,
+                ValueProcessorsList = [.. repeatNode.ValueProcessors],
             };
         }
         if (node is SchemaChoice choiceNode)
@@ -494,6 +503,7 @@ public sealed class SchemaSet
                 ProcessorsList = MergeProcessors(typeDef.Processors, choiceNode.Processors),
                 ChildList = [.. choiceNode.ChildList],
                 SelectedIndex = choiceNode.SelectedIndex,
+                ValueProcessorsList = [.. choiceNode.ValueProcessors],
             };
         }
         if (node is SchemaGroup groupNode)

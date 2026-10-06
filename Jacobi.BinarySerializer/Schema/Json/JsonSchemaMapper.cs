@@ -129,6 +129,7 @@ internal static class JsonSchemaMapper
                 ProcessorsList = repeat.Processors.Select(ToSchemaProcessorRef).ToList(),
                 ChildList = children,
                 Count = ToSchemaValueOrRef(repeat.Count),
+                ValueProcessorsList = repeat.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(repeat.Properties, repeat.AdditionalData)
             };
         }
@@ -140,6 +141,7 @@ internal static class JsonSchemaMapper
                 ProcessorsList = choice.Processors.Select(ToSchemaProcessorRef).ToList(),
                 ChildList = children,
                 SelectedIndex = ToSchemaValueOrRef(choice.SelectedIndex),
+                ValueProcessorsList = choice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(choice.Properties, choice.AdditionalData)
             };
         }
@@ -226,6 +228,7 @@ internal static class JsonSchemaMapper
                 Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Children = repeat.Children.Select(FromSchemaNode).ToList(),
                 Count = FromSchemaValueOrRef(repeat.Count),
+                ValueProcessors = repeat.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = repeat.Properties.Select(FromSchemaProperty).ToList()
             };
         }
@@ -238,6 +241,7 @@ internal static class JsonSchemaMapper
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Children = choice.Children.Select(FromSchemaNode).ToList(),
                 SelectedIndex = FromSchemaValueOrRef(choice.SelectedIndex),
+                ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()
             };
         }

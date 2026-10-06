@@ -274,4 +274,32 @@ public class JsonSerializerTests
         Assert.That(fields["Node"].Value is SchemaNodeRef);
         Assert.That(fields["None"].Value is string or SchemaPubRef or SchemaNodeRef, Is.False);
     }
+
+    [Test]
+    public void Serialize_RoundTrip_PreservesValueProcessors()
+    {
+        var json = """
+            {
+              "name": "VpSchema",
+              "children": [ { "kind": "group", "name": "Root", "children": [
+                { "kind": "repeat", "name": "Items", "count": { "reference": "ref:Root.Kind" },
+                  "valueProcessors": [ { "processor": "sys.map", "properties": [ { "name": "a", "value": "1" } ] } ], "children": [] },
+                { "kind": "choice", "name": "Pick", "selectedIndex": { "reference": "ref:Root.Kind" },
+                  "valueProcessors": [ { "processor": "sys.map", "properties": [ { "name": "b", "value": "2" } ] } ], "children": [] }
+              ] } ],
+              "properties": []
+            }
+            """;
+
+        var document = JsonSerializer.Deserialize(json);
+        var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
+        var children = roundTripped.Groups.Single(g => g.Name == "Root").Children;
+        var repeat = children.OfType<SchemaRepeat>().Single();
+        var choice = children.OfType<SchemaChoice>().Single();
+
+        Assert.That(repeat.ValueProcessors, Has.Count.EqualTo(1));
+        Assert.That(repeat.ValueProcessors[0].Properties.Single().Value, Is.EqualTo("1"));
+        Assert.That(choice.ValueProcessors, Has.Count.EqualTo(1));
+        Assert.That(choice.ValueProcessors[0].Properties.Single().Value, Is.EqualTo("2"));
+    }
 }

@@ -134,6 +134,10 @@ public sealed class XmlSchemaRepeat : XmlSchemaGroup
 
     [XmlElement("count")]
     public XmlSchemaValueRef? CountRef { get; set; }
+
+    [XmlArray("valueProcessors")]
+    [XmlArrayItem("processor")]
+    public List<XmlSchemaProcessorRef> ValueProcessors { get; set; } = [];
 }
 
 public sealed class XmlSchemaChoice : XmlSchemaGroup
@@ -144,6 +148,10 @@ public sealed class XmlSchemaChoice : XmlSchemaGroup
 
     [XmlElement("selectedIndex")]
     public XmlSchemaValueRef? SelectedIndexRef { get; set; }
+
+    [XmlArray("valueProcessors")]
+    [XmlArrayItem("processor")]
+    public List<XmlSchemaProcessorRef> ValueProcessors { get; set; } = [];
 }
 
 public sealed class XmlSchemaValueRef

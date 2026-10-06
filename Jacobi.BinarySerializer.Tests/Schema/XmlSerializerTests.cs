@@ -219,4 +219,33 @@ public class XmlSerializerTests
         Assert.That(fields["Node"].Value is SchemaNodeRef);
         Assert.That(fields["None"].Value is string or SchemaPubRef or SchemaNodeRef, Is.False);
     }
+
+    [Test]
+    public void Serialize_RoundTrip_PreservesValueProcessors()
+    {
+        var xml = """
+            <schema name="VpSchema">
+              <children><group name="Root"><children>
+                <repeat name="Items"><count ref="ref:Root.Kind" />
+                  <valueProcessors><processor processor="sys.map"><properties><property name="a" value="1" /></properties></processor></valueProcessors>
+                </repeat>
+                <choice name="Pick"><selectedIndex ref="ref:Root.Kind" />
+                  <valueProcessors><processor processor="sys.map"><properties><property name="b" value="2" /></properties></processor></valueProcessors>
+                </choice>
+              </children></group></children>
+              <properties />
+            </schema>
+            """;
+
+        var document = new SchemaSet().LoadFromXml(xml);
+        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+        var children = roundTripped.Groups.Single(g => g.Name == "Root").Children;
+        var repeat = children.OfType<SchemaRepeat>().Single();
+        var choice = children.OfType<SchemaChoice>().Single();
+
+        Assert.That(repeat.ValueProcessors, Has.Count.EqualTo(1));
+        Assert.That(repeat.ValueProcessors[0].Properties.Single().Value, Is.EqualTo("1"));
+        Assert.That(choice.ValueProcessors, Has.Count.EqualTo(1));
+        Assert.That(choice.ValueProcessors[0].Properties.Single().Value, Is.EqualTo("2"));
+    }
 }

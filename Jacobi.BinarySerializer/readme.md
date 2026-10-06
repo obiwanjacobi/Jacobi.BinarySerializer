@@ -65,11 +65,15 @@ var result = serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, se
 - [ ] **SchemaField Dummy** to allow filler/dummy/don't-care fields in the schema. The engine currently requires a field to have a data type and a value model property.
 - [ ] **Complex schema property values.** `SchemaProperty.Value` is a single string that the processor interprets. Allow richer values, e.g. lists or object structures (`SchemaNode.cs`).
 - [ ] **Typed-object API.** Where interfacing is done through client-defined POCOs, not by implementing interfaces.
+- [x] **Value processors on repeat/choice.** `valueProcessors` on a repeat or choice (separate from the layout/stream `processors`) convert the referenced count/index value to an int (read direction, e.g. `sys.map` over a string field).
+- [ ] **Publish namespace (`pubns`).** An optional property on the Schema type (not an engine-interpreted processor property) to set the namespace a processor publishes its values under, so published values do not collide.
+- [ ] **Map processor follow-ups.** `sys:map` has no default/fallback for unmapped values (needed for unknown PNG chunk types), maps only scalar types (the `logical` property selects the logical type) and reparses its properties on every call.
 - [ ] **Expected-value stage.** A field `Value` (constant/ref) is compared against the logical value (after the semantic stage). Make the stage explicitly selectable (default logical).
 - [ ] **Suppress constants in the reader.** The sink currently still receives constant-valued fields via `SetField`. Add an option to skip them.
 - [ ] **Bare JSON `value` literals.** `SchemaField.Value` is a string union, so a bare JSON number or boolean (`"value": 42`) is not supported; only strings (e.g. `"0x2A"`).
 - [ ] **Rethink `SchemaDataType`.** Under reconsideration; constant literal parsing (`DataTypeCodec.TryParse`) depends on it.
 - [ ] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, typedef instantiation.
+- [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage?
 
 - [x] **Derive values the model does not hold.** Done: a field that a sibling repeat's `Count` refers to is derived from `IValueSource.GetCount` when the model has no value (flat `IFieldSource` models must be explicit).
 - [x] **String and variable-width fields.** `sys:string` field processor: `encoding` (default UTF-8), fixed `length` (padded with `padding`, trimmed on read) or single-byte `terminator`.

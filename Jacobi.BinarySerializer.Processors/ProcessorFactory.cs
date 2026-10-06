@@ -10,6 +10,7 @@ public sealed class ProcessorFactory : IProcessorFactory
         { "sys.nullable", new NullableProcessor() },
         { "sys.enum", new EnumProcessor() },
         { "sys.scale", new ScaleProcessor() },
+        { "sys.map", new MapProcessor() },
         // Field Processors
         { "sys.varint", new VarIntProcessor() },
         { "sys.string", new StringProcessor() },
