@@ -32,7 +32,7 @@ public sealed class ProcessorProperties : IReadOnlyList<SchemaProperty>
     /// Enumerates (short name, value) pairs: this processor's prefix is stripped, unprefixed names pass through,
     /// and properties prefixed for another processor are skipped.
     /// </summary>
-    public IEnumerable<KeyValuePair<string, string>> ShortNames()
+    public IEnumerable<KeyValuePair<string, string?>> ShortNames()
     {
         var prefix = _owner is { } key ? key.PropertyName(String.Empty) : null;
         foreach (var property in _properties)

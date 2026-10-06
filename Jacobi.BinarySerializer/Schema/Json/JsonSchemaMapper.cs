@@ -366,7 +366,7 @@ internal static class JsonSchemaMapper
         };
     }
 
-    private static string ValueAsString(JsonElement element)
+    private static string? ValueAsString(JsonElement element)
     {
         return element.ValueKind switch
         {
@@ -375,12 +375,12 @@ internal static class JsonSchemaMapper
             JsonValueKind.False => bool.FalseString,
             JsonValueKind.Number when element.TryGetInt64(out var int64) => int64.ToString(CultureInfo.InvariantCulture),
             JsonValueKind.Number => element.GetDouble().ToString(CultureInfo.InvariantCulture),
-            JsonValueKind.Null => "null",
+            JsonValueKind.Null => null,
             _ => element.GetRawText()
         };
     }
 
-    private static JsonElement ToJsonElement(string value)
+    private static JsonElement ToJsonElement(string? value)
     {
         return System.Text.Json.JsonSerializer.SerializeToElement(value);
     }

@@ -199,8 +199,9 @@ public sealed class SchemaProperty
     /// <summary>
     /// The value-string is interpeted/parsed by the processor that uses this property.
     /// It may be a literal value or a reference to a processor that provides the value.
+    /// Null means the property has no value (json null); a processor may give that a meaning (e.g. the default option of a map).
     /// </summary>
-    public required string Value { get; init; }
+    public required string? Value { get; init; }
     // TODO: allow complex objects as value, e.g. a list of values/object structures etc.
 }
 

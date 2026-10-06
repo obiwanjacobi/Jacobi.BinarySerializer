@@ -106,9 +106,11 @@ public static class DataTypeCodec
     /// Integers are decimal or hexadecimal with a '0x' prefix; booleans are 'true' or 'false'; DateTime is ISO 8601 (round-trip).
     /// Returns false for unsupported types and literals that are invalid or do not fit.
     /// </summary>
-    public static bool TryParse(SchemaDataType type, string text, out object? value)
+    public static bool TryParse(SchemaDataType type, string? text, out object? value)
     {
         value = null;
+        if (text is null) return false;
+
         var culture = System.Globalization.CultureInfo.InvariantCulture;
         var hex = text.StartsWith("0x", StringComparison.OrdinalIgnoreCase);
         var styles = hex ? System.Globalization.NumberStyles.AllowHexSpecifier : System.Globalization.NumberStyles.Integer;

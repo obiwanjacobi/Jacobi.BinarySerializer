@@ -1,6 +1,5 @@
 using System.Collections;
 using Jacobi.BinarySerializer.Processor;
-using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processors;
 
@@ -51,7 +50,7 @@ internal sealed class EnumProcessor : IValueProcessor
     {
         private readonly Dictionary<string, int> _map = new();
 
-        public EnumForwardMap(IEnumerable<KeyValuePair<string, string>> properties)
+        public EnumForwardMap(IEnumerable<KeyValuePair<string, string?>> properties)
         {
             foreach (var property in properties)
             {
@@ -86,7 +85,7 @@ internal sealed class EnumProcessor : IValueProcessor
     {
         private readonly Dictionary<int, string> _map = new();
 
-        public EnumReverseMap(IEnumerable<KeyValuePair<string, string>> properties)
+        public EnumReverseMap(IEnumerable<KeyValuePair<string, string?>> properties)
         {
             foreach (var property in properties)
             {

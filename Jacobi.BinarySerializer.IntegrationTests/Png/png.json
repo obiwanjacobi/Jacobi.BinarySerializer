@@ -9,7 +9,8 @@
         { "name": "0", "value": "IHDR" },
         { "name": "1", "value": "PLTE" },
         { "name": "2", "value": "IDAT" },
-        { "name": "3", "value": "IEND" }
+        { "name": "3", "value": "IEND" },
+        { "name": "4", "value": null }
       ]
     }
   ],
@@ -20,7 +21,7 @@
       "processors": [ { "processor": "sys.bytepacker" } ],
       "properties": [ { "name": "byteorder", "value": "big" } ],
       "children": [
-        { "name": "Signature", "kind": "field", "type": "UInt64", "value": "0x89504E470D0A1A0A" },
+        { "name": "Signature", "kind": "field", "type": "Bytes", "length": 8, "value": "0x89504E470D0A1A0A" },
         {
           "name": "Chunk",
           "kind": "repeat",
@@ -60,17 +61,10 @@
                     { "name": "Interlace", "kind": "field", "type": "UInt8" }
                   ]
                 },
-                {
-                  "name": "Palette",
-                  "kind": "repeat",
-                  "children": [ { "name": "Byte", "kind": "field", "type": "UInt8" } ]
-                },
-                {
-                  "name": "ImageData",
-                  "kind": "repeat",
-                  "children": [ { "name": "Byte", "kind": "field", "type": "UInt8" } ]
-                },
-                { "name": "End", "kind": "group", "children": [] }
+                { "name": "Palette", "kind": "field", "type": "Bytes" },
+                { "name": "ImageData", "kind": "field", "type": "Bytes" },
+                { "name": "End", "kind": "group", "children": [] },
+                { "name": "Unknown", "kind": "field", "type": "Bytes" }
               ]
             },
             { "name": "Crc", "kind": "field", "type": "UInt32" }

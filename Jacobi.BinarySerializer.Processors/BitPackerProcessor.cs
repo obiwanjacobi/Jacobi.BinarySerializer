@@ -163,7 +163,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
             return Endianness.Little;
         }
 
-        return property.Value.ToLowerInvariant() switch
+        return property.Value?.ToLowerInvariant() switch
         {
             "lsb" => Endianness.Little,
             "msb" => Endianness.Big,

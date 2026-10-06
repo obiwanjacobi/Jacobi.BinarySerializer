@@ -130,7 +130,7 @@ internal sealed class AlignProcessor : ILayoutProcessor,
             return false;
         }
 
-        return property.Value.ToLowerInvariant() switch
+        return property.Value?.ToLowerInvariant() switch
         {
             "group" => false,
             "root" => true,
