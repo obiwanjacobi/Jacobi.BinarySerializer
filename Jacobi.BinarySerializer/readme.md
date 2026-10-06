@@ -22,28 +22,39 @@ IValueSource valueSource = ...
 // deserialize will give you logical values
 IValueSink valueSink = ...
 
-var outputStream = Stream|IBinaryWriter;
-var inputStream = Stream|SequenceReader<byte>;
+var outputStream = byte[]|Stream|IBinaryWriter;
+var inputStream = byte[]|Stream|SequenceReader<byte>;
 
 // available to processors
 IServiceProvider services = ...;
 
-// bring it together in the serializer
-static BinarySerializer serializer = new(schemas, processors|services?);
-ExecutionPlan plan = serializer.MakePlan("schemaName");
+// bring it together in the serializer (immutable, thread-safe, owns the ExecutionPlan cache)
+Serializer serializer = new SerializerBuilder()
+    .AddSchemas(schemas)
+    .AddProcessors(processors) // or .AddServices(services)
+    .AddServices(services)
+    .Build();
+ExecutionPlan plan = serializer.GetPlan("schemaName"); // cached
 
 // write logical to binary
-serializer.Serialize(plan, IValueSource|IFieldSource, outputStream, services);
+var result = serializer.Serialize(plan, IValueSource|IFieldSource, outputStream, services);
+// result == NeedMoreSpace?
+
 // read binary to logical
-serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, services);
+var result = serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, services);
+// result == NeedMoreData?
 ```
 
 ## TODOs
 
-- [ ] **API: Add `Assembly` overloads**: to `LoadFromAssembly` in `SchemaSet` and `ProcessorManager`.
-- [ ] **API: Allow `IProcessorFactory` through `IServiceProvider`**: Perhaps bypass the `ProcessManager` entirely.
-- [ ] **API: Add `Serializer` root object** as a container for all dependencies. How do we deal with cachable/static `ExecutionPlan`s?
-- [ ] **API: Allow `Stream` for both input and output.** The engine currently requires `IBinaryWriter` and `SequenceReader<byte>`. Do we create adapters, or add `Stream` overloads to the engine and the processors?
+- [x] **API: Add `Assembly` overloads**: to `LoadAssembly` in `SchemaSet` and `LoadFromAssembly` in `ProcessorManager`.
+- [X] **API: Allow `IProcessorFactory` through `IServiceProvider`**: Perhaps bypass the `ProcessManager` entirely. Implement a `IProcessorProvider` over `IServiceProvider` (`ProcessorProvider`).
+- [x] **API: Add `Serializer` root object** as a container for all dependencies. `SerializerBuilder` configures; `Serializer` is immutable and caches `ExecutionPlan`s per schema name (`GetPlan`/`Prepare`/`PrepareAll`).
+- [ ] **Freeze `SchemaSet` and `ProcessorProvider` once handed to a `Serializer`.** Cached `ExecutionPlan`s go stale if a schema is loaded/recompiled or a processor is registered after `SerializerBuilder.Build()`. Fix: add an `IsFrozen`/`Freeze()` to `SchemaSet` (after `Compile`) and to the processor provider (`ProcessorManager`), call it in `Build()`, and throw `InvalidOperationException` on later modification. Add tests.
+- [ ] **API: Allow `Stream` and `byte[]` for both input and output.** The engine currently requires `IBinaryWriter` and `SequenceReader<byte>`. Do we create adapters, or add `Stream` overloads to the engine and the processors?
+- [ ] **(De)Serialize overloads for all variations** Plan|Range, `IValueSource`|`IFieldSource`, `Stream`|`byte[]`|`IBinaryWriter` and `IValueSink`|`IFieldSink`, `Stream`|`byte[]`|`SequenceReader<byte>`.
+- [ ] **Write API documentation for the public API** including some examples. Describe what services are supported and expected.
+
 - [ ] **Detect repeat count mismatches at schema compile time.** A constant count that cannot match the model/referenced count (schema out of sync) should be reported when the plan is built, not only at write time (currently an `InvalidOperationException`).
 - [ ] **Derive length prefixes and choice discriminators.** Lengths that precede the data they measure: buffer the group, then write the length field (see the back-patch optimization below). Choice discriminators (the selected index) derived from the model are last.
 - [ ] **String follow-ups.** `length` as `ref:`/`pub:` (processor property values are constants only, see complex property values), publishing the detected length, a length prefix (see above), multi-byte terminators for UTF-16/32, and reporting property errors at plan build instead of at read time. A field processor that needs more data than the open-width window (10 bytes) is retried by the reader with a doubled window while more input is available.

@@ -7,16 +7,20 @@ namespace Jacobi.BinarySerializer.Execution;
 /// </summary>
 public sealed class PlanRange
 {
+    private readonly ExecutionPlan _executionPlan;
+
     // document-order position keys: per ancestor its index and, for a repeat above the node, the item index.
     private readonly int[] _from;
     private readonly int[] _to;
 
-    internal PlanRange(NodeInfo from, NodeInfo to)
-        : this(from, InstancePath.Empty, to, InstancePath.Empty)
+    internal PlanRange(ExecutionPlan executionPlan, NodeInfo from, NodeInfo to)
+        : this(executionPlan, from, InstancePath.Empty, to, InstancePath.Empty)
     { }
 
-    internal PlanRange(NodeInfo from, InstancePath fromInstance, NodeInfo to, InstancePath toInstance)
+    internal PlanRange(ExecutionPlan executionPlan, NodeInfo from, InstancePath fromInstance, NodeInfo to, InstancePath toInstance)
     {
+        _executionPlan = executionPlan;
+
         First = FirstField(from);
         Last = LastField(to);
         FromInstance = fromInstance;
@@ -41,6 +45,8 @@ public sealed class PlanRange
             throw new ArgumentException($"The range start '{from.Path}{fromInstance}' comes after the range end '{to.Path}{toInstance}'.");
         }
     }
+
+    public ExecutionPlan ExecutionPlan => _executionPlan;
 
     /// <summary>The first field of the range.</summary>
     public FieldInfo First { get; }

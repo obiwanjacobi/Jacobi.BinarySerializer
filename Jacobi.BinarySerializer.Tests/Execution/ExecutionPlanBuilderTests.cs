@@ -196,7 +196,8 @@ public class ExecutionPlanBuilderTests
         schemaSet.AddDocument(CreateDocument("Main", CreateGroup("Root")));
         schemaSet.Compile();
 
-        var plan = CreateBuilder().Build(schemaSet, new SchemaName("Root"));
+        var root = schemaSet.FindRoot(new SchemaName("Main.Root"));
+        var plan = CreateBuilder().Build(root);
 
         Assert.That(plan.Root.Name, Is.EqualTo("Root"));
     }
@@ -209,7 +210,7 @@ public class ExecutionPlanBuilderTests
         schemaSet.AddDocument(CreateDocument("Two", CreateGroup("Root")));
         schemaSet.Compile();
 
-        var plan = CreateBuilder().Build(schemaSet, new SchemaName("Two.Root"));
+        var plan = CreateBuilder().Build(schemaSet.FindRoot(new SchemaName("Two.Root")));
 
         Assert.That(plan.Root, Is.Not.Null);
     }
@@ -222,13 +223,13 @@ public class ExecutionPlanBuilderTests
         schemaSet.Compile();
 
         var ex = Assert.Throws<InvalidOperationException>(
-            () => CreateBuilder().Build(schemaSet, new SchemaName("Missing")));
+            () => CreateBuilder().Build(schemaSet.FindRoot(new SchemaName("Main.Missing"))));
 
         Assert.That(ex!.Message, Does.Contain("not found"));
     }
 
     [Test]
-    public void Build_FromSchemaSet_AmbiguousRoot_Throws()
+    public void Build_FromSchemaSet_UnqualifiedName_Throws()
     {
         var schemaSet = new SchemaSet();
         schemaSet.AddDocument(CreateDocument("One", CreateGroup("Root")));
@@ -236,9 +237,9 @@ public class ExecutionPlanBuilderTests
         schemaSet.Compile();
 
         var ex = Assert.Throws<InvalidOperationException>(
-            () => CreateBuilder().Build(schemaSet, new SchemaName("Root")));
+            () => CreateBuilder().Build(schemaSet.FindRoot(new SchemaName("Root"))));
 
-        Assert.That(ex!.Message, Does.Contain("ambiguous"));
+        Assert.That(ex!.Message, Does.Contain("not found"));
     }
 
     [Test]
@@ -248,7 +249,7 @@ public class ExecutionPlanBuilderTests
         schemaSet.AddDocument(CreateDocument("Main", CreateGroup("Root")));
 
         var ex = Assert.Throws<InvalidOperationException>(
-            () => CreateBuilder().Build(schemaSet, new SchemaName("Root")));
+            () => CreateBuilder().Build(schemaSet.FindRoot(new SchemaName("Main.Root"))));
 
         Assert.That(ex!.Message, Does.Contain("not compiled"));
     }

@@ -7,10 +7,87 @@ namespace Jacobi.BinarySerializer.Schema;
 
 public sealed class SchemaSet
 {
+    // TODO: key - ignore case
     private readonly Dictionary<string, SchemaDocument> _documents = new();
 
     public IReadOnlyCollection<SchemaDocument> Documents
         => _documents.Values;
+
+    public SchemaDocument LoadFile(string path)
+    {
+        var extension = Path.GetExtension(path).ToLowerInvariant();
+        var content = File.ReadAllText(path);
+        var document = extension switch
+        {
+            ".xml" => LoadFromXml(content),
+            ".json" => LoadFromJson(content),
+            ".yaml" or ".yml" => LoadFromYaml(content),
+            _ => throw new NotSupportedException($"File extension '{extension}' is not supported.")
+        };
+
+        AddDocument(document);
+        return document;
+    }
+
+    public IEnumerable<SchemaDocument> LoadAssembly(string path, string resourcePath)
+        => LoadAssembly(Assembly.LoadFile(path), resourcePath);
+
+    public IEnumerable<SchemaDocument> LoadAssembly(Assembly assembly, string resourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        var documents = new List<SchemaDocument>();
+
+        assembly.GetManifestResourceNames()
+            .Where(name => name.StartsWith(resourcePath, StringComparison.OrdinalIgnoreCase))
+            .ToList()
+            .ForEach(name =>
+            {
+                using var stream = assembly.GetManifestResourceStream(name)
+                    ?? throw new InvalidOperationException($"Resource '{name}' not found in assembly '{assembly.FullName}'.");
+                var document = LoadFromBinary(stream);
+
+                documents.Add(document);
+                AddDocument(document);
+            });
+
+        return documents;
+    }
+
+    public SchemaDocument LoadFromXml(string xml)
+        => XmlSerializer.Deserialize(xml);
+
+    public SchemaDocument LoadFromJson(string json)
+        => JsonSerializer.Deserialize(json);
+
+    public SchemaDocument LoadFromYaml(string yaml)
+    {
+        throw new NotImplementedException();
+    }
+
+    public SchemaDocument LoadFromBinary(Stream data)
+    {
+        throw new NotImplementedException();
+    }
+
+    public SchemaGroup FindRoot(SchemaName root)
+    {
+        if (!_documents.TryGetValue(root.Namespace, out var document))
+        {
+            throw new InvalidOperationException($"Schema root '{root}' not found.");
+        }
+
+        var match = document.Roots
+            .Where(r => String.Equals(r.Name, root.Name, StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault();
+
+        if (match == null)
+            throw new InvalidOperationException($"Schema root '{root}' not found in document '{document.Name}'.");
+
+        if (!document.IsCompiled)
+            throw new InvalidOperationException($"Schema document '{document.Name}' is not compiled.");
+
+        return match;
+    }
 
     public void Compile()
     {
@@ -163,7 +240,7 @@ public sealed class SchemaSet
         }
     }
 
-    private static void ExpandPropertyNames(SchemaProcessorBase processor, Processor.ProcessorKey key)
+    private static void ExpandPropertyNames(SchemaProcessor processor, Processor.ProcessorKey key)
     {
         var list = processor.PropertyList;
         for (var i = 0; i < list.Count; i++)
@@ -182,7 +259,7 @@ public sealed class SchemaSet
         }
     }
 
-    private HashSet<string> GetDocumentDependencies(SchemaDocument document)
+    private static HashSet<string> GetDocumentDependencies(SchemaDocument document)
     {
         var dependencies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -211,7 +288,7 @@ public sealed class SchemaSet
         return dependencies;
     }
 
-    private void CollectNodeDependencies(IReadOnlyList<SchemaNode> nodes, string documentName, HashSet<string> dependencies)
+    private static void CollectNodeDependencies(IReadOnlyList<SchemaNode> nodes, string documentName, HashSet<string> dependencies)
     {
         foreach (var node in nodes)
         {
@@ -237,7 +314,7 @@ public sealed class SchemaSet
         }
     }
 
-    private void AddSchemaDependency(SchemaProcessorRef processorRef, string documentName, HashSet<string> dependencies)
+    private static void AddSchemaDependency(SchemaProcessorRef processorRef, string documentName, HashSet<string> dependencies)
     {
         if (processorRef.Processor.IsReference)
         {
@@ -245,7 +322,7 @@ public sealed class SchemaSet
         }
     }
 
-    private void AddSchemaDependency(SchemaName? schemaName, string documentName, HashSet<string> dependencies)
+    private static void AddSchemaDependency(SchemaName? schemaName, string documentName, HashSet<string> dependencies)
     {
         if (!schemaName.HasValue || String.IsNullOrEmpty(schemaName.Value.Namespace))
         {
@@ -261,10 +338,8 @@ public sealed class SchemaSet
 
     internal void AddDocument(SchemaDocument document)
     {
-        if (document is null)
-        {
-            throw new ArgumentNullException(nameof(document));
-        }
+        ArgumentNullException.ThrowIfNull(document);
+
         if (String.IsNullOrEmpty(document.Name))
         {
             throw new ArgumentException("Document name cannot be null or empty.", nameof(document));
@@ -275,59 +350,6 @@ public sealed class SchemaSet
         }
 
         _documents[document.Name] = document;
-    }
-
-    public SchemaDocument LoadFile(string path)
-    {
-        var extension = Path.GetExtension(path).ToLowerInvariant();
-        var content = File.ReadAllText(path);
-        var document = extension switch
-        {
-            ".xml" => LoadFromXml(content),
-            ".json" => LoadFromJson(content),
-            ".yaml" or ".yml" => LoadFromYaml(content),
-            _ => throw new NotSupportedException($"File extension '{extension}' is not supported.")
-        };
-
-        AddDocument(document);
-        return document;
-    }
-
-    public IEnumerable<SchemaDocument> LoadAssembly(string path, string resourcePath)
-    {
-        var documents = new List<SchemaDocument>();
-
-        var assembly = Assembly.LoadFile(path);
-        assembly.GetManifestResourceNames()
-            .Where(name => name.StartsWith(resourcePath, StringComparison.OrdinalIgnoreCase))
-            .ToList()
-            .ForEach(name =>
-            {
-                using var stream = assembly.GetManifestResourceStream(name)
-                    ?? throw new InvalidOperationException($"Resource '{name}' not found in assembly '{path}'.");
-                var document = LoadFromBinary(stream);
-
-                documents.Add(document);
-                AddDocument(document);
-            });
-
-        return documents;
-    }
-
-    public SchemaDocument LoadFromXml(string xml)
-        => XmlSerializer.Deserialize(xml);
-
-    public SchemaDocument LoadFromJson(string json)
-        => JsonSerializer.Deserialize(json);
-
-    public SchemaDocument LoadFromYaml(string yaml)
-    {
-        throw new NotImplementedException();
-    }
-
-    public SchemaDocument LoadFromBinary(Stream data)
-    {
-        throw new NotImplementedException();
     }
 
     private bool ResolveReferences(SchemaDocument document)

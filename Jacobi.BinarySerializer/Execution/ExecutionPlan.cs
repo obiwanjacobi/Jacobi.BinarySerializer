@@ -46,7 +46,7 @@ public sealed class ExecutionPlan
     {
         var from = Find(fromPath) ?? throw new ArgumentException($"There is no node '{fromPath}' in the plan.", nameof(fromPath));
         var to = Find(toPath) ?? throw new ArgumentException($"There is no node '{toPath}' in the plan.", nameof(toPath));
-        return new PlanRange(from, to);
+        return new PlanRange(this, from, to);
     }
 
     /// <summary>
@@ -57,21 +57,34 @@ public sealed class ExecutionPlan
     {
         var from = Find(fromPath) ?? throw new ArgumentException($"There is no node '{fromPath}' in the plan.", nameof(fromPath));
         var to = Find(toPath) ?? throw new ArgumentException($"There is no node '{toPath}' in the plan.", nameof(toPath));
-        return new PlanRange(from, fromInstance, to, toInstance);
+        return new PlanRange(this, from, fromInstance, to, toInstance);
+    }
+
+    public static ExecutionPlan Create(SchemaSet schemas, SchemaName schemaName, IProcessorProvider processorProvider)
+    {
+        var builder = new ExecutionPlanBuilder(processorProvider);
+        var root = schemas.FindRoot(schemaName);
+        return builder.Build(root);
+    }
+
+    public static ExecutionPlan Create(SchemaGroup root, IProcessorProvider processorProvider)
+    {
+        var builder = new ExecutionPlanBuilder(processorProvider);
+        return builder.Build(root);
+    }
+
+    public static ExecutionPlan Create(SchemaDocument document, SchemaName schemaName, IProcessorProvider processorProvider)
+    {
+        var builder = new ExecutionPlanBuilder(processorProvider);
+        var root = ExecutionPlanBuilder.FindRoot(document, schemaName);
+        return builder.Build(root);
     }
 }
 
 //-----------------------------------------------------------------------------
 
-public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
+internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
 {
-    public ExecutionPlan Build(SchemaSet schemaSet, SchemaName root)
-    {
-        ArgumentNullException.ThrowIfNull(schemaSet);
-        return Build(FindRoot(schemaSet, root));
-    }
-
-    // TODO: add overload ExecutionPlan Build(SchemaDocument, SchemaName/string root){}
 
     public ExecutionPlan Build(SchemaGroup root)
     {
@@ -89,13 +102,9 @@ public sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         return new ExecutionPlan { Root = rootInfo };
     }
 
-    private static SchemaGroup FindRoot(SchemaSet schemaSet, SchemaName root)
+    internal static SchemaGroup FindRoot(SchemaDocument document, SchemaName root)
     {
-        var documents = String.IsNullOrEmpty(root.Namespace)
-            ? schemaSet.Documents
-            : schemaSet.Documents.Where(d => String.Equals(d.Name, root.Namespace, StringComparison.OrdinalIgnoreCase));
-
-        var matches = documents
+        var matches = new[] { document }
             .SelectMany(d => d.Roots.Select(r => (Document: d, Root: r)))
             .Where(m => String.Equals(m.Root.Name, root.Name, StringComparison.OrdinalIgnoreCase))
             .ToList();

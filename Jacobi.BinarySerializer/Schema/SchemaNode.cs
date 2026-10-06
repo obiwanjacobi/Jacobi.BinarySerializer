@@ -109,7 +109,7 @@ public sealed class SchemaDocumentRef
     public SchemaDocument? SchemaDocument { get; internal set; }
 }
 
-public abstract class SchemaProcessorBase
+public closed class SchemaProcessor
 {
     public IReadOnlyList<SchemaProperty> Properties => PropertyList;
     internal List<SchemaProperty> PropertyList { get; init; } = [];
@@ -119,7 +119,7 @@ public abstract class SchemaProcessorBase
 /// A named processor declaration in the ProcessorDefs of a schema (document):
 /// a processor key with default properties that can be referenced (by name) with a <see cref="SchemaProcessorRef"/>.
 /// </summary>
-public sealed class SchemaProcessorDef : SchemaProcessorBase
+public sealed class SchemaProcessorDef : SchemaProcessor
 {
     /// <summary>The name used to reference this definition ('ref:name', or 'ref:document.name' from another document).</summary>
     public required string Name { get; init; }
@@ -131,7 +131,7 @@ public sealed class SchemaProcessorDef : SchemaProcessorBase
 /// or a reference to a <see cref="SchemaProcessorDef"/> ('ref:name' or 'ref:document.name').
 /// The properties of the ref override the properties of the definition.
 /// </summary>
-public sealed class SchemaProcessorRef : SchemaProcessorBase
+public sealed class SchemaProcessorRef : SchemaProcessor
 {
     public required SchemaProcessorName Processor { get; init; }
 

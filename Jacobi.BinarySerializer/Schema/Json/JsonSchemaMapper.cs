@@ -283,7 +283,7 @@ internal static class JsonSchemaMapper
             throw new JsonException($"Invalid value reference '{valueRef.Reference}'. Expected 'ref:path' or 'pub:namespace.name'.");
         }
 
-        return valueOrRef is string value ? value : default;
+        return valueOrRef is string value ? value : default(SchemaValueOrRef<string>);
     }
 
     private static JsonSchemaValueOrRef<string> FromSchemaValueOrRef(SchemaValueOrRef<string> valueOrRef)

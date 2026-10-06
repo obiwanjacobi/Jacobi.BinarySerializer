@@ -451,7 +451,7 @@ internal static class XmlSchemaMapper
                 $"Invalid value reference '{valueRef.Reference}'. Expected 'ref:path' or 'pub:namespace.name'.");
         }
 
-        return constant is null ? default : constant;
+        return constant is null ? default(SchemaValueOrRef<string>) : constant;
     }
 
     private static XmlSchemaValueRef? ToXmlValueRef(SchemaValueOrRef<string> value)

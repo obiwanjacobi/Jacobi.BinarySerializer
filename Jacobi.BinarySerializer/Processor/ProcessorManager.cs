@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Jacobi.BinarySerializer.Processor;
 
@@ -38,7 +39,7 @@ public sealed class ProcessorManager : IProcessorProvider, IProcessorFactoryProv
         if (TryGetFactory(key.Namespace, out var factory))
         {
             processor = factory.CreateProcessor(key.Id);
-            return processor != null;
+            return processor is not null;
         }
         processor = null;
         return false;
@@ -71,8 +72,11 @@ public sealed class ProcessorManager : IProcessorProvider, IProcessorFactoryProv
     }
 
     public bool LoadFromAssembly(string assemblyPath)
+        => LoadFromAssembly(System.Reflection.Assembly.LoadFrom(assemblyPath));
+
+    public bool LoadFromAssembly(System.Reflection.Assembly assembly)
     {
-        var assembly = System.Reflection.Assembly.LoadFrom(assemblyPath);
+        ArgumentNullException.ThrowIfNull(assembly);
 
         var factoryTypes = new List<Type>();
         // Find all types that implement IProcessorFactory
@@ -94,5 +98,61 @@ public sealed class ProcessorManager : IProcessorProvider, IProcessorFactoryProv
         }
 
         return factoryTypes.Count > 0;
+    }
+}
+
+/// <summary>
+/// Retrieves IProcessorFactory instances from the IServiceProvider to create processors.
+/// Register the IProcessorFactory implementations in the DI container with a named service 
+/// (keyed by namespace) or as a plain IProcessorFactory instance. It is also possible to 
+/// register a single IProcessorFactoryProvider that can provide factories on demand.
+/// </summary>
+public sealed class ProcessorProvider : IProcessorProvider
+{
+    private readonly IServiceProvider _serviceProvider;
+
+    public ProcessorProvider(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider
+            ?? throw new ArgumentNullException(nameof(serviceProvider));
+    }
+
+    public IProcessor CreateProcessor(ProcessorKey key)
+    {
+        var factory = GetFactory(key.Namespace)
+            ?? throw new ArgumentException($"The Processor factory for '{key.Namespace}' could not be found.");
+
+        var processor = factory.CreateProcessor(key.Id)
+            ?? throw new ArgumentException($"The Processor factory for '{key.Namespace} could not create processor '{key.Id}'.");
+
+        return processor;
+    }
+
+    public bool TryCreateProcessor(ProcessorKey key, [NotNullWhen(true)] out IProcessor? processor)
+    {
+        var factory = GetFactory(key.Namespace);
+        processor = factory?.CreateProcessor(key.Id);
+        return processor is not null;
+    }
+
+    private IProcessorFactory? GetFactory(string ns)
+    {
+        var factory = _serviceProvider.GetKeyedService<IProcessorFactory>(ns);
+
+        if (factory is null)
+        {
+            var factories = _serviceProvider.GetServices<IProcessorFactory>();
+            factory = factories.FirstOrDefault(
+                f => f.Namespace.Equals(ns, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (factory is null)
+        {
+            _serviceProvider
+                .GetService<IProcessorFactoryProvider>()?
+                .TryGetFactory(ns, out factory);
+        }
+
+        return factory;
     }
 }
