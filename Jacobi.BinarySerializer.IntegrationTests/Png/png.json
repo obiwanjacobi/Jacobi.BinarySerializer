@@ -28,6 +28,11 @@
           "children": [
             { "name": "Length", "kind": "field", "type": "UInt32" },
             {
+              "name": "Body",
+              "kind": "group",
+              "processors": [ { "processor": "sys.bytepacker" }, { "processor": "sys.crc" } ],
+              "children": [
+            {
               "name": "Type",
               "kind": "field",
               "type": "String",
@@ -44,7 +49,7 @@
             {
               "name": "Data",
               "kind": "choice",
-              "selectedIndex": { "reference": "ref:Png.Chunk[].Type" },
+              "selectedIndex": { "reference": "ref:Png.Chunk[].Body.Type" },
               "size": { "reference": "ref:Png.Chunk[].Length" },
               "valueProcessors": [ { "processor": "ref:chunkType" } ],
               "children": [
@@ -66,8 +71,9 @@
                 { "name": "End", "kind": "group", "children": [] },
                 { "name": "Unknown", "kind": "field", "type": "Bytes" }
               ]
-            },
-            { "name": "Crc", "kind": "field", "type": "UInt32" }
+            }
+              ]
+            }
           ]
         }
       ]

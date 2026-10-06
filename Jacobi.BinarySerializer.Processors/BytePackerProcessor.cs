@@ -67,12 +67,9 @@ internal sealed class BytePackerProcessor : ILayoutProcessor
             return Endianness.Little;
         }
 
-        return property.Value?.ToLowerInvariant() switch
-        {
-            "little" => Endianness.Little,
-            "big" => Endianness.Big,
-            _ => throw context.Logger.Fail($"Invalid '{EndianProperty}' value '{property.Value}'. Expected 'little' or 'big'.")
-        };
+        return Enum.TryParse<Endianness>(property.Value, true, out var endianness) && Enum.IsDefined(endianness)
+            ? endianness
+            : throw context.Logger.Fail($"Invalid '{EndianProperty}' value '{property.Value}'. Expected 'little' or 'big'.");
     }
 
     public ProcessorKey Key => new("sys.bytepacker");
@@ -80,6 +77,6 @@ internal sealed class BytePackerProcessor : ILayoutProcessor
     public PipelineStage Stage => PipelineStage.Layout;
     public IReadOnlyList<PropertyDescriptor> Properties =>
     [
-        new(EndianProperty, typeof(string), false, description: "Group: 'little' (default) or 'big' byte order of fixed-width values."),
+        new(EndianProperty, typeof(Endianness), false, description: "Group: 'little' (default) or 'big' byte order of fixed-width values."),
     ];
 }

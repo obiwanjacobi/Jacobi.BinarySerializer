@@ -44,7 +44,7 @@ public class PngSchemaTests
         Assert.That(result, Is.EqualTo(ReadResult.Success), $"read {sink.Seen.Count}: {string.Join(", ", sink.Seen)}; bytes {bytes.Length}");
         Assert.That(sink.Types, Is.EqualTo(new[] { "IHDR", "IDAT", "IEND" }));
         Assert.That(sink.Values["Png.Signature"], Is.EqualTo(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }));
-        Assert.That(((byte[])sink.Values["Png.Chunk.Data.ImageData"]!).Length, Is.GreaterThan(0));
+        Assert.That(((byte[])sink.Values["Png.Chunk.Body.Data.ImageData"]!).Length, Is.GreaterThan(0));
     }
 
     [Test]

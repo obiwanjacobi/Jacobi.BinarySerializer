@@ -8,7 +8,7 @@ namespace Jacobi.BinarySerializer.Processors;
 
 /// <summary>
 /// Packs fields of arbitrary bit widths into bytes, in declaration order.
-/// Field property 'bits' sets the width (default: the encoded width). Group property 'Endianness' ('lsb' or 'msb') sets the bit order (default: lsb).
+/// Field property 'bits' sets the width (default: the encoded width). Group property 'bitorder' ('little' or 'big') sets the bit order (default: little).
 /// A partially filled byte is padded with zero bits at the end of the group.
 /// </summary>
 internal sealed class BitPackerProcessor : ILayoutProcessor
@@ -163,12 +163,9 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
             return Endianness.Little;
         }
 
-        return property.Value?.ToLowerInvariant() switch
-        {
-            "lsb" => Endianness.Little,
-            "msb" => Endianness.Big,
-            _ => throw context.Logger.Fail($"Invalid '{BitOrderProperty}' value '{property.Value}'. Expected 'lsb' or 'msb'.")
-        };
+        return Enum.TryParse<Endianness>(property.Value, true, out var order) && Enum.IsDefined(order)
+            ? order
+            : throw context.Logger.Fail($"Invalid '{BitOrderProperty}' value '{property.Value}'. Expected 'little' or 'big'.");
     }
 
     public ProcessorKey Key => new("sys.bitpacker");
@@ -177,7 +174,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
     public IReadOnlyList<PropertyDescriptor> Properties =>
     [
         new(BitsProperty, typeof(int), false, description: "Field: the number of bits the field occupies."),
-        new(BitOrderProperty, typeof(string), false, description: "Group: 'lsb' (default) or 'msb' bit order within a byte."),
+        new(BitOrderProperty, typeof(Endianness), false, description: "Group: 'little' (default) or 'big' bit order within a byte."),
     ];
 
     private sealed class BitPackerState

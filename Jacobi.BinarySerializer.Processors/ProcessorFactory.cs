@@ -18,6 +18,7 @@ public sealed class ProcessorFactory : IProcessorFactory
         { "sys.bitpacker", new BitPackerProcessor() },
         { "sys.bytepacker", new BytePackerProcessor() },
         { "sys.align", new AlignProcessor() },
+        { "sys.crc", new CrcProcessor() },
     };
 
     public string Namespace => "sys";

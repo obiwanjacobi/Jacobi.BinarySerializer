@@ -27,14 +27,14 @@ public class BitPackerProcessorTests
     [Test]
     public void RoundTrip_MsbFirst()
     {
-        var (bytes, values) = RoundTrip(CreateRoot("msb"), CreateValues());
+        var (bytes, values) = RoundTrip(CreateRoot("big"), CreateValues());
 
         Assert.That(bytes, Is.EqualTo(new byte[] { 0xB1, 0x91, 0xA0 }));
         Assert.That(values, Is.EqualTo(CreateValues()));
     }
 
-    [TestCase("lsb")]
-    [TestCase("msb")]
+    [TestCase("little")]
+    [TestCase("big")]
     public void RoundTrip_SignedValuesAreSignExtended(string bitOrder)
     {
         var root = Group("Root", [Ref("bitpacker", ("bitorder", bitOrder))],
