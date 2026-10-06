@@ -167,7 +167,8 @@ internal static class SessionTestHelpers
 /// <summary>Dictionary-backed value source (keyed by node path); records group entries.</summary>
 internal sealed class DictSource(Dictionary<string, object?> values, List<string>? events = null) : IValueSource
 {
-    public bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
+    public SourceResult GetField(FieldContext context) => TryGetField(context, out var found) ? SourceResult.Provided(found) : SourceResult.NoValue();
+    private bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
     {
         if (values.TryGetValue(context.Path, out var value))
         {

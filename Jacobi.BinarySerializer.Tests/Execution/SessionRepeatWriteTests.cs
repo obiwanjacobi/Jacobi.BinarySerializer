@@ -98,7 +98,9 @@ public class SessionRepeatWriteTests
     {
         public List<int> Entered { get; } = entered ?? [];
 
-        public bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
+        public SourceResult GetField(FieldContext context) => TryGetField(context, out var found) ? SourceResult.Provided(found) : SourceResult.NoValue();
+
+        private bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
         {
             if (index >= 0)
             {

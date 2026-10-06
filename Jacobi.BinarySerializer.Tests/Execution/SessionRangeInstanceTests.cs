@@ -62,7 +62,9 @@ public class SessionRangeInstanceTests
     {
         public List<string> Fields { get; } = [];
 
-        public bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
+        public SourceResult GetField(FieldContext context) => TryGetField(context, out var found) ? SourceResult.Provided(found) : SourceResult.NoValue();
+
+        private bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
         {
             Fields.Add(context.Path + context.Instance);
             field = new LogicalField(context.Name, typeof(short), (short)1);

@@ -252,7 +252,8 @@ public class SessionRangeTests
     /// <summary>A model that only implements the flat interface: no groups, just fields.</summary>
     private sealed class FlatSource(Dictionary<string, object?> values, List<string> asked) : IFieldSource
     {
-        public bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
+        public SourceResult GetField(FieldContext context) => TryGetField(context, out var found) ? SourceResult.Provided(found) : SourceResult.NoValue();
+        private bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
         {
             asked.Add(context.Path);
             if (values.TryGetValue(context.Path, out var value))

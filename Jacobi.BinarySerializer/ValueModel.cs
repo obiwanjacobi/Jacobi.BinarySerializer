@@ -18,9 +18,10 @@ public interface IValueSource
 {
     /// <summary>
     /// Gets the value of a field.
-    /// Returns false when the model has no value for the field; the engine then derives it (length, count, ...) or fails.
+    /// Answers NoValue when the model has no value for the field (the engine then derives it or fails),
+    /// or EndOfData on the first field of an item of a count-less repeat when there are no more items.
     /// </summary>
-    bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? value);
+    SourceResult GetField(FieldContext context);
 
     /// <summary>Enters a child group of this scope.</summary>
     IValueSource EnterGroup(GroupContext context);

@@ -8,8 +8,7 @@ namespace Jacobi.BinarySerializer.Execution;
 
 internal sealed class FieldSourceAdapter(IFieldSource source) : IValueSource
 {
-    public bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? value)
-        => source.TryGetField(context, out value);
+    public SourceResult GetField(FieldContext context) => source.GetField(context);
 
     public IValueSource EnterGroup(GroupContext context) => this;
     public IValueSource EnterItem(RepeatContext context, int index) => this;

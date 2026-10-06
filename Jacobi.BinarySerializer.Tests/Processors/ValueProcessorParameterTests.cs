@@ -51,7 +51,8 @@ public class ValueProcessorParameterTests
 
     private sealed class Source(Dictionary<string, object?> values) : IFieldSource
     {
-        public bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
+        public SourceResult GetField(FieldContext context) => TryGetField(context, out var found) ? SourceResult.Provided(found) : SourceResult.NoValue();
+        private bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
         {
             if (values.TryGetValue(context.Path, out var value))
             {

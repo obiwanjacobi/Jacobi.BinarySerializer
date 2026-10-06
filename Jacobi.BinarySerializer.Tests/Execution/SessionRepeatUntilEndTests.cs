@@ -101,6 +101,47 @@ public class SessionRepeatUntilEndTests
         Assert.That(() => Build(Group("Root", [], choice, Field("Tail", SchemaDataType.UInt8))), Throws.Nothing);
     }
 
+    [Test]
+    public void Write_OpenRepeatFromFlatSource_StopsAtEndOfData()
+    {
+        var plan = Build(Group("Root", [], Field("Head", SchemaDataType.UInt8), Items()));
+        var output = new ArrayBufferWriter<byte>();
+
+        var result = new WriterSession(plan, output).Write(new ItemsSource(3));
+
+        Assert.That(result, Is.EqualTo(WriteResult.Success));
+        Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 0, 1, 2, 3 }));
+    }
+
+    [Test]
+    public void Write_EndOfDataOutsideOpenRepeat_Throws()
+    {
+        var plan = Build(Group("Root", [], Field("Head", SchemaDataType.UInt8)));
+
+        Assert.That(() => new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(new ItemsSource(-1)), Throws.Exception);
+    }
+
+    private sealed class ItemsSource(int items) : IFieldSource
+    {
+        public SourceResult GetField(FieldContext context)
+        {
+            if (context.Path.ToString() == "Root.Head")
+            {
+                return items < 0 ? SourceResult.EndOfData() : SourceResult.Provided(new LogicalField("Head", typeof(byte), (byte)0));
+            }
+            if (context.Path.ToString() == "Root.Items.Byte")
+            {
+                var index = context.Instance.ToString().Trim('[', ']').Split('[', ']').Where(s => s.Length > 0).Select(Int32.Parse).Last();
+                if (index >= items)
+                {
+                    return SourceResult.EndOfData();
+                }
+                return SourceResult.Provided(new LogicalField("Byte", typeof(byte), (byte)(index + 1)));
+            }
+            return SourceResult.NoValue();
+        }
+    }
+
     private sealed class Sink : IFieldSink
     {
         public int Count { get; private set; }

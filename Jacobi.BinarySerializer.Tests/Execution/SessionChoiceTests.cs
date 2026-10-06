@@ -93,7 +93,8 @@ public class SessionChoiceTests
 
     private sealed class Source(Dictionary<string, object?> values, List<string> asked) : IFieldSource
     {
-        public bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
+        public SourceResult GetField(FieldContext context) => TryGetField(context, out var found) ? SourceResult.Provided(found) : SourceResult.NoValue();
+        private bool TryGetField(FieldContext context, [NotNullWhen(true)] out LogicalField? field)
         {
             asked.Add(context.Path);
             if (values.TryGetValue(context.Path, out var value))

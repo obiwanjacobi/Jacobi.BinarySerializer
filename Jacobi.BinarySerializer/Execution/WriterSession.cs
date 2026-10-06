@@ -80,6 +80,10 @@ public sealed class WriterSession : SessionState
         var cursor = new PlanCursor<IValueSource>(root, range);
         while (true)
         {
+            if (cursor.AtOpenRepeat && source is FieldSourceAdapter flat && ProbeEndOfData(flat, cursor))
+            {
+                cursor.CloseRepeat();
+            }
             var step = cursor.Next();
             SetInstance(cursor.Instance);
             switch (step.Kind)
@@ -91,7 +95,14 @@ public sealed class WriterSession : SessionState
                         {
                             if (group is RepeatInfo { UntilEnd: true } openRoot)
                             {
-                                cursor.EnterRepeat(source, source.GetCount(new RepeatContext { Node = openRoot, Services = _services, Instance = _instance }));
+                                if (source is FieldSourceAdapter)
+                                {
+                                    cursor.EnterOpenRepeat(source);
+                                }
+                                else
+                                {
+                                    cursor.EnterRepeat(source, source.GetCount(new RepeatContext { Node = openRoot, Services = _services, Instance = _instance }));
+                                }
                             }
                             else if (group is RepeatInfo rootRepeat)
                             {
@@ -105,6 +116,11 @@ public sealed class WriterSession : SessionState
                             {
                                 cursor.Enter(source);
                             }
+                        }
+                        else if (group is RepeatInfo { UntilEnd: true } flatRepeat && step.Scope is FieldSourceAdapter)
+                        {
+                            EngineLogger.RepeatCount(flatRepeat.Path.ToString(), -1);
+                            cursor.EnterOpenRepeat(step.Scope);
                         }
                         else if (group is RepeatInfo { UntilEnd: true } openRepeat)
                         {
@@ -289,17 +305,46 @@ public sealed class WriterSession : SessionState
         }
     }
 
+    private bool ProbeEndOfData(FieldSourceAdapter source, PlanCursor<IValueSource> cursor)
+    {
+        GroupInfo node = cursor.CurrentGroup!;
+        while (node is not RepeatInfo || ReferenceEquals(node, cursor.CurrentGroup))
+        {
+            var first = node.Children.Count > 0 ? node.Children[0] : null;
+            if (first is FieldInfo field)
+            {
+                var context = new FieldContext { Node = field, Services = _services, Instance = cursor.Instance.Append(cursor.NextItemIndex) };
+                return source.GetField(context).Status == SourceStatus.EndOfData;
+            }
+            if (first is not GroupInfo child || first is ChoiceInfo)
+            {
+                return false;
+            }
+            node = child;
+            if (node is RepeatInfo)
+            {
+                return false;
+            }
+        }
+        return false;
+    }
+
     private WriteResult WriteField(FieldInfo field, IValueSource scope, LogicalField? forced = null)
     {
         var pipeline = field.Pipeline;
         LogicalField logical;
+        SourceResult sourced;
 
         if (forced is not null)
         {
             logical = forced;
         }
-        else if (!scope.TryGetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, out var provided))
+        else if ((sourced = scope.GetField(new FieldContext { Node = field, Services = _services, Instance = _instance })).Status != SourceStatus.Value)
         {
+            if (sourced.Status == SourceStatus.EndOfData)
+            {
+                throw EngineLogger.Fail($"'{field.Path}': the value source reported the end of data, which is only allowed on the first field of an item of a repeat without a count.");
+            }
             if (field.CountOf is { } countOf)
             {
                 var count = scope.GetCount(new RepeatContext { Node = countOf, Services = _services, Instance = _instance });
@@ -312,8 +357,9 @@ public sealed class WriterSession : SessionState
             }
             else if (field.LengthOf is { } lengthOf)
             {
-                if (!scope.TryGetField(new FieldContext { Node = lengthOf, Services = _services, Instance = _instance }, out var bytesValue)
-                    || bytesValue.Value is not byte[] derivedBytes)
+                var bytesResult = scope.GetField(new FieldContext { Node = lengthOf, Services = _services, Instance = _instance });
+                if (bytesResult.Status != SourceStatus.Value
+                    || bytesResult.Value!.Value is not byte[] derivedBytes)
                 {
                     throw EngineLogger.Fail($"'{field.Path}': cannot derive the length, the value model has no bytes value for '{lengthOf.Path}'.");
                 }
@@ -331,7 +377,7 @@ public sealed class WriterSession : SessionState
         }
         else
         {
-            logical = provided;
+            logical = sourced.Value!;
             if (field.HasExpectedValue)
             {
                 CheckExpected(field, logical.Value, _instance);
