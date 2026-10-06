@@ -52,7 +52,7 @@ internal sealed class BytePackerProcessor : ILayoutProcessor
         => ProcessorDefaults.DefaultLayoutProcessor.EndRead(ref reader, context);
 
     private static bool IsFixedWidth(LayoutProcessorContext context)
-        => context.Field is not null && DataTypeCodec.FixedSize(context.Field.Field.Type) is > 1;
+        => context.Field is not null && DataTypeCodec.FixedSize(context.Field.Field.DataType) is > 1;
 
     private static Endianness GetEndianness(LayoutProcessorContext context)
     {

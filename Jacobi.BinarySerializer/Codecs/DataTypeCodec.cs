@@ -40,6 +40,7 @@ public static class DataTypeCodec
             SchemaDataType.Boolean => typeof(bool),
             SchemaDataType.Double => typeof(double),
             SchemaDataType.DateTime => typeof(DateTime),
+            SchemaDataType.Bytes => typeof(byte[]),
             _ => null
         };
 
@@ -51,6 +52,17 @@ public static class DataTypeCodec
     public static bool TryEncode(SchemaDataType type, object? value, out byte[] bytes)
     {
         bytes = [];
+        if (type == SchemaDataType.Bytes)
+        {
+            switch (value)
+            {
+                case byte[] array: bytes = array; return true;
+                case ReadOnlyMemory<byte> memory: bytes = memory.ToArray(); return true;
+                case Memory<byte> memory: bytes = memory.ToArray(); return true;
+                default: return false;
+            }
+        }
+
         if (value is null || FixedSize(type) is not { } size)
         {
             return false;
@@ -138,18 +150,36 @@ public static class DataTypeCodec
             case SchemaDataType.DateTime:
                 if (DateTime.TryParse(text, culture, System.Globalization.DateTimeStyles.RoundtripKind, out var date)) { value = date; return true; }
                 return false;
+            case SchemaDataType.Bytes:
+                var hexText = new string(text.Where(c => !Char.IsWhiteSpace(c)).ToArray());
+                if (hexText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                {
+                    hexText = hexText[2..];
+                }
+                if (hexText.Length % 2 == 0 && hexText.All(Char.IsAsciiHexDigit))
+                {
+                    value = Convert.FromHexString(hexText);
+                    return true;
+                }
+                return false;
             default:
                 return false;
         }
     }
 
     /// <summary>
-    /// Decodes the fixed-width, little-endian form of <paramref name="type"/>.
+    /// Decodes the fixed-width
     /// Returns false when the type has no fixed width or <paramref name="bytes"/> has the wrong length.
     /// </summary>
     public static bool TryDecode(SchemaDataType type, ReadOnlySpan<byte> bytes, out object? value)
     {
         value = null;
+        if (type == SchemaDataType.Bytes)
+        {
+            value = bytes.ToArray();
+            return true;
+        }
+
         if (FixedSize(type) is not { } size || bytes.Length != size)
         {
             return false;

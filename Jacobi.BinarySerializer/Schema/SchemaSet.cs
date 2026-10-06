@@ -476,8 +476,9 @@ public sealed class SchemaSet
             return new SchemaField
             {
                 Name = node.Name,
-                Type = typeDef.Type,
+                DataType = typeDef.DataType,
                 Value = fieldNode.Value,
+                Length = fieldNode.Length,
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(typeDef.Processors, fieldNode.Processors),
             };

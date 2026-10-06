@@ -98,7 +98,7 @@ public sealed class ValueProcessorContext : ProcessorContext
     public GroupInfo? Group { get; internal set; }
 
     /// <summary>The data type of the value being processed (null when unknown).</summary>
-    public SchemaDataType? DataType => Field is not null ? Field.Field.Type : Group?.ValueType;
+    public SchemaDataType? DataType => Field is not null ? Field.Field.DataType : Group?.ValueType;
 }
 
 public sealed class FieldProcessorContext : ProcessorContext
@@ -131,6 +131,11 @@ public sealed class LayoutProcessorContext : ProcessorContext
     /// Null for the group-level calls (Begin/End).
     /// </summary>
     public FieldInfo? Field { get; internal set; }
+
+    /// <summary>
+    /// The number of bytes the reader must take for a bytes field (set by the session before each field read; null otherwise).
+    /// </summary>
+    public int? FieldLength { get; internal set; }
 
     /// <summary>Bytes written/read since the start of the message (the layout payload), at the start of the current call.</summary>
     public long RootPosition { get; internal set; }

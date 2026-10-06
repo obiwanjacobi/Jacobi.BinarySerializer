@@ -133,8 +133,8 @@ public class XmlSerializerTests
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "deltaProcessor" && p.Processor.ToString() == "sys.scale" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
         Assert.That(document.TypeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.Type == SchemaDataType.Int32));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.Type == SchemaDataType.None));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == SchemaDataType.Int32));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType == SchemaDataType.None));
 
         var rootGroup = document.Roots.Single();
         var rootField = rootGroup.Children.OfType<SchemaField>().Single();
@@ -272,5 +272,31 @@ public class XmlSerializerTests
         Assert.That(children[0].Size is SchemaNodeRef { Path: "Root.Len" }, Is.True);
         Assert.That(children[1].Size is 4, Is.True);
         Assert.That(children[2].Size is 8, Is.True);
+    }
+
+    [Test]
+    public void Serialize_RoundTrip_PreservesFieldLength()
+    {
+        var xml = """
+            <schema name="LengthSchema">
+              <children><group name="Root"><children>
+                <field name="Len" type="UInt8" />
+                <field name="Blob" type="Bytes"><length ref="ref:Root.Len" /></field>
+                <field name="Sig" type="Bytes" length="2" value="0x8950" />
+                <field name="Rest" type="Bytes" />
+              </children></group></children>
+              <properties />
+            </schema>
+            """;
+
+        var document = new SchemaSet().LoadFromXml(xml);
+        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+        var fields = roundTripped.Groups.Single(g => g.Name == "Root").Children.OfType<SchemaField>().ToList();
+
+        Assert.That(fields[1].DataType, Is.EqualTo(SchemaDataType.Bytes));
+        Assert.That(fields[1].Length is SchemaNodeRef { Path: "Root.Len" }, Is.True);
+        Assert.That(fields[2].Length is 2, Is.True);
+        Assert.That(fields[2].Value is "0x8950", Is.True);
+        Assert.That(fields[3].Length is not (int or SchemaNodeRef or SchemaPubRef), Is.True);
     }
 }

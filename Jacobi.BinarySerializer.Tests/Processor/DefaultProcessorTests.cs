@@ -181,7 +181,7 @@ public class DefaultProcessorTests
         {
             Name = "F",
             Path = "Root.F",
-            Field = new SchemaField { Name = "F", Type = type },
+            Field = new SchemaField { Name = "F", DataType = type },
             Pipeline = new ProcessorPipeline([]),
         };
 }

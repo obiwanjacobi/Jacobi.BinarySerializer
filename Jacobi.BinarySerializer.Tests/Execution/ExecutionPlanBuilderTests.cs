@@ -270,7 +270,7 @@ public class ExecutionPlanBuilderTests
         => new() { Name = name, ProcessorsList = [.. processors] };
 
     private static SchemaField CreateField(string name, params SchemaProcessorRef[] processors)
-        => new() { Name = name, Type = SchemaDataType.Int32, ProcessorsList = [.. processors] };
+        => new() { Name = name, DataType = SchemaDataType.Int32, ProcessorsList = [.. processors] };
 
     private static SchemaDocument CreateDocument(string name, SchemaGroup root)
         => new()

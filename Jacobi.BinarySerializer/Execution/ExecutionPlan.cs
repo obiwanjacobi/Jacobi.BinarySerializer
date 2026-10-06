@@ -93,6 +93,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         var state = new BuildState { Root = root };
         var rootInfo = BuildGroup(root, root.Name, parentPipeline: null, state);
         ResolvePathReferences(rootInfo, state);
+        ValidateBytesWindow(rootInfo, false, state);
 
         if (state.Errors.Count > 0)
         {
@@ -139,12 +140,23 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         {
             ValidateLayoutChain(fieldPipeline.LayoutProcessors, path, state);
         }
+        return BuildFieldInfo(field, path, fieldPipeline, state);
+    }
+
+    private FieldInfo BuildFieldInfo(SchemaField field, SchemaPath path, ProcessorPipeline fieldPipeline, BuildState state)
+    {
+        var length = BindValueSource(field.Length, path, state);
+        if (field.DataType != SchemaDataType.Bytes && length is int or PublishedValueKey)
+        {
+            state.Error(path, $"A length is only supported on a {SchemaDataType.Bytes} field, not on {field.DataType}.");
+        }
         return new FieldInfo
         {
             Name = field.Name,
             Path = path,
             Field = field,
             Pipeline = fieldPipeline,
+            Length = length,
             ConstantValue = BindConstant(field, path, state),
             ValueReference = BindValueReference(field, path, state),
         };
@@ -157,9 +169,9 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             return null;
         }
 
-        if (!DataTypeCodec.TryParse(field.Type, text, out var constant))
+        if (!DataTypeCodec.TryParse(field.DataType, text, out var constant))
         {
-            state.Error(path, $"The constant '{text}' is not a valid {field.Type} value.");
+            state.Error(path, $"The constant '{text}' is not a valid {field.DataType} value.");
         }
         return constant;
     }
@@ -235,7 +247,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         {
             if (info is not ChoiceInfo && i < children.Count - 1 && IsOpenEnded(children[i]))
             {
-                state.Error(children[i].Path, "A node that reads until the end of the input (a repeat without a count or size, or a group or choice that ends in one) must be the last node of its group.");
+                state.Error(children[i].Path, "A node that reads until the end of the input or size window (a repeat without a count or size, a bytes field without a length, or a group or choice that ends in one) must be the last node of its group.");
             }
             children[i].Parent = info;
             children[i].Index = i;
@@ -258,10 +270,27 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         return source is PublishedValueKey key && key.Namespace.Length == 0 && key.Name == target.Value;
     }
 
+    private static void ValidateBytesWindow(NodeInfo node, bool inWindow, BuildState state)
+    {
+        switch (node)
+        {
+            case FieldInfo { Field.DataType: SchemaDataType.Bytes, HasLength: false } when !inWindow:
+                state.Error(node.Path, "A bytes field without a length takes the rest of the enclosing size window, but no enclosing group has a size.");
+                break;
+            case GroupInfo group:
+                foreach (var child in group.Children)
+                {
+                    ValidateBytesWindow(child, inWindow || group.HasSize, state);
+                }
+                break;
+        }
+    }
+
     private static bool IsOpenEnded(NodeInfo node)
         => node switch
         {
             GroupInfo { HasSize: true } => false,
+            FieldInfo { Field.DataType: SchemaDataType.Bytes, HasLength: false } => true,
             RepeatInfo repeat => repeat.UntilEnd,
             ChoiceInfo choice => choice.Children.Any(IsOpenEnded),
             GroupInfo group => group.Children.Count > 0 && IsOpenEnded(group.Children[^1]),
@@ -439,7 +468,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                     field.PublishesValue = true;
                     if (Find(root, from) is GroupInfo { ValueProcessors.Count: > 0 } valueGroup && IsValueKey(valueGroup, target))
                     {
-                        valueGroup.ValueType = field.Field.Type;
+                        valueGroup.ValueType = field.Field.DataType;
                     }
                     if (Find(root, from) is RepeatInfo { Count: PublishedValueKey countKey } repeat
                         && countKey.Namespace.Length == 0 && countKey.Name == target.Value
@@ -452,6 +481,12 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                         && sized.Parent is not null && ReferenceEquals(sized.Parent, field.Parent))
                     {
                         field.SizeOf = sized;
+                    }
+                    if (Find(root, from) is FieldInfo { Length: PublishedValueKey lengthKey } bytesField
+                        && lengthKey.Namespace.Length == 0 && lengthKey.Name == target.Value
+                        && bytesField.Parent is not null && ReferenceEquals(bytesField.Parent, field.Parent))
+                    {
+                        field.LengthOf = bytesField;
                     }
                     break;
                 case null:

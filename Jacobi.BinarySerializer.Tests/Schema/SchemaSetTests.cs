@@ -44,7 +44,7 @@ public class SchemaSetTests
         var commonTypeDef = new SchemaTypeDef
         {
             Name = "CommonField",
-            Type = SchemaDataType.Int32,
+            DataType = SchemaDataType.Int32,
             Processors = []
         };
 
@@ -52,7 +52,7 @@ public class SchemaSetTests
         AddChild(rootGroup, new SchemaField
         {
             Name = "Value",
-            Type = SchemaDataType.UInt8,
+            DataType = SchemaDataType.UInt8,
             TypeDef = new SchemaName("CommonField"),
             ProcessorsList = []
         });
@@ -65,7 +65,7 @@ public class SchemaSetTests
 
         var resolvedField = rootGroup.Children.OfType<SchemaField>().Single();
         Assert.That(main.IsCompiled, Is.True);
-        Assert.That(resolvedField.Type, Is.EqualTo(SchemaDataType.Int32));
+        Assert.That(resolvedField.DataType, Is.EqualTo(SchemaDataType.Int32));
     }
 
     [Test]
@@ -120,7 +120,7 @@ public class SchemaSetTests
         var field = new SchemaField
         {
             Name = "A",
-            Type = SchemaDataType.UInt8,
+            DataType = SchemaDataType.UInt8,
             ProcessorsList = [],
             PropertyList = [fieldProperty]
         };
@@ -201,7 +201,7 @@ public class SchemaSetTests
         var typeDef = new SchemaTypeDef
         {
             Name = "CommonField",
-            Type = SchemaDataType.Int32,
+            DataType = SchemaDataType.Int32,
             Processors = [processor]
         };
 

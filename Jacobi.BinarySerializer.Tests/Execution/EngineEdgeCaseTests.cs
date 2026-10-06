@@ -19,7 +19,7 @@ public class EngineEdgeCaseTests
         var field = new SchemaField
         {
             Name = "A",
-            Type = SchemaDataType.Int32,
+            DataType = SchemaDataType.Int32,
             ProcessorsList = [new SchemaProcessorRef { Processor = new SchemaProcessorName($"{Ns}.proc") }]
         };
         var group = new SchemaGroup { Name = "Root" };

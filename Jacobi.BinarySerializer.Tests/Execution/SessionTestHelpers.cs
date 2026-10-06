@@ -23,10 +23,10 @@ internal static class SessionTestHelpers
         => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
 
     public static SchemaField Field(string name, SchemaDataType type = SchemaDataType.Int32)
-        => new() { Name = name, Type = type };
+        => new() { Name = name, DataType = type };
 
     public static SchemaField FieldWith(string name, SchemaProcessorRef processor)
-        => new() { Name = name, Type = SchemaDataType.Int32, ProcessorsList = [processor] };
+        => new() { Name = name, DataType = SchemaDataType.Int32, ProcessorsList = [processor] };
 
     public static SchemaGroup Group(string name, SchemaProcessorRef[] processors, params SchemaNode[] children)
     {
@@ -117,7 +117,7 @@ internal static class SessionTestHelpers
 
         public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
         {
-            DataTypeCodec.TryEncode(context.Field.Field.Type, field.Value, out var bytes);
+            DataTypeCodec.TryEncode(context.Field.Field.DataType, field.Value, out var bytes);
             Array.Reverse(bytes);
             return FieldWriteResult<EncodedField>.Written(new EncodedField(field.Name, typeof(byte[]), bytes, bytes.Length * 8), bytes.Length * 8);
         }
@@ -125,9 +125,9 @@ internal static class SessionTestHelpers
         public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
         {
             var all = (byte[])field.Value!;
-            var size = DataTypeCodec.FixedSize(context.Field.Field.Type) ?? all.Length;
+            var size = DataTypeCodec.FixedSize(context.Field.Field.DataType) ?? all.Length;
             var bytes = all.Take(size).Reverse().ToArray();
-            DataTypeCodec.TryDecode(context.Field.Field.Type, bytes, out var value);
+            DataTypeCodec.TryDecode(context.Field.Field.DataType, bytes, out var value);
             return FieldReadResult<LogicalField>.Consumed(new LogicalField(field.Name, value!.GetType(), value), size * 8);
         }
     }

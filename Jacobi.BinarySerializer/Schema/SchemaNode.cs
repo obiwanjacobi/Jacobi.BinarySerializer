@@ -17,7 +17,7 @@ public closed class SchemaNode
 public sealed class SchemaTypeDef : SchemaNode
 {
     public required IReadOnlyList<SchemaProcessorRef> Processors { get; init; }
-    public SchemaDataType Type { get; init; } = SchemaDataType.None;
+    public SchemaDataType DataType { get; init; } = SchemaDataType.None;
 }
 
 public sealed class SchemaField : SchemaNode
@@ -29,14 +29,21 @@ public sealed class SchemaField : SchemaNode
 
     public IReadOnlyList<SchemaProcessorRef> Processors => ProcessorsList;
     public List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
-    public required SchemaDataType Type { get; init; }
+    public required SchemaDataType DataType { get; init; }
 
     /// <summary>
-    /// Optional constant (a literal parsed by <see cref="Type"/>) or a reference to another value that this field must have.
+    /// Optional constant (a literal parsed by <see cref="DataType"/>) or a reference to another value that this field must have.
     /// The writer supplies the value when the model holds none; the reader fails when the value read differs.
     /// The value compared is the logical value (after the semantic processors).
     /// </summary>
     public SchemaValueOrRef<string> Value { get; init; }
+
+    /// <summary>
+    /// Optional logical length of the value (a constant or a reference to a value): the number of bytes for <see cref="SchemaDataType.Bytes"/>.
+    /// Without a length a Bytes field takes the rest of the enclosing sized group (size window).
+    /// The writer derives a referenced length field from the model value.
+    /// </summary>
+    public SchemaValueOrRef<int> Length { get; init; }
 }
 
 public class SchemaGroup : SchemaNode
@@ -229,5 +236,7 @@ public enum SchemaDataType
     Boolean,
     Double,
     DateTime,
+    /// <summary>A byte array (raw bytes), see <see cref="SchemaField.Length"/>.</summary>
+    Bytes,
     Object,
 }

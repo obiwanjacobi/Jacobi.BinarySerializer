@@ -75,7 +75,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
         var field = context.Field;
         var name = field?.Name ?? String.Empty;
 
-        if (field is null || DataTypeCodec.FixedSize(field.Field.Type) is not { } size || size > 8)
+        if (field is null || DataTypeCodec.FixedSize(field.Field.DataType) is not { } size || size > 8)
         {
             return LayoutReadResult<EncodedField>.Failure();
         }
@@ -138,7 +138,7 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
     }
 
     private static bool IsSigned(FieldInfo? field)
-        => field?.Field.Type is SchemaDataType.Int8 or SchemaDataType.Int16 or SchemaDataType.Int32 or SchemaDataType.Int64;
+        => field?.Field.DataType is SchemaDataType.Int8 or SchemaDataType.Int16 or SchemaDataType.Int32 or SchemaDataType.Int64;
 
     private static int GetBits(LayoutProcessorContext context, int defaultBits)
     {

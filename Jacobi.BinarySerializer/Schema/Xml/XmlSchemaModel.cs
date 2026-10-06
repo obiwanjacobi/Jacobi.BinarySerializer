@@ -76,6 +76,13 @@ public sealed class XmlSchemaField : XmlSchemaNode
 
     [XmlElement("value")]
     public XmlSchemaValueRef? ValueRef { get; set; }
+
+    /// <summary>A constant length (attribute); use <see cref="LengthRef"/> to refer to a value.</summary>
+    [XmlAttribute("length")]
+    public string? Length { get; set; }
+
+    [XmlElement("length")]
+    public XmlSchemaValueRef? LengthRef { get; set; }
 }
 
 public class XmlSchemaGroup : XmlSchemaNode

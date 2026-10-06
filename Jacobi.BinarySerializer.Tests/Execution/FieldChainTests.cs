@@ -24,7 +24,7 @@ public class FieldChainTests
         var field = new SchemaField
         {
             Name = "A",
-            Type = SchemaDataType.Int32,
+            DataType = SchemaDataType.Int32,
             ProcessorsList = [.. chain.Select(Ref)]
         };
         var group = new SchemaGroup { Name = "Root" };

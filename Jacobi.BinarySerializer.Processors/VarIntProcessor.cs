@@ -41,7 +41,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
     private static FieldWriteResult<EncodedField> WriteCore(LogicalField field, FieldProcessorContext context)
     {
         var encoding = GetEncoding(context);
-        var type = context.Field.Field.Type;
+        var type = context.Field.Field.DataType;
         var path = context.Field.Path;
 
         byte[] bytes;
@@ -68,7 +68,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
     private static FieldReadResult<LogicalField> ReadCore(EncodedField field, FieldProcessorContext context)
     {
         var encoding = GetEncoding(context);
-        var type = context.Field.Field.Type;
+        var type = context.Field.Field.DataType;
         var path = context.Field.Path;
 
         if (field.Value is not byte[] bytes)

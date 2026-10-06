@@ -1,6 +1,7 @@
 using System.Buffers;
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Execution;
 
@@ -200,6 +201,30 @@ public sealed class ReaderSession : SessionState
     private bool AtWindowEnd(ref SequenceReader<byte> reader)
         => _windows.Count > 0 ? reader.Consumed >= _windows.Peek().End : reader.End;
 
+    /// <summary>
+    /// The number of bytes a bytes field takes: its length, or the rest of the enclosing size window. Null for other fields.
+    /// </summary>
+    private int? BytesLength(FieldInfo field, ref SequenceReader<byte> reader)
+    {
+        if (field.Field.DataType != SchemaDataType.Bytes)
+        {
+            return null;
+        }
+
+        if (field.HasLength)
+        {
+            var length = Resolve(field.Length, field.Path, _instance);
+            if (length < 0)
+            {
+                throw EngineLogger.Fail($"'{field.Path}': the length is negative ({length}).");
+            }
+            return length;
+        }
+
+        // validated at plan build: a length-less bytes field has an enclosing window.
+        return checked((int)(_windows.Peek().End - reader.Consumed));
+    }
+
     private ReadResult ReadField(FieldInfo field, IValueSink scope, ref SequenceReader<byte> reader)
     {
         // A field processor decides its own width. When it needs more data than the window offered and the input has more,
@@ -225,6 +250,11 @@ public sealed class ReaderSession : SessionState
         // Layout: bytes -> encoded
         _layoutContext.Group = field.Parent!;
         _layoutContext.Field = field;
+        _layoutContext.FieldLength = BytesLength(field, ref reader);
+        if (_layoutContext.FieldLength is { } bytesLength && reader.Remaining < bytesLength)
+        {
+            return ReadResult.NeedMoreData;
+        }
         EncodedField encoded;
         LayoutReadResult<EncodedField> layoutRead;
         switch (pipeline.LayoutProcessors.Count)
@@ -256,11 +286,11 @@ public sealed class ReaderSession : SessionState
         switch (pipeline.FieldProcessors.Count)
         {
             case 0:
-                if (encoded.Value is not byte[] bytes || !DataTypeCodec.TryDecode(field.Field.Type, bytes, out var value))
+                if (encoded.Value is not byte[] bytes || !DataTypeCodec.TryDecode(field.Field.DataType, bytes, out var value))
                 {
-                    throw EngineLogger.Fail($"'{field.Path}': cannot decode the bytes as {field.Field.Type}.");
+                    throw EngineLogger.Fail($"'{field.Path}': cannot decode the bytes as {field.Field.DataType}.");
                 }
-                logical = new LogicalField(encoded.Name, DataTypeCodec.ClrType(field.Field.Type) ?? typeof(object), value);
+                logical = new LogicalField(encoded.Name, DataTypeCodec.ClrType(field.Field.DataType) ?? typeof(object), value);
                 break;
             default:
                 var provided = encoded.BitWidth;

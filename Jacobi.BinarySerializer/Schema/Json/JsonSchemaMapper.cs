@@ -80,8 +80,9 @@ internal static class JsonSchemaMapper
         {
             Name = jsonField.Name,
             ProcessorsList = jsonField.Processors.Select(ToSchemaProcessorRef).ToList(),
-            Type = jsonField.Type,
+            DataType = jsonField.Type,
             Value = ToSchemaValueOrRef(jsonField.Value),
+            Length = ToSchemaValueOrRef(jsonField.Length),
             PropertyList = MergeProperties(jsonField.Properties, jsonField.AdditionalData)
         };
     }
@@ -91,7 +92,7 @@ internal static class JsonSchemaMapper
         return new SchemaTypeDef
         {
             Name = jsonTypeDef.Name,
-            Type = jsonTypeDef.Type,
+            DataType = jsonTypeDef.Type,
             Processors = jsonTypeDef.Processors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(jsonTypeDef.Properties, jsonTypeDef.AdditionalData)
         };
@@ -201,8 +202,9 @@ internal static class JsonSchemaMapper
             {
                 Name = field.Name,
                 Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Type = field.Type,
+                Type = field.DataType,
                 Value = FromSchemaValueOrRef(field.Value),
+                Length = FromSchemaValueOrRef(field.Length),
                 Properties = field.Properties.Select(FromSchemaProperty).ToList()
             },
             SchemaGroup group => CreateJsonGroupNode(group),
@@ -215,7 +217,7 @@ internal static class JsonSchemaMapper
         return new JsonSchemaTypeDef
         {
             Name = typeDef.Name,
-            Type = typeDef.Type,
+            Type = typeDef.DataType,
             Processors = typeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
             Properties = typeDef.Properties.Select(FromSchemaProperty).ToList()
         };

@@ -47,7 +47,7 @@ public sealed class DefaultFieldProcessor : IFieldProcessor
 
     public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
     {
-        var type = context.Field.Field.Type;
+        var type = context.Field.Field.DataType;
         if (!DataTypeCodec.TryEncode(type, field.Value, out var bytes))
         {
             throw new InvalidOperationException(
@@ -59,7 +59,7 @@ public sealed class DefaultFieldProcessor : IFieldProcessor
 
     public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
     {
-        var type = context.Field.Field.Type;
+        var type = context.Field.Field.DataType;
         if (field.Value is not byte[] bytes || !DataTypeCodec.TryDecode(type, bytes, out var value))
         {
             throw new InvalidOperationException($"'{context.Field.Path}': cannot decode the encoded value as {type}.");
@@ -111,6 +111,19 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
         var field = context.Field;
         var name = field?.Name ?? string.Empty;
 
+        if (field is not null && context.FieldLength is { } length)
+        {
+            if (reader.Remaining < length)
+            {
+                return LayoutReadResult<EncodedField>.NeedMoreData();
+            }
+
+            var blob = new byte[length];
+            reader.TryCopyTo(blob);
+            reader.Advance(length);
+            return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), blob, length * 8));
+        }
+
         if (field is not null && field.Pipeline.FieldProcessors.Count > 0)
         {
             // The field processor decides how much of the window it uses (it reports that in its read result);
@@ -127,7 +140,7 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
             return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), windowBytes, window * 8));
         }
 
-        if (field is not null && DataTypeCodec.FixedSize(field.Field.Type) is { } size)
+        if (field is not null && DataTypeCodec.FixedSize(field.Field.DataType) is { } size)
         {
             if (reader.Remaining < size)
             {

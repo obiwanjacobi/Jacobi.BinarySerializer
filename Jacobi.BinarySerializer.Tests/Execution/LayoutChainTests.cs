@@ -20,7 +20,7 @@ public class LayoutChainTests
         => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
 
     private static SchemaField Field(string name, SchemaDataType type = SchemaDataType.UInt8)
-        => new() { Name = name, Type = type };
+        => new() { Name = name, DataType = type };
 
     private static SchemaGroup Group(string name, SchemaProcessorRef[] processors, params SchemaNode[] children)
     {

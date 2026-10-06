@@ -35,7 +35,7 @@ internal static class ProcessorTestHelpers
         => new()
         {
             Name = name,
-            Type = type,
+            DataType = type,
             ProcessorsList = [.. processors ?? []],
             PropertyList = [.. properties.Select(p => new SchemaProperty
             {

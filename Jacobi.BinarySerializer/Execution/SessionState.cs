@@ -162,7 +162,7 @@ public closed class SessionState
     internal object? ResolveExpected(FieldInfo field, InstancePath current)
     {
         var expected = field.ValueReference is { } key ? ResolvePublished(key, field.Path, current) : field.ConstantValue;
-        if (expected is null || DataTypeCodec.ClrType(field.Field.Type) is not { } clrType || clrType.IsInstanceOfType(expected))
+        if (expected is null || DataTypeCodec.ClrType(field.Field.DataType) is not { } clrType || clrType.IsInstanceOfType(expected))
         {
             return expected;
         }
@@ -173,7 +173,7 @@ public closed class SessionState
         }
         catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
         {
-            throw EngineLogger.Fail($"'{field.Path}': the value '{expected}' cannot be converted to {field.Field.Type}.", ex);
+            throw EngineLogger.Fail($"'{field.Path}': the value '{expected}' cannot be converted to {field.Field.DataType}.", ex);
         }
     }
 
@@ -181,7 +181,7 @@ public closed class SessionState
     internal void CheckExpected(FieldInfo field, object? actual, InstancePath current)
     {
         var expected = ResolveExpected(field, current);
-        if (!Equals(expected, actual))
+        if (!(expected is byte[] expectedBytes && actual is byte[] actualBytes ? expectedBytes.AsSpan().SequenceEqual(actualBytes) : Equals(expected, actual)))
         {
             throw EngineLogger.Fail($"'{field.Path}': the value is '{actual ?? "null"}' but the schema requires '{expected ?? "null"}'.");
         }

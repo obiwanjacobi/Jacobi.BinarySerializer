@@ -34,6 +34,18 @@ public sealed class FieldInfo : NodeInfo
     /// </summary>
     public GroupInfo? SizeOf { get; internal set; }
 
+    /// <summary>
+    /// The length in bytes of a <see cref="SchemaDataType.Bytes"/> field (unset when the field has no length: it takes the rest of the enclosing size window).
+    /// </summary>
+    public ValueSource<int> Length { get; init; }
+
+    public bool HasLength => Length is int or PublishedValueKey;
+
+    /// <summary>
+    /// The sibling bytes field whose length refers to this field. When the model holds no value for the field, the writer derives it from the length of that field's value.
+    /// </summary>
+    public FieldInfo? LengthOf { get; internal set; }
+
     /// <summary>The parsed constant of <see cref="SchemaField.Value"/> (null when the field has no constant).</summary>
     public object? ConstantValue { get; internal set; }
 
