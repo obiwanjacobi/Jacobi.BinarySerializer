@@ -1,9 +1,9 @@
 ﻿using System.Runtime.InteropServices;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jacobi.BinarySerializer.Execution;
 
@@ -58,7 +58,7 @@ public closed class SessionState
     /// </summary>
     public void Publish(PublishedValueKey key, object? value) => _published[key] = value;
 
-    /// <summary>Publishes a public value by namespace and name ('pubns/name').</summary>
+    /// <summary>Publishes a public value by namespace and name ('pubns.name').</summary>
     public void Publish(string ns, string name, object? value) => Publish(new PublishedValueKey(ns, name), value);
 
     /// <summary>Publishes the value of the field at a schema path.</summary>

@@ -102,7 +102,7 @@ public sealed class ChoiceInfo : GroupInfo
 public readonly union ValueSource<T>(T, PublishedValueKey);
 
 /// <summary>
-/// Identifies a public value: a processor-published 'pubns/name', or the value of a field addressed by its schema path.
+/// Identifies a public value: a processor-published 'pubns.name', or the value of a field addressed by its schema path.
 /// </summary>
 public readonly record struct PublishedValueKey(string Namespace, string Name, InstancePath Instance = default)
 {
