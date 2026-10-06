@@ -70,6 +70,10 @@ public sealed class ReaderSession : SessionState
         var cursor = new PlanCursor<IValueSink>(root, range);
         while (true)
         {
+            if (cursor.AtOpenRepeat && reader.End)
+            {
+                cursor.CloseRepeat();
+            }
             var step = cursor.Next();
             SetInstance(cursor.Instance);
             switch (step.Kind)
@@ -80,6 +84,11 @@ public sealed class ReaderSession : SessionState
                         if (step.Scope is null)
                         {
                             cursor.Enter(sink);
+                        }
+                        else if (group is RepeatInfo { UntilEnd: true } openRepeat)
+                        {
+                            EngineLogger.RepeatCount(openRepeat.Path.ToString(), -1);
+                            cursor.EnterOpenRepeat(step.Scope);
                         }
                         else if (group is RepeatInfo repeat)
                         {

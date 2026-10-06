@@ -46,7 +46,9 @@ internal sealed class PlanCursor<TScope>
         public int EndChild { get; } = endChild;
 
         /// <summary>Repeat frame: the number of items (null for group, choice and item frames).</summary>
-        public int? Count { get; init; }
+        public int? Count { get; set; }
+        /// <summary>Repeat frame: the item count is not known up front (until the end of the input).</summary>
+        public bool Open { get; init; }
         /// <summary>Repeat frame: the index of the current item. Item frame: its own index.</summary>
         public int Iteration { get; set; } = -1;
         public bool IsItem { get; init; }
@@ -129,7 +131,7 @@ internal sealed class PlanCursor<TScope>
                 _pendingEnter = frame.Group;
                 _pendingAnnounced = true;
                 _pendingItemIndex = frame.Iteration;
-                return new(CursorStepKind.EnterItem, frame.Group, frame.Scope, frame.Iteration, count);
+                return new(CursorStepKind.EnterItem, frame.Group, frame.Scope, frame.Iteration, frame.Open ? -1 : count);
             }
 
             _frames.Pop();
@@ -166,7 +168,7 @@ internal sealed class PlanCursor<TScope>
 
         _frames.Pop();
         return frame.IsItem
-            ? new(CursorStepKind.ExitItem, frame.Group, frame.Scope, frame.Iteration, _frames.Peek().Count ?? 0)
+            ? new(CursorStepKind.ExitItem, frame.Group, frame.Scope, frame.Iteration, _frames.Peek().Open ? -1 : _frames.Peek().Count ?? 0)
             : new(CursorStepKind.ExitGroup, frame.Group, frame.Scope);
     }
 
@@ -230,5 +232,34 @@ internal sealed class PlanCursor<TScope>
         _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = count });
         _pendingEnter = null;
         _pendingAnnounced = false;
+    }
+
+    /// <summary>
+    /// Completes an EnterGroup step for a repeat without a count: items are emitted until <see cref="CloseRepeat"/> is called.
+    /// </summary>
+    public void EnterOpenRepeat(TScope parentScope)
+    {
+        if (_pendingEnter is not RepeatInfo repeat || !_pendingAnnounced || _pendingItemIndex >= 0)
+        {
+            throw new InvalidOperationException("EnterOpenRepeat can only be called after an EnterGroup step for a repeat.");
+        }
+
+        _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = Int32.MaxValue, Open = true });
+        _pendingEnter = null;
+        _pendingAnnounced = false;
+    }
+
+    /// <summary>True when the next step is the start of an item (or the end) of a repeat without a count.</summary>
+    public bool AtOpenRepeat => _pendingEnter is null && _frames.Count > 0 && _frames.Peek() is { Open: true };
+
+    /// <summary>Ends the open repeat: no more items are emitted.</summary>
+    public void CloseRepeat()
+    {
+        if (!AtOpenRepeat)
+        {
+            throw new InvalidOperationException("CloseRepeat can only be called at a repeat without a count.");
+        }
+        var frame = _frames.Peek();
+        frame.Count = frame.Iteration + 1;
     }
 }

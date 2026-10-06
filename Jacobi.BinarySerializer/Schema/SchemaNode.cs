@@ -59,7 +59,7 @@ public sealed class SchemaRepeat : SchemaGroup
         Kind = SchemaNodeKind.Repeat;
     }
 
-    public required SchemaValueOrRef<int> Count { get; init; }
+    public SchemaValueOrRef<int> Count { get; init; }
 
     /// <summary>
     /// Semantic (value) processors that convert the referenced count value into the (int) count.

@@ -62,7 +62,12 @@ public class GroupInfo : NodeInfo
 
 public sealed class RepeatInfo : GroupInfo
 {
-    public required ValueSource<int> Count { get; init; }
+    public ValueSource<int> Count { get; init; }
+
+    /// <summary>
+    /// True when the schema gives no count: the repeat runs until the end of the input.
+    /// </summary>
+    public bool UntilEnd => Count is not (int or PublishedValueKey);
 }
 
 public sealed class ChoiceInfo : GroupInfo

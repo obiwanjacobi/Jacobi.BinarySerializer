@@ -6,7 +6,10 @@
       "processor": "sys.map",
       "properties": [
         { "name": "logical", "value": "Int32" },
-        { "name": "0", "value": "IHDR" }
+        { "name": "0", "value": "IHDR" },
+        { "name": "1", "value": "PLTE" },
+        { "name": "2", "value": "IDAT" },
+        { "name": "3", "value": "IEND" }
       ]
     }
   ],
@@ -19,15 +22,14 @@
       "children": [
         { "name": "Signature", "kind": "field", "type": "UInt64", "value": "0x89504E470D0A1A0A" },
         {
-          "name": "Ihdr",
-          "kind": "group",
+          "name": "Chunk",
+          "kind": "repeat",
           "children": [
             { "name": "Length", "kind": "field", "type": "UInt32" },
             {
               "name": "Type",
               "kind": "field",
               "type": "String",
-              "value": "IHDR",
               "processors": [
                 {
                   "processor": "sys.string",
@@ -41,7 +43,7 @@
             {
               "name": "Data",
               "kind": "choice",
-              "selectedIndex": { "reference": "ref:Png.Ihdr.Type" },
+              "selectedIndex": { "reference": "ref:Png.Chunk.Type" },
               "valueProcessors": [ { "processor": "ref:chunkType" } ],
               "children": [
                 {
@@ -56,7 +58,20 @@
                     { "name": "Filter", "kind": "field", "type": "UInt8" },
                     { "name": "Interlace", "kind": "field", "type": "UInt8" }
                   ]
-                }
+                },
+                {
+                  "name": "Palette",
+                  "kind": "repeat",
+                  "count": { "reference": "ref:Png.Chunk.Length" },
+                  "children": [ { "name": "Byte", "kind": "field", "type": "UInt8" } ]
+                },
+                {
+                  "name": "ImageData",
+                  "kind": "repeat",
+                  "count": { "reference": "ref:Png.Chunk.Length" },
+                  "children": [ { "name": "Byte", "kind": "field", "type": "UInt8" } ]
+                },
+                { "name": "End", "kind": "group", "children": [] }
               ]
             },
             { "name": "Crc", "kind": "field", "type": "UInt32" }

@@ -47,14 +47,10 @@ var result = serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, se
 
 ## TODOs
 
-- [x] **API: Add `Assembly` overloads**: to `LoadAssembly` in `SchemaSet` and `LoadFromAssembly` in `ProcessorManager`.
-- [X] **API: Allow `IProcessorFactory` through `IServiceProvider`**: Perhaps bypass the `ProcessManager` entirely. Implement a `IProcessorProvider` over `IServiceProvider` (`ProcessorProvider`).
-- [x] **API: Add `Serializer` root object** as a container for all dependencies. `SerializerBuilder` configures; `Serializer` is immutable and caches `ExecutionPlan`s per schema name (`GetPlan`/`Prepare`/`PrepareAll`).
 - [ ] **Freeze `SchemaSet` and `ProcessorProvider` once handed to a `Serializer`.** Cached `ExecutionPlan`s go stale if a schema is loaded/recompiled or a processor is registered after `SerializerBuilder.Build()`. Fix: add an `IsFrozen`/`Freeze()` to `SchemaSet` (after `Compile`) and to the processor provider (`ProcessorManager`), call it in `Build()`, and throw `InvalidOperationException` on later modification. Add tests.
 - [ ] **API: Allow `Stream` and `byte[]` for both input and output.** The engine currently requires `IBinaryWriter` and `SequenceReader<byte>`. Do we create adapters, or add `Stream` overloads to the engine and the processors?
 - [ ] **(De)Serialize overloads for all variations** Plan|Range, `IValueSource`|`IFieldSource`, `Stream`|`byte[]`|`IBinaryWriter` and `IValueSink`|`IFieldSink`, `Stream`|`byte[]`|`SequenceReader<byte>`.
 - [ ] **Write API documentation for the public API** including some examples. Describe what services are supported and expected.
-
 - [ ] **Detect repeat count mismatches at schema compile time.** A constant count that cannot match the model/referenced count (schema out of sync) should be reported when the plan is built, not only at write time (currently an `InvalidOperationException`).
 - [ ] **Derive length prefixes and choice discriminators.** Lengths that precede the data they measure: buffer the group, then write the length field (see the back-patch optimization below). Choice discriminators (the selected index) derived from the model are last.
 - [ ] **String follow-ups.** `length` as `ref:`/`pub:` (processor property values are constants only, see complex property values), publishing the detected length, a length prefix (see above), multi-byte terminators for UTF-16/32, and reporting property errors at plan build instead of at read time. A field processor that needs more data than the open-width window (10 bytes) is retried by the reader with a doubled window while more input is available.
@@ -65,7 +61,7 @@ var result = serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, se
 - [ ] **SchemaField Dummy** to allow filler/dummy/don't-care fields in the schema. The engine currently requires a field to have a data type and a value model property.
 - [ ] **Complex schema property values.** `SchemaProperty.Value` is a single string that the processor interprets. Allow richer values, e.g. lists or object structures (`SchemaNode.cs`).
 - [ ] **Typed-object API.** Where interfacing is done through client-defined POCOs, not by implementing interfaces.
-- [x] **Value processors on repeat/choice.** `valueProcessors` on a repeat or choice (separate from the layout/stream `processors`) convert the referenced count/index value to an int (read direction, e.g. `sys.map` over a string field).
+- [ ] **Repeat by encoded size (until N bytes).** A repeat bounded by an encoded byte size (e.g. until a chunk's `Length` bytes are consumed) instead of a logical item count. `count` is a logical value (number of items); a size is an encoded value (bytes on the wire). They only coincide for single-byte items. Must be implemented symmetrically: the reader stops when N bytes are consumed (an item crossing the boundary is an error); the writer must derive the size after encoding the items (back-patch the earlier length field or encode the items first). Do not implement one side only.
 - [ ] **Publish namespace (`pubns`).** An optional property on the Schema type (not an engine-interpreted processor property) to set the namespace a processor publishes its values under, so published values do not collide.
 - [ ] **Map processor follow-ups.** `sys:map` has no default/fallback for unmapped values (needed for unknown PNG chunk types), maps only scalar types (the `logical` property selects the logical type) and reparses its properties on every call.
 - [ ] **Expected-value stage.** A field `Value` (constant/ref) is compared against the logical value (after the semantic stage). Make the stage explicitly selectable (default logical).
@@ -75,6 +71,11 @@ var result = serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, se
 - [ ] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, typedef instantiation.
 - [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage?
 
+- [x] **Repeat until end.** A repeat without a count runs until the end of the input (last node of its group only).
+- [x] **API: Add `Assembly` overloads**: to `LoadAssembly` in `SchemaSet` and `LoadFromAssembly` in `ProcessorManager`.
+- [X] **API: Allow `IProcessorFactory` through `IServiceProvider`**: Perhaps bypass the `ProcessManager` entirely. Implement a `IProcessorProvider` over `IServiceProvider` (`ProcessorProvider`).
+- [x] **API: Add `Serializer` root object** as a container for all dependencies. `SerializerBuilder` configures; `Serializer` is immutable and caches `ExecutionPlan`s per schema name (`GetPlan`/`Prepare`/`PrepareAll`).
+- [x] **Value processors on repeat/choice.** `valueProcessors` on a repeat or choice (separate from the layout/stream `processors`) convert the referenced count/index value to an int (read direction, e.g. `sys.map` over a string field).
 - [x] **Derive values the model does not hold.** Done: a field that a sibling repeat's `Count` refers to is derived from `IValueSource.GetCount` when the model has no value (flat `IFieldSource` models must be explicit).
 - [x] **String and variable-width fields.** `sys:string` field processor: `encoding` (default UTF-8), fixed `length` (padded with `padding`, trimmed on read) or single-byte `terminator`.
 - [x] **Processor diagnostics**. The engine currently has no logging. Add a `ILogger` to the sessions and processor context, and log the plan node path and instance indices for each processor call.

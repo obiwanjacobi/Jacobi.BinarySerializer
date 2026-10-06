@@ -414,6 +414,11 @@ internal static class XmlSchemaMapper
                 $"Invalid value reference '{valueRef.Reference}'. Expected 'ref:path' or 'pub:namespace.name'.");
         }
 
+        if (constant is null)
+        {
+            return default;
+        }
+
         if (Int32.TryParse(constant, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
         {
             return number;

@@ -82,6 +82,12 @@ public sealed class WriterSession : SessionState
                         {
                             cursor.Enter(source);
                         }
+                        else if (group is RepeatInfo { UntilEnd: true } openRepeat)
+                        {
+                            var count = step.Scope.GetCount(new RepeatContext { Node = openRepeat, Services = _services, Instance = _instance });
+                            EngineLogger.RepeatCount(openRepeat.Path.ToString(), count);
+                            cursor.EnterRepeat(step.Scope, count);
+                        }
                         else if (group is RepeatInfo repeat)
                         {
                             var count = Resolve(repeat.Count, repeat, _valueContext, _instance);

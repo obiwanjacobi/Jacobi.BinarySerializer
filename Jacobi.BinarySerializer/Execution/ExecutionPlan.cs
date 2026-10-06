@@ -230,6 +230,10 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
 
         for (var i = 0; i < children.Count; i++)
         {
+            if (children[i] is RepeatInfo { UntilEnd: true } && i < children.Count - 1)
+            {
+                state.Error(children[i].Path, "A repeat without a count (until the end of the input) must be the last node of its group.");
+            }
             children[i].Parent = info;
             children[i].Index = i;
         }

@@ -187,7 +187,7 @@ internal static class JsonSchemaMapper
             return value;
         }
 
-        throw new JsonException($"Unsupported JSON schema value type '{valueOrRef.GetType().Name}'.");
+        return default;
     }
 
     private static JsonSchemaNode FromSchemaNode(SchemaNode schemaNode)
@@ -266,7 +266,7 @@ internal static class JsonSchemaMapper
             return value;
         }
 
-        throw new JsonException($"Unsupported schema value type '{valueOrRef.GetType().Name}'.");
+        return default(JsonSchemaValueOrRef<int>);
     }
 
     /// <summary>An unset value (optional) maps to the default (unset) value.</summary>
