@@ -187,4 +187,9 @@ public sealed class XmlSchemaProperty
 
     [XmlText]
     public string? Text { get; set; }
+
+    /// <summary>A property without a value (null). In the xml document this is written as xsi:nil="true" (translated by the XmlSerializer).</summary>
+    [XmlAttribute("nil")]
+    [System.ComponentModel.DefaultValue(false)]
+    public bool Nil { get; set; }
 }

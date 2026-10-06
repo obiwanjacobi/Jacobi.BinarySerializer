@@ -504,7 +504,8 @@ internal static class XmlSchemaMapper
         return new XmlSchemaProperty
         {
             Name = property.Name,
-            Value = property.Value
+            Value = property.Value,
+            Nil = property.Value is null
         };
     }
 
@@ -542,9 +543,11 @@ internal static class XmlSchemaMapper
                     continue;
                 }
 
-                var value = element.HasChildNodes && element.ChildNodes.OfType<XmlElement>().Any()
-                    ? element.OuterXml
-                    : element.InnerText;
+                var value = element.GetAttribute("nil", "http://www.w3.org/2001/XMLSchema-instance") == "true"
+                    ? null
+                    : element.HasChildNodes && element.ChildNodes.OfType<XmlElement>().Any()
+                        ? element.OuterXml
+                        : element.InnerText;
 
                 merged.Add(new SchemaProperty
                 {
@@ -559,7 +562,7 @@ internal static class XmlSchemaMapper
 
     private static SchemaProperty ToSchemaProperty(XmlSchemaProperty xmlProperty)
     {
-        var value = xmlProperty.Value ?? xmlProperty.Text ?? string.Empty;
+        var value = xmlProperty.Nil ? null : xmlProperty.Value ?? xmlProperty.Text ?? string.Empty;
 
         return new SchemaProperty
         {

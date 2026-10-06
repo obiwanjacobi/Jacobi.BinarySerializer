@@ -196,6 +196,34 @@ public class XmlSerializerTests
     }
 
     [Test]
+    public void Serialize_RoundTrip_PreservesNilProperty()
+    {
+        var xml = """
+            <schema name="NilSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <children>
+                <group name="Root">
+                  <children />
+                  <properties>
+                    <property name="empty" value="" />
+                    <property name="none" xsi:nil="true" />
+                  </properties>
+                </group>
+              </children>
+              <properties />
+            </schema>
+            """;
+
+        var document = new SchemaSet().LoadFromXml(xml);
+        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+
+        foreach (var properties in new[] { document.Groups.Single().Properties, roundTripped.Groups.Single().Properties })
+        {
+            Assert.That(properties.Single(p => p.Name == "none").Value, Is.Null);
+            Assert.That(properties.Single(p => p.Name == "empty").Value, Is.EqualTo(""));
+        }
+    }
+
+    [Test]
     public void Serialize_RoundTrip_PreservesFieldValues()
     {
         var xml = """
