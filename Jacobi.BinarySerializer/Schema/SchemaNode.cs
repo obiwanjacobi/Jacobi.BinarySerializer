@@ -50,6 +50,12 @@ public class SchemaGroup : SchemaNode
     public List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
     public IReadOnlyList<SchemaNode> Children => ChildList;
     internal List<SchemaNode> ChildList { get; init; } = [];
+
+    /// <summary>
+    /// Optional size in bytes of the encoded content of this group (a constant or a reference to a value).
+    /// The reader limits the group to that window; the writer derives the value from the encoded content.
+    /// </summary>
+    public SchemaValueOrRef<int> Size { get; init; }
 }
 
 public sealed class SchemaRepeat : SchemaGroup

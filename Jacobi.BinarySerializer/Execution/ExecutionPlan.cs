@@ -201,6 +201,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                 Children = children,
                 Pipeline = pipeline,
                 Count = BindValueSource(repeat.Count, path, state),
+                Size = BindValueSource(repeat.Size, path, state),
                 ValueProcessors = BindValueProcessors(repeat.ValueProcessors, path, state),
             },
             SchemaChoice choice => new ChoiceInfo
@@ -211,6 +212,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                 Children = children,
                 Pipeline = pipeline,
                 SelectedIndex = BindValueSource(choice.SelectedIndex, path, state),
+                Size = BindValueSource(choice.Size, path, state),
                 ValueProcessors = BindValueProcessors(choice.ValueProcessors, path, state),
             },
             _ => new GroupInfo
@@ -220,6 +222,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                 Group = group,
                 Children = children,
                 Pipeline = pipeline,
+                Size = BindValueSource(group.Size, path, state),
             },
         };
 
@@ -230,9 +233,9 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
 
         for (var i = 0; i < children.Count; i++)
         {
-            if (children[i] is RepeatInfo { UntilEnd: true } && i < children.Count - 1)
+            if (info is not ChoiceInfo && i < children.Count - 1 && IsOpenEnded(children[i]))
             {
-                state.Error(children[i].Path, "A repeat without a count (until the end of the input) must be the last node of its group.");
+                state.Error(children[i].Path, "A node that reads until the end of the input (a repeat without a count or size, or a group or choice that ends in one) must be the last node of its group.");
             }
             children[i].Parent = info;
             children[i].Index = i;
@@ -240,6 +243,30 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
 
         return info;
     }
+
+    /// <summary>
+    /// True when the count or selected index of the group (the value its value processors transform) refers to <paramref name="target"/>.
+    /// </summary>
+    private static bool IsValueKey(GroupInfo group, SchemaPath target)
+    {
+        var source = group switch
+        {
+            RepeatInfo repeat => repeat.Count,
+            ChoiceInfo choice => choice.SelectedIndex,
+            _ => default,
+        };
+        return source is PublishedValueKey key && key.Namespace.Length == 0 && key.Name == target.Value;
+    }
+
+    private static bool IsOpenEnded(NodeInfo node)
+        => node switch
+        {
+            GroupInfo { HasSize: true } => false,
+            RepeatInfo repeat => repeat.UntilEnd,
+            ChoiceInfo choice => choice.Children.Any(IsOpenEnded),
+            GroupInfo group => group.Children.Count > 0 && IsOpenEnded(group.Children[^1]),
+            _ => false,
+        };
 
     private static ProcessorPipeline CreatePipeline(ProcessorPipeline? parent, IReadOnlyList<ProcessorBinding> processors)
     {
@@ -410,13 +437,21 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             {
                 case FieldInfo field:
                     field.PublishesValue = true;
-                    if (Find(root, from) is GroupInfo { ValueProcessors.Count: > 0 } valueGroup)
+                    if (Find(root, from) is GroupInfo { ValueProcessors.Count: > 0 } valueGroup && IsValueKey(valueGroup, target))
                     {
                         valueGroup.ValueType = field.Field.Type;
                     }
-                    if (Find(root, from) is RepeatInfo repeat && repeat.Parent is not null && ReferenceEquals(repeat.Parent, field.Parent))
+                    if (Find(root, from) is RepeatInfo { Count: PublishedValueKey countKey } repeat
+                        && countKey.Namespace.Length == 0 && countKey.Name == target.Value
+                        && repeat.Parent is not null && ReferenceEquals(repeat.Parent, field.Parent))
                     {
                         field.CountOf = repeat;
+                    }
+                    if (Find(root, from) is GroupInfo { HasSize: true, Size: PublishedValueKey sizeKey } sized
+                        && sizeKey.Namespace.Length == 0 && sizeKey.Name == target.Value
+                        && sized.Parent is not null && ReferenceEquals(sized.Parent, field.Parent))
+                    {
+                        field.SizeOf = sized;
                     }
                     break;
                 case null:
@@ -465,6 +500,10 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             var repeats = new List<SchemaPath>();
             SchemaNode node = Root;
             var current = new SchemaPath(Root.Name);
+            if (Root is SchemaRepeat)
+            {
+                repeats.Add(current);
+            }
             for (var i = 1; i < segments.Length; i++)
             {
                 if (node is not SchemaGroup group)

@@ -19,6 +19,7 @@ public sealed class ReaderSession : SessionState
     private readonly IServiceProvider _services;
     private InstancePath _instance;
     private readonly Stack<long> _groupStarts = new();
+    private readonly Stack<(GroupInfo Group, long End)> _windows = new();
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
@@ -66,11 +67,12 @@ public sealed class ReaderSession : SessionState
 
         var reader = new SequenceReader<byte>(payload);
         _groupStarts.Clear();
+        _windows.Clear();
         EngineLogger.ReadStarted(root.Path.ToString());
         var cursor = new PlanCursor<IValueSink>(root, range);
         while (true)
         {
-            if (cursor.AtOpenRepeat && reader.End)
+            if (cursor.AtOpenRepeat && AtWindowEnd(ref reader))
             {
                 cursor.CloseRepeat();
             }
@@ -83,7 +85,22 @@ public sealed class ReaderSession : SessionState
                         var group = (GroupInfo)step.Node!;
                         if (step.Scope is null)
                         {
-                            cursor.Enter(sink);
+                            if (group is RepeatInfo { UntilEnd: true })
+                            {
+                                cursor.EnterOpenRepeat(sink);
+                            }
+                            else if (group is RepeatInfo rootRepeat)
+                            {
+                                cursor.EnterRepeat(sink, Resolve(rootRepeat.Count, rootRepeat, _valueContext, _instance));
+                            }
+                            else if (group is ChoiceInfo rootChoice)
+                            {
+                                cursor.Enter(sink, Resolve(rootChoice.SelectedIndex, rootChoice, _valueContext, _instance));
+                            }
+                            else
+                            {
+                                cursor.Enter(sink);
+                            }
                         }
                         else if (group is RepeatInfo { UntilEnd: true } openRepeat)
                         {
@@ -105,6 +122,20 @@ public sealed class ReaderSession : SessionState
                         else
                         {
                             cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services, Instance = _instance }));
+                        }
+                        if (group.HasSize)
+                        {
+                            var size = Resolve(group.Size, group.Path, _instance);
+                            if (size < 0)
+                            {
+                                throw EngineLogger.Fail($"'{group.Path}': the size {size} cannot be negative.");
+                            }
+                            if (reader.Remaining < size)
+                            {
+                                EngineLogger.ReadStopped(group.Path.ToString(), ReadResult.NeedMoreData);
+                                return ReadResult.NeedMoreData;
+                            }
+                            _windows.Push((group, reader.Consumed + size));
                         }
                         if (group is not RepeatInfo)
                         {
@@ -148,6 +179,15 @@ public sealed class ReaderSession : SessionState
                         EndLayout((GroupInfo)step.Node!, ref reader);
                         step.Scope!.Complete();
                     }
+                    if (step.Node is GroupInfo { HasSize: true } sized && _windows.Count > 0 && ReferenceEquals(_windows.Peek().Group, sized))
+                    {
+                        var end = _windows.Pop().End;
+                        if (reader.Consumed != end)
+                        {
+                            throw EngineLogger.Fail(
+                                $"'{sized.Path}': the content ended at position {reader.Consumed} but the size requires {end}.");
+                        }
+                    }
                     break;
 
                 case CursorStepKind.Done:
@@ -156,6 +196,9 @@ public sealed class ReaderSession : SessionState
             }
         }
     }
+
+    private bool AtWindowEnd(ref SequenceReader<byte> reader)
+        => _windows.Count > 0 ? reader.Consumed >= _windows.Peek().End : reader.End;
 
     private ReadResult ReadField(FieldInfo field, IValueSink scope, ref SequenceReader<byte> reader)
     {

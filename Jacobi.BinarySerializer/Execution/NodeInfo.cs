@@ -29,6 +29,11 @@ public sealed class FieldInfo : NodeInfo
     /// </summary>
     public RepeatInfo? CountOf { get; internal set; }
 
+    /// <summary>
+    /// The sibling group whose size refers to this field. When the model holds no value for the field, the writer derives it from the encoded size of that group.
+    /// </summary>
+    public GroupInfo? SizeOf { get; internal set; }
+
     /// <summary>The parsed constant of <see cref="SchemaField.Value"/> (null when the field has no constant).</summary>
     public object? ConstantValue { get; internal set; }
 
@@ -55,6 +60,13 @@ public class GroupInfo : NodeInfo
 
     /// <summary>The data type of the field the count/index refers to (null for constants and published values).</summary>
     public SchemaDataType? ValueType { get; internal set; }
+
+    /// <summary>
+    /// The size in bytes of the encoded content of the group (unset when the group has no size).
+    /// </summary>
+    public ValueSource<int> Size { get; init; }
+
+    public bool HasSize => Size is int or PublishedValueKey;
 
     // previous GroupInfo
     // next GroupInfo

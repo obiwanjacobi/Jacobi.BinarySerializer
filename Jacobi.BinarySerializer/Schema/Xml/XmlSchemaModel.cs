@@ -90,6 +90,13 @@ public class XmlSchemaGroup : XmlSchemaNode
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode> Children { get; set; } = [];
+
+    /// <summary>A constant size in bytes (attribute); use <see cref="SizeRef"/> to refer to a value.</summary>
+    [XmlAttribute("size")]
+    public string? Size { get; set; }
+
+    [XmlElement("size")]
+    public XmlSchemaValueRef? SizeRef { get; set; }
 }
 
 /// <summary>A named processor declaration: 'name' is used in a 'ref:name' (or 'ref:document.name').</summary>

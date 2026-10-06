@@ -48,6 +48,7 @@ internal class JsonSchemaGroup : JsonSchemaNode
 {
     public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
     public IReadOnlyList<JsonSchemaNode> Children { get; init; } = [];
+    public JsonSchemaValueOrRef<int> Size { get; init; }
 }
 
 internal sealed class JsonSchemaRepeat : JsonSchemaGroup

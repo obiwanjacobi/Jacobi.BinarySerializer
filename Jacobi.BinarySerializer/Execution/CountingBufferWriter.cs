@@ -3,9 +3,9 @@ using System.Buffers;
 namespace Jacobi.BinarySerializer.Execution;
 
 /// <summary>Forwards to the inner writer and counts the bytes written (the layout position).</summary>
-internal sealed class CountingBufferWriter(IBufferWriter<byte> inner) : IBufferWriter<byte>
+internal sealed class CountingBufferWriter(IBufferWriter<byte> inner, long start = 0) : IBufferWriter<byte>
 {
-    public long Written { get; private set; }
+    public long Written { get; private set; } = start;
 
     public void Advance(int count)
     {

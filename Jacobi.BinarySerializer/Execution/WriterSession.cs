@@ -29,6 +29,13 @@ public sealed class WriterSession : SessionState
     private IBufferWriter<byte> _target;
     private CountingBufferWriter _counter;
     private readonly Stack<long> _groupStarts = new();
+    private readonly Stack<long> _sizeStarts = new();
+    private readonly Stack<DeferredSize> _deferred = new();
+
+    private sealed record DeferredSize(
+        FieldInfo Field, IValueSource Scope, GroupInfo Group,
+        CountingBufferWriter SavedCounter, IBufferWriter<byte> SavedTarget,
+        ArrayBufferWriter<byte> Scratch, long Width);
     private readonly List<ArrayBufferWriter<byte>> _chainBuffers = [];
 
     public WriterSession(ExecutionPlan plan, IBufferWriter<byte> output, IServiceProvider? services = null)
@@ -66,6 +73,8 @@ public sealed class WriterSession : SessionState
         _counter = new CountingBufferWriter(payload ?? _output);
         _target = _counter;
         _groupStarts.Clear();
+        _sizeStarts.Clear();
+        _deferred.Clear();
         EngineLogger.WriteStarted(root.Path.ToString());
 
         var cursor = new PlanCursor<IValueSource>(root, range);
@@ -80,7 +89,22 @@ public sealed class WriterSession : SessionState
                         var group = (GroupInfo)step.Node!;
                         if (step.Scope is null)
                         {
-                            cursor.Enter(source);
+                            if (group is RepeatInfo { UntilEnd: true } openRoot)
+                            {
+                                cursor.EnterRepeat(source, source.GetCount(new RepeatContext { Node = openRoot, Services = _services, Instance = _instance }));
+                            }
+                            else if (group is RepeatInfo rootRepeat)
+                            {
+                                cursor.EnterRepeat(source, Resolve(rootRepeat.Count, rootRepeat, _valueContext, _instance));
+                            }
+                            else if (group is ChoiceInfo rootChoice)
+                            {
+                                cursor.Enter(source, Resolve(rootChoice.SelectedIndex, rootChoice, _valueContext, _instance));
+                            }
+                            else
+                            {
+                                cursor.Enter(source);
+                            }
                         }
                         else if (group is RepeatInfo { UntilEnd: true } openRepeat)
                         {
@@ -104,6 +128,10 @@ public sealed class WriterSession : SessionState
                         else
                         {
                             cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services, Instance = _instance }));
+                        }
+                        if (group.HasSize)
+                        {
+                            _sizeStarts.Push(_counter.Written);
                         }
                         if (group is not RepeatInfo)
                         {
@@ -132,6 +160,26 @@ public sealed class WriterSession : SessionState
                         {
                             EndLayout(group);
                         }
+                        if (group.HasSize)
+                        {
+                            var size = _counter.Written - _sizeStarts.Pop();
+                            if (_deferred.Count > 0 && ReferenceEquals(_deferred.Peek().Group, group))
+                            {
+                                var completed = CompleteDeferredSize(size);
+                                if (completed != WriteResult.Success)
+                                {
+                                    return completed;
+                                }
+                            }
+                            else
+                            {
+                                var declared = Resolve(group.Size, group.Path, _instance);
+                                if (declared != size)
+                                {
+                                    throw EngineLogger.Fail($"'{group.Path}': the declared size {declared} does not match the {size} encoded bytes.");
+                                }
+                            }
+                        }
                         if (group == root && payload is not null)
                         {
                             return WriteStream(root, payload);
@@ -154,10 +202,72 @@ public sealed class WriterSession : SessionState
                     break;
 
                 case CursorStepKind.Done:
+                    if (_deferred.Count > 0)
+                    {
+                        throw EngineLogger.Fail($"'{_deferred.Peek().Field.Path}': the size field was deferred but its group was never completed.");
+                    }
                     EngineLogger.WriteFinished(root.Path.ToString());
                     return WriteResult.Success;
             }
         }
+    }
+
+    private LogicalField DerivedSize(FieldInfo field, long size)
+        => new(field.Name, DataTypeCodec.ClrType(field.Field.Type) ?? typeof(int), checked((int)size));
+
+    /// <summary>
+    /// The size field precedes the content it measures: probe its encoded width, then redirect the output to a scratch buffer until the group ends.
+    /// </summary>
+    private WriteResult DeferSizeField(FieldInfo field, IValueSource scope)
+    {
+        var savedCounter = _counter;
+        var savedTarget = _target;
+        var probe = new ArrayBufferWriter<byte>();
+        _counter = new CountingBufferWriter(probe, savedCounter.Written);
+        _target = _counter;
+        WriteResult result;
+        try
+        {
+            result = WriteField(field, scope, DerivedSize(field, 0));
+        }
+        finally
+        {
+            _counter = savedCounter;
+            _target = savedTarget;
+        }
+        if (result != WriteResult.Success)
+        {
+            return result;
+        }
+
+        var width = probe.WrittenCount;
+        var scratch = new ArrayBufferWriter<byte>();
+        _deferred.Push(new DeferredSize(field, scope, field.SizeOf!, savedCounter, savedTarget, scratch, width));
+        _counter = new CountingBufferWriter(scratch, savedCounter.Written + width);
+        _target = _counter;
+        return WriteResult.Success;
+    }
+
+    private WriteResult CompleteDeferredSize(long size)
+    {
+        var deferred = _deferred.Pop();
+        _counter = deferred.SavedCounter;
+        _target = deferred.SavedTarget;
+
+        var before = _counter.Written;
+        var result = WriteField(deferred.Field, deferred.Scope, DerivedSize(deferred.Field, size));
+        if (result != WriteResult.Success)
+        {
+            return result;
+        }
+        if (_counter.Written - before != deferred.Width)
+        {
+            // TODO: support variable-width derived size fields (e.g. varint).
+            throw EngineLogger.Fail($"'{deferred.Field.Path}': the derived size field changed its encoded width.");
+        }
+
+        _target.Write(deferred.Scratch.WrittenSpan);
+        return WriteResult.Success;
     }
 
     private void CheckItemCount(RepeatInfo repeat, IValueSource scope, int count)
@@ -179,11 +289,16 @@ public sealed class WriterSession : SessionState
         }
     }
 
-    private WriteResult WriteField(FieldInfo field, IValueSource scope)
+    private WriteResult WriteField(FieldInfo field, IValueSource scope, LogicalField? forced = null)
     {
         var pipeline = field.Pipeline;
+        LogicalField logical;
 
-        if (!scope.TryGetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, out var logical))
+        if (forced is not null)
+        {
+            logical = forced;
+        }
+        else if (!scope.TryGetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, out var provided))
         {
             if (field.CountOf is { } countOf)
             {
@@ -195,15 +310,23 @@ public sealed class WriterSession : SessionState
                 var expected = ResolveExpected(field, _instance);
                 logical = new LogicalField(field.Name, DataTypeCodec.ClrType(field.Field.Type) ?? typeof(object), expected);
             }
+            else if (field.SizeOf is not null)
+            {
+                return DeferSizeField(field, scope);
+            }
             else
             {
-                // TODO: derive other values the model does not hold (lengths, discriminators).
+                // TODO: derive other values the model does not hold (discriminators).
                 throw EngineLogger.Fail($"'{field.Path}': the value model has no value for the field.");
             }
         }
-        else if (field.HasExpectedValue)
+        else
         {
-            CheckExpected(field, logical.Value, _instance);
+            logical = provided;
+            if (field.HasExpectedValue)
+            {
+                CheckExpected(field, logical.Value, _instance);
+            }
         }
 
         // Semantic: logical value transforms (chained)

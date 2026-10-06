@@ -248,4 +248,29 @@ public class XmlSerializerTests
         Assert.That(choice.ValueProcessors, Has.Count.EqualTo(1));
         Assert.That(choice.ValueProcessors[0].Properties.Single().Value, Is.EqualTo("2"));
     }
+
+    [Test]
+    public void Serialize_RoundTrip_PreservesSizeAndAbsentCount()
+    {
+        var xml = """
+            <schema name="SizeSchema">
+              <children><group name="Root"><children>
+                <repeat name="Items"><size ref="ref:Root.Len" /></repeat>
+                <group name="Fixed" size="4"><children /></group>
+                <choice name="Pick" selectedIndex="0" size="8" />
+              </children></group></children>
+              <properties />
+            </schema>
+            """;
+
+        var document = new SchemaSet().LoadFromXml(xml);
+        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+        var children = roundTripped.Groups.Single(g => g.Name == "Root").Children.OfType<SchemaGroup>().ToList();
+
+        Assert.That(children[0], Is.InstanceOf<SchemaRepeat>());
+        Assert.That(((SchemaRepeat)children[0]).Count is not (int or SchemaNodeRef or SchemaPubRef), Is.True);
+        Assert.That(children[0].Size is SchemaNodeRef { Path: "Root.Len" }, Is.True);
+        Assert.That(children[1].Size is 4, Is.True);
+        Assert.That(children[2].Size is 8, Is.True);
+    }
 }

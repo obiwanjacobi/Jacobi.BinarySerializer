@@ -302,4 +302,30 @@ public class JsonSerializerTests
         Assert.That(choice.ValueProcessors, Has.Count.EqualTo(1));
         Assert.That(choice.ValueProcessors[0].Properties.Single().Value, Is.EqualTo("2"));
     }
+
+    [Test]
+    public void Serialize_RoundTrip_PreservesSizeAndAbsentCount()
+    {
+        var json = """
+            {
+              "name": "SizeSchema",
+              "children": [ { "kind": "group", "name": "Root", "children": [
+                { "kind": "repeat", "name": "Items", "size": { "reference": "ref:Root.Len" }, "children": [] },
+                { "kind": "group", "name": "Fixed", "size": 4, "children": [] },
+                { "kind": "choice", "name": "Pick", "selectedIndex": 0, "size": 8, "children": [] }
+              ] } ],
+              "properties": []
+            }
+            """;
+
+        var document = JsonSerializer.Deserialize(json);
+        var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
+        var children = roundTripped.Groups.Single(g => g.Name == "Root").Children.OfType<SchemaGroup>().ToList();
+
+        Assert.That(children[0], Is.InstanceOf<SchemaRepeat>());
+        Assert.That(((SchemaRepeat)children[0]).Count is not (int or SchemaNodeRef or SchemaPubRef), Is.True);
+        Assert.That(children[0].Size is SchemaNodeRef { Path: "Root.Len" }, Is.True);
+        Assert.That(children[1].Size is 4, Is.True);
+        Assert.That(children[2].Size is 8, Is.True);
+    }
 }

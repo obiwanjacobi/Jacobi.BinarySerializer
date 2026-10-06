@@ -491,6 +491,7 @@ public sealed class SchemaSet
                 ProcessorsList = MergeProcessors(typeDef.Processors, repeatNode.Processors),
                 ChildList = [.. repeatNode.ChildList],
                 Count = repeatNode.Count,
+                Size = repeatNode.Size,
                 ValueProcessorsList = [.. repeatNode.ValueProcessors],
             };
         }
@@ -503,6 +504,7 @@ public sealed class SchemaSet
                 ProcessorsList = MergeProcessors(typeDef.Processors, choiceNode.Processors),
                 ChildList = [.. choiceNode.ChildList],
                 SelectedIndex = choiceNode.SelectedIndex,
+                Size = choiceNode.Size,
                 ValueProcessorsList = [.. choiceNode.ValueProcessors],
             };
         }
@@ -514,6 +516,7 @@ public sealed class SchemaSet
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(typeDef.Processors, groupNode.Processors),
                 ChildList = [.. groupNode.ChildList],
+                Size = groupNode.Size,
             };
         }
 

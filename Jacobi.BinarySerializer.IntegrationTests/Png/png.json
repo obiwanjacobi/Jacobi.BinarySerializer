@@ -43,7 +43,8 @@
             {
               "name": "Data",
               "kind": "choice",
-              "selectedIndex": { "reference": "ref:Png.Chunk.Type" },
+              "selectedIndex": { "reference": "ref:Png.Chunk[].Type" },
+              "size": { "reference": "ref:Png.Chunk[].Length" },
               "valueProcessors": [ { "processor": "ref:chunkType" } ],
               "children": [
                 {
@@ -62,13 +63,11 @@
                 {
                   "name": "Palette",
                   "kind": "repeat",
-                  "count": { "reference": "ref:Png.Chunk.Length" },
                   "children": [ { "name": "Byte", "kind": "field", "type": "UInt8" } ]
                 },
                 {
                   "name": "ImageData",
                   "kind": "repeat",
-                  "count": { "reference": "ref:Png.Chunk.Length" },
                   "children": [ { "name": "Byte", "kind": "field", "type": "UInt8" } ]
                 },
                 { "name": "End", "kind": "group", "children": [] }

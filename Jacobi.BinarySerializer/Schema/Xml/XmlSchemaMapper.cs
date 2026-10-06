@@ -21,6 +21,8 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaGroup.Name),
         nameof(XmlSchemaGroup.Processors),
         nameof(XmlSchemaGroup.Children),
+        nameof(XmlSchemaGroup.Size),
+        nameof(XmlSchemaGroup.SizeRef),
         nameof(XmlSchemaGroup.Properties)
     };
 
@@ -31,6 +33,8 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaRepeat.Children),
         nameof(XmlSchemaRepeat.Count),
         nameof(XmlSchemaRepeat.CountRef),
+        nameof(XmlSchemaRepeat.Size),
+        nameof(XmlSchemaRepeat.SizeRef),
         nameof(XmlSchemaRepeat.ValueProcessors),
         nameof(XmlSchemaRepeat.Properties)
     };
@@ -42,6 +46,8 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaChoice.Children),
         nameof(XmlSchemaChoice.SelectedIndex),
         nameof(XmlSchemaChoice.SelectedIndexRef),
+        nameof(XmlSchemaChoice.Size),
+        nameof(XmlSchemaChoice.SizeRef),
         nameof(XmlSchemaChoice.ValueProcessors),
         nameof(XmlSchemaChoice.Properties)
     };
@@ -224,6 +230,7 @@ internal static class XmlSchemaMapper
             ProcessorsList = xmlGroup.Processors.Select(ToSchemaProcessorRef).ToList(),
             ChildList = children,
             Count = 1,
+            Size = ToSchemaValue(xmlGroup.Size, xmlGroup.SizeRef),
             PropertyList = MergeProperties(
                 xmlGroup.Properties,
                 xmlGroup.AdditionalAttributes,
@@ -249,6 +256,7 @@ internal static class XmlSchemaMapper
             ProcessorsList = xmlRepeat.Processors.Select(ToSchemaProcessorRef).ToList(),
             ChildList = children,
             Count = ToSchemaValue(xmlRepeat.Count, xmlRepeat.CountRef),
+            Size = ToSchemaValue(xmlRepeat.Size, xmlRepeat.SizeRef),
             ValueProcessorsList = xmlRepeat.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
                 xmlRepeat.Properties,
@@ -275,6 +283,7 @@ internal static class XmlSchemaMapper
             ProcessorsList = xmlChoice.Processors.Select(ToSchemaProcessorRef).ToList(),
             ChildList = children,
             SelectedIndex = ToSchemaValue(xmlChoice.SelectedIndex, xmlChoice.SelectedIndexRef),
+            Size = ToSchemaValue(xmlChoice.Size, xmlChoice.SizeRef),
             ValueProcessorsList = xmlChoice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
                 xmlChoice.Properties,
@@ -352,6 +361,8 @@ internal static class XmlSchemaMapper
                 Children = repeat.Children.Select(FromSchemaNode).ToList(),
                 Count = ToConstantText(repeat.Count),
                 CountRef = ToXmlValueRef(repeat.Count),
+                Size = ToConstantText(repeat.Size),
+                SizeRef = ToXmlValueRef(repeat.Size),
                 ValueProcessors = repeat.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = repeat.Properties.Select(FromSchemaProperty).ToList()
             };
@@ -366,6 +377,8 @@ internal static class XmlSchemaMapper
                 Children = choice.Children.Select(FromSchemaNode).ToList(),
                 SelectedIndex = ToConstantText(choice.SelectedIndex),
                 SelectedIndexRef = ToXmlValueRef(choice.SelectedIndex),
+                Size = ToConstantText(choice.Size),
+                SizeRef = ToXmlValueRef(choice.Size),
                 ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()
             };

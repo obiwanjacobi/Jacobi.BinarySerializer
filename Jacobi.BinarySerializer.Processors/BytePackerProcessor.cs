@@ -1,5 +1,6 @@
 using System.Buffers;
 using Jacobi.BinarySerializer.Codecs;
+using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 
 namespace Jacobi.BinarySerializer.Processors;
@@ -55,8 +56,11 @@ internal sealed class BytePackerProcessor : ILayoutProcessor
 
     private static Endianness GetEndianness(LayoutProcessorContext context)
     {
-        var property = context.Properties.Find(EndianProperty)
-            ?? context.PropertiesOf(context.Group?.Group.Properties).Find(EndianProperty);
+        var property = context.Properties.Find(EndianProperty);
+        for (var group = context.Group; property is null && group is not null; group = group.Parent as GroupInfo)
+        {
+            property = context.PropertiesOf(group.Group.Properties).Find(EndianProperty);
+        }
 
         if (property is null)
         {

@@ -129,6 +129,7 @@ internal static class JsonSchemaMapper
                 ProcessorsList = repeat.Processors.Select(ToSchemaProcessorRef).ToList(),
                 ChildList = children,
                 Count = ToSchemaValueOrRef(repeat.Count),
+                Size = ToSchemaValueOrRef(repeat.Size),
                 ValueProcessorsList = repeat.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(repeat.Properties, repeat.AdditionalData)
             };
@@ -141,6 +142,7 @@ internal static class JsonSchemaMapper
                 ProcessorsList = choice.Processors.Select(ToSchemaProcessorRef).ToList(),
                 ChildList = children,
                 SelectedIndex = ToSchemaValueOrRef(choice.SelectedIndex),
+                Size = ToSchemaValueOrRef(choice.Size),
                 ValueProcessorsList = choice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(choice.Properties, choice.AdditionalData)
             };
@@ -153,6 +155,7 @@ internal static class JsonSchemaMapper
                 ProcessorsList = jsonGroup.Processors.Select(ToSchemaProcessorRef).ToList(),
                 ChildList = children,
                 Count = 1,
+                Size = ToSchemaValueOrRef(jsonGroup.Size),
                 PropertyList = MergeProperties(jsonGroup.Properties, jsonGroup.AdditionalData)
             };
         }
@@ -228,6 +231,7 @@ internal static class JsonSchemaMapper
                 Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Children = repeat.Children.Select(FromSchemaNode).ToList(),
                 Count = FromSchemaValueOrRef(repeat.Count),
+                Size = FromSchemaValueOrRef(repeat.Size),
                 ValueProcessors = repeat.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = repeat.Properties.Select(FromSchemaProperty).ToList()
             };
@@ -241,6 +245,7 @@ internal static class JsonSchemaMapper
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Children = choice.Children.Select(FromSchemaNode).ToList(),
                 SelectedIndex = FromSchemaValueOrRef(choice.SelectedIndex),
+                Size = FromSchemaValueOrRef(choice.Size),
                 ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()
             };

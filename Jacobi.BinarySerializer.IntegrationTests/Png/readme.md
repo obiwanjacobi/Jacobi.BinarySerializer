@@ -8,7 +8,8 @@ Findings from modeling PNG (`png.json`) with the current schema/engine. To be re
 
 ## TODOs
 
-- [x] **Generic chunk list.** `Chunk` is a repeat without a count (until the end of the input, must be the last node of its group). Limitation: repeat until N bytes are consumed (byte-length based repeat) is not supported yet; the palette/image data repeats use `Length` as an item count.
+- [x] **Generic chunk list.** `Chunk` is a repeat without a count (until the end of the input, must be the last node of its group). The root is a (Count=1) repeat too. `Data` has a `size` of `ref:Png.Chunk[].Length` (bytes of the payload); the palette/image data are count-less repeats that end at that window.
+- [x] **Chunk type mapping.** `sys.map` converts the `Type` FourCC string to the choice index; `[]` refs address the current chunk instance.
 - [ ] **Length-driven payload (`data[length]`).** No byte-array data type and no blob whose size comes from a preceding length field. Related to the existing TODO *Derive length prefixes and choice discriminators*.
 - [x] **Choice by chunk type.** The choice index must be a constant or a published value; it cannot be selected from the chunk's `Type` string (`IHDR`, `PLTE`, `IDAT`, `IEND`, unknown). Custom Processor or will the EnumProcessor worK?
 - [ ] **CRC32 field.** `Crc` is a plain `UInt32`, not derived. Needs a checksum processor covering `Type` + `Data` (a range of previous fields). Group-based checksum layout-processor -perhaps with multiple algorithms.
