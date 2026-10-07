@@ -7,8 +7,7 @@ namespace Jacobi.BinarySerializer.Schema;
 
 public sealed class SchemaSet
 {
-    // TODO: key - ignore case
-    private readonly Dictionary<string, SchemaDocument> _documents = new();
+    private readonly Dictionary<string, SchemaDocument> _documents = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyCollection<SchemaDocument> Documents
         => _documents.Values;
@@ -21,7 +20,7 @@ public sealed class SchemaSet
         {
             ".xml" => LoadFromXml(content),
             ".json" => LoadFromJson(content),
-            ".yaml" or ".yml" => LoadFromYaml(content),
+            ".yaml" or ".yml" => throw new NotSupportedException("YAML requires the Jacobi.BinarySerializer.Yaml package: use SchemaSet.LoadYaml()."),
             _ => throw new NotSupportedException($"File extension '{extension}' is not supported.")
         };
 
@@ -58,11 +57,6 @@ public sealed class SchemaSet
 
     public SchemaDocument LoadFromJson(string json)
         => JsonSerializer.Deserialize(json);
-
-    public SchemaDocument LoadFromYaml(string yaml)
-    {
-        throw new NotImplementedException();
-    }
 
     public SchemaDocument LoadFromBinary(Stream data)
     {

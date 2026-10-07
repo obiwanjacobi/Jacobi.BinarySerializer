@@ -4,22 +4,20 @@
     <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Title>Schema-driven Binary Serializer</Title>
+    <Title>Schema-driven Binary Serializer YAML support</Title>
+    <Version>1.0.0</Version>
     <Authors>Marc Jacobi</Authors>
     <Company>Jacobi Software</Company>
-    <Description>A schema-driven binary serializer framework.</Description>
+    <Description>YAML schema support for the Schema-driven Binary Serializer framework</Description>
     <Copyright>Copyright (c) 2026 Jacobi Software</Copyright>
-    <PackageReadmeFile>readme.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/obiwanjacobi/Jacobi.BinarySerializer</RepositoryUrl>
     <PackageProjectUrl>https://github.com/obiwanjacobi/Jacobi.BinarySerializer</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/obiwanjacobi/Jacobi.BinarySerializer</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>binary; serializer; schema</PackageTags>
-    <PackageReleaseNotes>First version</PackageReleaseNotes>
-    <IncludeSymbols>True</IncludeSymbols>
-    <Version>1.0.0</Version>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageTags>binary; serializer; schema; yaml</PackageTags>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <IncludeSymbols>True</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,14 +28,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-rc.1.26425.128" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="readme.md">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
+    <ProjectReference Include="..\Jacobi.BinarySerializer\Jacobi.BinarySerializer.csproj" />
   </ItemGroup>
 
 </Project>

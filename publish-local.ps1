@@ -10,6 +10,7 @@ New-Item -ItemType Directory -Force $Output | Out-Null
 
 $projects = @(
 	"Jacobi.BinarySerializer\Jacobi.BinarySerializer.csproj",
+	"Jacobi.BinarySerializer.Yaml\Jacobi.BinarySerializer.Yaml.csproj",
 	"Jacobi.BinarySerializer.Processors\Jacobi.BinarySerializer.Processors.csproj"
 )
 

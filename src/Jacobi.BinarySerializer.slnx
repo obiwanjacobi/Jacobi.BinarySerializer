@@ -6,5 +6,7 @@
   <Project Path="Jacobi.BinarySerializer.IntegrationTests/Jacobi.BinarySerializer.IntegrationTests.csproj" Id="5226ab21-4f14-41a8-8a1d-b74dc3518183" />
   <Project Path="Jacobi.BinarySerializer.Processors/Jacobi.BinarySerializer.Processors.csproj" Id="0cb13c17-5291-4a08-bc00-22fbe27c3262" />
   <Project Path="Jacobi.BinarySerializer.Tests/Jacobi.BinarySerializer.Tests.csproj" Id="106c7385-61c8-4176-b828-a77d1704ec73" />
+  <Project Path="Jacobi.BinarySerializer.Yaml/Jacobi.BinarySerializer.Yaml.csproj" />
   <Project Path="Jacobi.BinarySerializer/Jacobi.BinarySerializer.csproj" Id="bf0e81fd-ddab-4fa0-9b43-62946efc126f" />
 </Solution>
+
