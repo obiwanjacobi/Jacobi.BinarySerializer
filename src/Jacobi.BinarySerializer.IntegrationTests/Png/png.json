@@ -63,8 +63,8 @@
                 {
                   "name": "Data",
                   "kind": "choice",
-                  "selectedIndex": { "reference": "ref:Png.Chunk[].Body.Type" },
-                  "size": { "reference": "ref:Png.Chunk[].Length" },
+                  "selectedIndex": { "ref": "Png.Chunk[].Body.Type" },
+                  "size": { "ref": "Png.Chunk[].Length" },
                   "valueProcessors": [ { "processor": "ref:chunkType" } ],
                   "children": [
                     {

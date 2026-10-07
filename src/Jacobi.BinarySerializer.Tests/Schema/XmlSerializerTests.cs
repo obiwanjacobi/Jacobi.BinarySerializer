@@ -153,7 +153,7 @@ public class XmlSerializerTests
               </processorDefs>
               <children>
                 <repeat name="RepeatGroup">
-                  <count ref="pub:hdr.count" />
+                  <count pub="hdr.count" />
                   <processors>
                     <processor processor="sys.align" />
                   </processors>
@@ -182,7 +182,7 @@ public class XmlSerializerTests
 
         Assert.That(serialized, Does.Contain("processorDefs"));
         Assert.That(serialized, Does.Contain("<processors>"));
-        Assert.That(serialized, Does.Contain("ref=\"pub:hdr.count\""));
+        Assert.That(serialized, Does.Contain("pub=\"hdr.count\""));
         Assert.That(serialized, Does.Contain("selectedIndex=\"2\""));
         Assert.That(serialized, Does.Not.Contain("codec"));
         Assert.That(serialized, Does.Not.Contain("pipeline"));
@@ -230,8 +230,8 @@ public class XmlSerializerTests
             <schema name="ValueSchema">
               <children><group name="Root"><children>
                 <field name="Constant" type="UInt32" value="0x89504E47" />
-                <field name="Published" type="Int32"><value ref="pub:hdr.magic" /></field>
-                <field name="Node" type="Int32"><value ref="ref:Constant" /></field>
+                <field name="Published" type="Int32"><value pub="hdr.magic" /></field>
+                <field name="Node" type="Int32"><value ref="Constant" /></field>
                 <field name="None" type="Int32" />
               </children></group></children>
               <properties />
@@ -254,10 +254,10 @@ public class XmlSerializerTests
         var xml = """
             <schema name="VpSchema">
               <children><group name="Root"><children>
-                <repeat name="Items"><count ref="ref:Root.Kind" />
+                <repeat name="Items"><count ref="Root.Kind" />
                   <valueProcessors><processor processor="sys.map"><properties><property name="a" value="1" /></properties></processor></valueProcessors>
                 </repeat>
-                <choice name="Pick"><selectedIndex ref="ref:Root.Kind" />
+                <choice name="Pick"><selectedIndex ref="Root.Kind" />
                   <valueProcessors><processor processor="sys.map"><properties><property name="b" value="2" /></properties></processor></valueProcessors>
                 </choice>
               </children></group></children>
@@ -283,7 +283,7 @@ public class XmlSerializerTests
         var xml = """
             <schema name="SizeSchema">
               <children><group name="Root"><children>
-                <repeat name="Items"><size ref="ref:Root.Len" /></repeat>
+                <repeat name="Items"><size ref="Root.Len" /></repeat>
                 <group name="Fixed" size="4"><children /></group>
                 <choice name="Pick" selectedIndex="0" size="8" />
               </children></group></children>
@@ -309,7 +309,7 @@ public class XmlSerializerTests
             <schema name="LengthSchema">
               <children><group name="Root"><children>
                 <field name="Len" type="UInt8" />
-                <field name="Blob" type="Bytes"><length ref="ref:Root.Len" /></field>
+                <field name="Blob" type="Bytes"><length ref="Root.Len" /></field>
                 <field name="Sig" type="Bytes" length="2" value="0x8950" />
                 <field name="Rest" type="Bytes" />
               </children></group></children>

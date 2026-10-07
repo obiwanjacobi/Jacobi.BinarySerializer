@@ -93,7 +93,7 @@ public class ValueReferenceTests
                   <children>
                     <field name="Length" type="Int32" />
                     <repeat name="Items">
-                      <count ref="ref:Root.Length" />
+                      <count ref="Root.Length" />
                       <children>
                         <field name="Item" type="Int32" />
                       </children>
@@ -110,7 +110,7 @@ public class ValueReferenceTests
         var root = new SchemaSet().LoadFromXml(serialized).Roots.OfType<SchemaGroup>().Single();
         var repeat = root.Children.OfType<SchemaRepeat>().Single();
 
-        Assert.That(serialized, Does.Contain("ref=\"ref:Root.Length\""));
+        Assert.That(serialized, Does.Contain("ref=\"Root.Length\""));
         Assert.That(repeat.Count is SchemaNodeRef r && r.Path == "Root.Length");
     }
 
@@ -124,7 +124,7 @@ public class ValueReferenceTests
                 {
                   "kind": "repeat",
                   "name": "Items",
-                  "count": { "reference": "pub:hdr.count" },
+                  "count": { "pub": "hdr.count" },
                   "children": [
                     { "kind": "field", "name": "Item", "type": "Int32" }
                   ]

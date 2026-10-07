@@ -185,7 +185,7 @@ public class InstanceReferenceTests
                 <group name="Root">
                   <children>
                     <repeat name="Items">
-                      <count ref="ref:Root.Lens[].Len" />
+                      <count ref="Root.Lens[].Len" />
                       <children>
                         <field name="Item" type="Int32" />
                       </children>
@@ -202,14 +202,14 @@ public class InstanceReferenceTests
         var repeat = new SchemaSet().LoadFromXml(serialized).Roots.OfType<SchemaGroup>().Single()
             .Children.OfType<SchemaRepeat>().Single();
 
-        Assert.That(serialized, Does.Contain("ref:Root.Lens[].Len"));
+        Assert.That(serialized, Does.Contain("ref=\"Root.Lens[].Len\""));
         Assert.That(repeat.Count is SchemaNodeRef r && r.Indices.Single().IsCurrent);
 
         var json = Jacobi.BinarySerializer.Schema.Json.JsonSerializer.Serialize(document);
         var jsonRepeat = Jacobi.BinarySerializer.Schema.Json.JsonSerializer.Deserialize(json)
             .Roots.OfType<SchemaGroup>().Single().Children.OfType<SchemaRepeat>().Single();
 
-        Assert.That(json, Does.Contain("ref:Root.Lens[].Len"));
+        Assert.That(json, Does.Contain("\"Ref\": \"Root.Lens[].Len\""));
         Assert.That(jsonRepeat.Count is SchemaNodeRef jr && jr.Indices.Single().IsCurrent);
     }
 }

@@ -64,12 +64,16 @@ internal sealed class JsonSchemaChoice : JsonSchemaGroup
     public IReadOnlyList<JsonSchemaProcessorRef> ValueProcessors { get; init; } = [];
 }
 
-/// <summary>A value reference object ({ "reference": "..." }) or a constant.</summary>
+/// <summary>A value reference object ({ "ref": "path" } or { "pub": "namespace.name" }) or a constant.</summary>
 public union JsonSchemaValueOrRef<T>(JsonSchemaValueRef, T) { }
 
 internal sealed class JsonSchemaValueRef
 {
-    public required string Reference { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Ref { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Pub { get; init; }
 }
 
 /// <summary>A named processor declaration: 'name' is used in a 'ref:name' (or 'ref:document.name').</summary>

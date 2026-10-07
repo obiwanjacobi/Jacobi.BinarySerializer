@@ -173,17 +173,18 @@ internal static class JsonSchemaMapper
     {
         if (valueOrRef is JsonSchemaValueRef valueRef)
         {
-            if (SchemaNodeRef.TryParse(valueRef.Reference, out var nodeRef))
+            var parsed = ParseValueRef(valueRef);
+            if (parsed is SchemaNodeRef nodeRef)
             {
                 return nodeRef;
             }
 
-            if (SchemaPubRef.TryParse(valueRef.Reference, out var pubRef))
+            if (parsed is SchemaPubRef pubRef)
             {
                 return pubRef;
             }
 
-            throw new JsonException($"Invalid value reference '{valueRef.Reference}'. Expected 'ref:path' or 'pub:namespace.name'.");
+            return default;
         }
 
         if (valueOrRef is int value)
@@ -256,16 +257,47 @@ internal static class JsonSchemaMapper
         throw new JsonException($"Unsupported schema group type '{group.GetType().Name}'.");
     }
 
+    /// <summary>The 'ref' and 'pub' keys are mutually exclusive; neither means unset (null).</summary>
+    private static object? ParseValueRef(JsonSchemaValueRef valueRef)
+    {
+        if (valueRef.Ref is not null && valueRef.Pub is not null)
+        {
+            throw new JsonException("A value reference cannot specify both 'ref' and 'pub'.");
+        }
+
+        if (valueRef.Ref is not null)
+        {
+            return SchemaNodeRef.TryParse(SchemaNodeRef.Prefix + valueRef.Ref, out var nodeRef)
+                ? nodeRef
+                : throw new JsonException($"Invalid node reference '{valueRef.Ref}'.");
+        }
+
+        if (valueRef.Pub is not null)
+        {
+            return SchemaPubRef.TryParse(SchemaPubRef.Prefix + valueRef.Pub, out var pubRef)
+                ? pubRef
+                : throw new JsonException($"Invalid published reference '{valueRef.Pub}'. Expected 'namespace.name'.");
+        }
+
+        return null;
+    }
+
+    private static JsonSchemaValueRef FromNodeRef(SchemaNodeRef nodeRef)
+        => new() { Ref = nodeRef.ToString()[SchemaNodeRef.Prefix.Length..] };
+
+    private static JsonSchemaValueRef FromPubRef(SchemaPubRef pubRef)
+        => new() { Pub = pubRef.ToString()[SchemaPubRef.Prefix.Length..] };
+
     private static JsonSchemaValueOrRef<int> FromSchemaValueOrRef(SchemaValueOrRef<int> valueOrRef)
     {
         if (valueOrRef is SchemaNodeRef nodeRef)
         {
-            return new JsonSchemaValueRef { Reference = nodeRef.ToString() };
+            return FromNodeRef(nodeRef);
         }
 
         if (valueOrRef is SchemaPubRef pubRef)
         {
-            return new JsonSchemaValueRef { Reference = pubRef.ToString() };
+            return FromPubRef(pubRef);
         }
 
         if (valueOrRef is int value)
@@ -281,17 +313,18 @@ internal static class JsonSchemaMapper
     {
         if (valueOrRef is JsonSchemaValueRef valueRef)
         {
-            if (SchemaNodeRef.TryParse(valueRef.Reference, out var nodeRef))
+            var parsed = ParseValueRef(valueRef);
+            if (parsed is SchemaNodeRef nodeRef)
             {
                 return nodeRef;
             }
 
-            if (SchemaPubRef.TryParse(valueRef.Reference, out var pubRef))
+            if (parsed is SchemaPubRef pubRef)
             {
                 return pubRef;
             }
 
-            throw new JsonException($"Invalid value reference '{valueRef.Reference}'. Expected 'ref:path' or 'pub:namespace.name'.");
+            return default;
         }
 
         return valueOrRef is string value ? value : default(SchemaValueOrRef<string>);
@@ -300,8 +333,8 @@ internal static class JsonSchemaMapper
     private static JsonSchemaValueOrRef<string> FromSchemaValueOrRef(SchemaValueOrRef<string> valueOrRef)
         => valueOrRef switch
         {
-            SchemaNodeRef nodeRef => new JsonSchemaValueRef { Reference = nodeRef.ToString() },
-            SchemaPubRef pubRef => new JsonSchemaValueRef { Reference = pubRef.ToString() },
+            SchemaNodeRef nodeRef => FromNodeRef(nodeRef),
+            SchemaPubRef pubRef => FromPubRef(pubRef),
             string value => value,
             _ => default,
         };

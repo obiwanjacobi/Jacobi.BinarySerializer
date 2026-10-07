@@ -183,7 +183,10 @@ public sealed class XmlSchemaChoice : XmlSchemaGroup
 public sealed class XmlSchemaValueRef
 {
     [XmlAttribute("ref")]
-    public string Reference { get; set; } = string.Empty;
+    public string? Ref { get; set; }
+
+    [XmlAttribute("pub")]
+    public string? Pub { get; set; }
 }
 
 public sealed class XmlSchemaProperty

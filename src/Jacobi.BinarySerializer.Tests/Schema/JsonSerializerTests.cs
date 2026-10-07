@@ -192,7 +192,7 @@ public class JsonSerializerTests
                 {
                   "kind": "repeat",
                   "name": "RepeatGroup",
-                  "count": { "reference": "pub:hdr.count" },
+                  "count": { "pub": "hdr.count" },
                   "processors": [
                     { "processor": "rootProcessor" }
                   ],
@@ -257,8 +257,8 @@ public class JsonSerializerTests
               "name": "ValueSchema",
               "children": [ { "kind": "group", "name": "Root", "children": [
                 { "kind": "field", "name": "Constant", "type": "UInt32", "value": "0x89504E47" },
-                { "kind": "field", "name": "Published", "type": "Int32", "value": { "reference": "pub:hdr.magic" } },
-                { "kind": "field", "name": "Node", "type": "Int32", "value": { "reference": "ref:Constant" } },
+                { "kind": "field", "name": "Published", "type": "Int32", "value": { "pub": "hdr.magic" } },
+                { "kind": "field", "name": "Node", "type": "Int32", "value": { "ref": "Constant" } },
                 { "kind": "field", "name": "None", "type": "Int32" }
               ] } ],
               "properties": []
@@ -282,9 +282,9 @@ public class JsonSerializerTests
             {
               "name": "VpSchema",
               "children": [ { "kind": "group", "name": "Root", "children": [
-                { "kind": "repeat", "name": "Items", "count": { "reference": "ref:Root.Kind" },
+                { "kind": "repeat", "name": "Items", "count": { "ref": "Root.Kind" },
                   "valueProcessors": [ { "processor": "sys.map", "properties": [ { "name": "a", "value": "1" } ] } ], "children": [] },
-                { "kind": "choice", "name": "Pick", "selectedIndex": { "reference": "ref:Root.Kind" },
+                { "kind": "choice", "name": "Pick", "selectedIndex": { "ref": "Root.Kind" },
                   "valueProcessors": [ { "processor": "sys.map", "properties": [ { "name": "b", "value": "2" } ] } ], "children": [] }
               ] } ],
               "properties": []
@@ -310,7 +310,7 @@ public class JsonSerializerTests
             {
               "name": "SizeSchema",
               "children": [ { "kind": "group", "name": "Root", "children": [
-                { "kind": "repeat", "name": "Items", "size": { "reference": "ref:Root.Len" }, "children": [] },
+                { "kind": "repeat", "name": "Items", "size": { "ref": "Root.Len" }, "children": [] },
                 { "kind": "group", "name": "Fixed", "size": 4, "children": [] },
                 { "kind": "choice", "name": "Pick", "selectedIndex": 0, "size": 8, "children": [] }
               ] } ],
@@ -337,7 +337,7 @@ public class JsonSerializerTests
               "name": "LengthSchema",
               "children": [ { "kind": "group", "name": "Root", "children": [
                 { "kind": "field", "name": "Len", "type": "UInt8" },
-                { "kind": "field", "name": "Blob", "type": "Bytes", "length": { "reference": "ref:Root.Len" } },
+                { "kind": "field", "name": "Blob", "type": "Bytes", "length": { "ref": "Root.Len" } },
                 { "kind": "field", "name": "Sig", "type": "Bytes", "length": 2, "value": "0x8950" },
                 { "kind": "field", "name": "Rest", "type": "Bytes" }
               ] } ],

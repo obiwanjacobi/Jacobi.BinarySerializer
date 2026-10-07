@@ -416,20 +416,15 @@ internal static class XmlSchemaMapper
 
     private static SchemaValueOrRef<int> ToSchemaValue(string? constant, XmlSchemaValueRef? valueRef)
     {
-        if (valueRef is not null)
+        var parsed = ParseValueRef(valueRef);
+        if (parsed is SchemaNodeRef nodeRef)
         {
-            if (SchemaNodeRef.TryParse(valueRef.Reference, out var nodeRef))
-            {
-                return nodeRef;
-            }
+            return nodeRef;
+        }
 
-            if (SchemaPubRef.TryParse(valueRef.Reference, out var pubRef))
-            {
-                return pubRef;
-            }
-
-            throw new InvalidOperationException(
-                $"Invalid value reference '{valueRef.Reference}'. Expected 'ref:path' or 'pub:namespace.name'.");
+        if (parsed is SchemaPubRef pubRef)
+        {
+            return pubRef;
         }
 
         if (constant is null)
@@ -464,38 +459,69 @@ internal static class XmlSchemaMapper
     /// <summary>An unset value (optional) maps to the default (unset) value.</summary>
     private static SchemaValueOrRef<string> ToSchemaValueOrText(string? constant, XmlSchemaValueRef? valueRef)
     {
-        if (valueRef is not null)
+        var parsed = ParseValueRef(valueRef);
+        if (parsed is SchemaNodeRef nodeRef)
         {
-            if (SchemaNodeRef.TryParse(valueRef.Reference, out var nodeRef))
-            {
-                return nodeRef;
-            }
+            return nodeRef;
+        }
 
-            if (SchemaPubRef.TryParse(valueRef.Reference, out var pubRef))
-            {
-                return pubRef;
-            }
-
-            throw new InvalidOperationException(
-                $"Invalid value reference '{valueRef.Reference}'. Expected 'ref:path' or 'pub:namespace.name'.");
+        if (parsed is SchemaPubRef pubRef)
+        {
+            return pubRef;
         }
 
         return constant is null ? default(SchemaValueOrRef<string>) : constant;
     }
 
+    /// <summary>The 'ref' and 'pub' attributes are mutually exclusive; neither means unset (null).</summary>
+    private static object? ParseValueRef(XmlSchemaValueRef? valueRef)
+    {
+        if (valueRef is null)
+        {
+            return null;
+        }
+
+        if (valueRef.Ref is not null && valueRef.Pub is not null)
+        {
+            throw new InvalidOperationException("A value reference cannot specify both 'ref' and 'pub'.");
+        }
+
+        if (valueRef.Ref is not null)
+        {
+            return SchemaNodeRef.TryParse(SchemaNodeRef.Prefix + valueRef.Ref, out var nodeRef)
+                ? nodeRef
+                : throw new InvalidOperationException($"Invalid node reference '{valueRef.Ref}'.");
+        }
+
+        if (valueRef.Pub is not null)
+        {
+            return SchemaPubRef.TryParse(SchemaPubRef.Prefix + valueRef.Pub, out var pubRef)
+                ? pubRef
+                : throw new InvalidOperationException($"Invalid published reference '{valueRef.Pub}'. Expected 'namespace.name'.");
+        }
+
+        return null;
+    }
+
+    private static XmlSchemaValueRef FromNodeRef(SchemaNodeRef nodeRef)
+        => new() { Ref = nodeRef.ToString()[SchemaNodeRef.Prefix.Length..] };
+
+    private static XmlSchemaValueRef FromPubRef(SchemaPubRef pubRef)
+        => new() { Pub = pubRef.ToString()[SchemaPubRef.Prefix.Length..] };
+
     private static XmlSchemaValueRef? ToXmlValueRef(SchemaValueOrRef<string> value)
         => value switch
         {
-            SchemaNodeRef nodeRef => new XmlSchemaValueRef { Reference = nodeRef.ToString() },
-            SchemaPubRef pubRef => new XmlSchemaValueRef { Reference = pubRef.ToString() },
+            SchemaNodeRef nodeRef => FromNodeRef(nodeRef),
+            SchemaPubRef pubRef => FromPubRef(pubRef),
             _ => null
         };
 
     private static XmlSchemaValueRef? ToXmlValueRef(SchemaValueOrRef<int> value)
         => value switch
         {
-            SchemaNodeRef nodeRef => new XmlSchemaValueRef { Reference = nodeRef.ToString() },
-            SchemaPubRef pubRef => new XmlSchemaValueRef { Reference = pubRef.ToString() },
+            SchemaNodeRef nodeRef => FromNodeRef(nodeRef),
+            SchemaPubRef pubRef => FromPubRef(pubRef),
             _ => null
         };
 
