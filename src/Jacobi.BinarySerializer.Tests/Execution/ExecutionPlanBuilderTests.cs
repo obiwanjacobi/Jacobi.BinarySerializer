@@ -22,19 +22,19 @@ public class ExecutionPlanBuilderTests
     {
         var root = CreateGroup("Root");
         var inner = CreateGroup("Inner");
-        root.ChildList.Add(CreateField("A"));
-        root.ChildList.Add(inner);
-        inner.ChildList.Add(CreateField("B"));
+        root.MemberList.Add(CreateField("A"));
+        root.MemberList.Add(inner);
+        inner.MemberList.Add(CreateField("B"));
 
         var plan = CreateBuilder().Build(root);
 
         Assert.That(plan.Root.Path, Is.EqualTo("Root"));
         Assert.That(plan.Root.Parent, Is.Null);
-        Assert.That(plan.Root.Children, Has.Count.EqualTo(2));
+        Assert.That(plan.Root.Members, Has.Count.EqualTo(2));
 
-        var a = (FieldInfo)plan.Root.Children[0];
-        var innerInfo = (GroupInfo)plan.Root.Children[1];
-        var b = (FieldInfo)innerInfo.Children[0];
+        var a = (FieldInfo)plan.Root.Members[0];
+        var innerInfo = (GroupInfo)plan.Root.Members[1];
+        var b = (FieldInfo)innerInfo.Members[0];
 
         Assert.That(a.Path, Is.EqualTo("Root.A"));
         Assert.That(a.Index, Is.EqualTo(0));
@@ -48,11 +48,11 @@ public class ExecutionPlanBuilderTests
     public void Build_NodeWithoutProcessors_SharesParentPipeline()
     {
         var root = CreateGroup("Root", Ref("layout"));
-        root.ChildList.Add(CreateField("A"));
+        root.MemberList.Add(CreateField("A"));
 
         var plan = CreateBuilder().Build(root);
 
-        Assert.That(plan.Root.Children[0].Pipeline, Is.SameAs(plan.Root.Pipeline));
+        Assert.That(plan.Root.Members[0].Pipeline, Is.SameAs(plan.Root.Pipeline));
     }
 
     [Test]
@@ -71,11 +71,11 @@ public class ExecutionPlanBuilderTests
     public void Build_FieldProcessor_SortedIntoStageAndInheritsOtherStages()
     {
         var root = CreateGroup("Root", Ref("layout"));
-        root.ChildList.Add(CreateField("A", Ref("value")));
+        root.MemberList.Add(CreateField("A", Ref("value")));
 
         var plan = CreateBuilder().Build(root);
 
-        var field = plan.Root.Children[0];
+        var field = plan.Root.Members[0];
         Assert.That(field.Pipeline, Is.Not.SameAs(plan.Root.Pipeline));
         Assert.That(field.Pipeline.ValueProcessors, Has.Count.EqualTo(1));
         Assert.That(field.Pipeline.ValueProcessors[0].Processor.Key, Is.EqualTo(new ProcessorKey(Ns, "value")));
@@ -110,15 +110,15 @@ public class ExecutionPlanBuilderTests
     public void Build_Repeat_WithConstantCount_CreatesRepeatInfo()
     {
         var repeat = new SchemaRepeat { Name = "Items", Count = 3 };
-        repeat.ChildList.Add(CreateField("A"));
+        repeat.MemberList.Add(CreateField("A"));
         var root = CreateGroup("Root");
-        root.ChildList.Add(repeat);
+        root.MemberList.Add(repeat);
 
         var plan = CreateBuilder().Build(root);
 
-        var info = (RepeatInfo)plan.Root.Children[0];
+        var info = (RepeatInfo)plan.Root.Members[0];
         Assert.That(info.Count.Value, Is.EqualTo(3));
-        Assert.That(info.Children, Has.Count.EqualTo(1));
+        Assert.That(info.Members, Has.Count.EqualTo(1));
     }
 
     [Test]
@@ -126,11 +126,11 @@ public class ExecutionPlanBuilderTests
     {
         var repeat = new SchemaRepeat { Name = "Items", Count = new SchemaPubRef { Namespace = "hdr", Name = "count" } };
         var root = CreateGroup("Root");
-        root.ChildList.Add(repeat);
+        root.MemberList.Add(repeat);
 
         var plan = CreateBuilder().Build(root);
 
-        var info = (RepeatInfo)plan.Root.Children[0];
+        var info = (RepeatInfo)plan.Root.Members[0];
         Assert.That(info.Count.Value, Is.EqualTo(new PublishedValueKey("hdr", "count")));
     }
 
@@ -138,14 +138,14 @@ public class ExecutionPlanBuilderTests
     public void Build_Choice_IndexInRange_CreatesChoiceInfo()
     {
         var choice = new SchemaChoice { Name = "Pick", SelectedIndex = 1 };
-        choice.ChildList.Add(CreateField("A"));
-        choice.ChildList.Add(CreateField("B"));
+        choice.MemberList.Add(CreateField("A"));
+        choice.MemberList.Add(CreateField("B"));
         var root = CreateGroup("Root");
-        root.ChildList.Add(choice);
+        root.MemberList.Add(choice);
 
         var plan = CreateBuilder().Build(root);
 
-        var info = (ChoiceInfo)plan.Root.Children[0];
+        var info = (ChoiceInfo)plan.Root.Members[0];
         Assert.That(info.SelectedIndex.Value, Is.EqualTo(1));
     }
 
@@ -154,10 +154,10 @@ public class ExecutionPlanBuilderTests
     public void Build_Choice_IndexOutOfRange_Throws(int index)
     {
         var choice = new SchemaChoice { Name = "Pick", SelectedIndex = index };
-        choice.ChildList.Add(CreateField("A"));
-        choice.ChildList.Add(CreateField("B"));
+        choice.MemberList.Add(CreateField("A"));
+        choice.MemberList.Add(CreateField("B"));
         var root = CreateGroup("Root");
-        root.ChildList.Add(choice);
+        root.MemberList.Add(choice);
 
         var ex = Assert.Throws<ExecutionPlanException>(() => CreateBuilder().Build(root));
 
@@ -169,7 +169,7 @@ public class ExecutionPlanBuilderTests
     public void Build_ProcessorStageMismatch_ThrowsWithPath()
     {
         var root = CreateGroup("Root");
-        root.ChildList.Add(CreateField("A", Ref("bad")));
+        root.MemberList.Add(CreateField("A", Ref("bad")));
 
         var ex = Assert.Throws<ExecutionPlanException>(() => CreateBuilder().Build(root));
 
@@ -181,8 +181,8 @@ public class ExecutionPlanBuilderTests
     public void Build_MultipleErrors_AreAllReported()
     {
         var root = CreateGroup("Root");
-        root.ChildList.Add(CreateField("A", Ref("bad")));
-        root.ChildList.Add(CreateField("B", Ref("bad")));
+        root.MemberList.Add(CreateField("A", Ref("bad")));
+        root.MemberList.Add(CreateField("B", Ref("bad")));
 
         var ex = Assert.Throws<ExecutionPlanException>(() => CreateBuilder().Build(root));
 
@@ -279,7 +279,7 @@ public class ExecutionPlanBuilderTests
             Roots = [root],
             Groups = [root],
             Fields = [],
-            ChildList = [root],
+            MemberList = [root],
             TypeDefs = [],
             ProcessorDefs = [],
             Includes = []

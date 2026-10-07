@@ -7,7 +7,7 @@ internal static class SchemaDocumentMapper
         var groups = new List<SchemaGroup>();
         var fields = new List<SchemaField>();
 
-        foreach (var root in schema.Children)
+        foreach (var root in schema.Members)
         {
             if (root is SchemaGroup group)
             {
@@ -19,11 +19,11 @@ internal static class SchemaDocumentMapper
         {
             Name = schema.Name,
             PropertyList = schema.Properties.ToList(),
-            ChildList = schema.ChildList,
+            MemberList = schema.MemberList,
             TypeDefs = schema.TypeDefs,
             ProcessorDefs = schema.ProcessorDefs,
             Includes = schema.Includes,
-            Roots = schema.Children.OfType<SchemaGroup>().ToList(),
+            Roots = schema.Members.OfType<SchemaGroup>().ToList(),
             Groups = groups,
             Fields = fields
         };
@@ -33,7 +33,7 @@ internal static class SchemaDocumentMapper
     {
         groups.Add(group);
 
-        foreach (var child in group.Children)
+        foreach (var child in group.Members)
         {
             switch (child)
             {

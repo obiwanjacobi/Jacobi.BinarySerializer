@@ -55,8 +55,8 @@ public class SchemaGroup : SchemaNode
 
     public IReadOnlyList<SchemaProcessorRef> Processors => ProcessorsList;
     public List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
-    public IReadOnlyList<SchemaNode> Children => ChildList;
-    internal List<SchemaNode> ChildList { get; init; } = [];
+    public IReadOnlyList<SchemaNode> Members => MemberList;
+    internal List<SchemaNode> MemberList { get; init; } = [];
 
     /// <summary>
     /// Optional size in bytes of the encoded content of this group (a constant or a reference to a value).

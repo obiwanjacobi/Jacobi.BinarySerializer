@@ -28,10 +28,10 @@ internal static class SessionTestHelpers
     public static SchemaField FieldWith(string name, SchemaProcessorRef processor)
         => new() { Name = name, DataType = SchemaDataType.Int32, ProcessorsList = [processor] };
 
-    public static SchemaGroup Group(string name, SchemaProcessorRef[] processors, params SchemaNode[] children)
+    public static SchemaGroup Group(string name, SchemaProcessorRef[] processors, params SchemaNode[] members)
     {
         var group = new SchemaGroup { Name = name, ProcessorsList = [.. processors] };
-        group.ChildList.AddRange(children);
+        group.MemberList.AddRange(members);
         return group;
     }
 

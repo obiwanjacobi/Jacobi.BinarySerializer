@@ -111,10 +111,10 @@ public class PlanCursorTests
     }
 
     [Test]
-    public void Repeat_VisitsChildrenPerItem()
+    public void Repeat_VisitsMembersPerItem()
     {
         var repeat = new SchemaRepeat { Name = "R", Count = 2 };
-        repeat.ChildList.Add(Field("A"));
+        repeat.MemberList.Add(Field("A"));
         var cursor = new PlanCursor<string>(Build(Group("Root", repeat)));
         cursor.Next();
         cursor.Enter("Root");
@@ -144,10 +144,10 @@ public class PlanCursorTests
     }
 
     [Test]
-    public void Repeat_CountZero_SkipsChildren()
+    public void Repeat_CountZero_SkipsMembers()
     {
         var repeat = new SchemaRepeat { Name = "R", Count = 0 };
-        repeat.ChildList.Add(Field("A"));
+        repeat.MemberList.Add(Field("A"));
         var cursor = new PlanCursor<string>(Build(Group("Root", repeat)));
         cursor.Next();
         cursor.Enter("Root");
@@ -163,7 +163,7 @@ public class PlanCursorTests
     public void Repeat_EnterInsteadOfEnterRepeat_OrNegativeCount_Throws()
     {
         var repeat = new SchemaRepeat { Name = "R", Count = 1 };
-        repeat.ChildList.Add(Field("A"));
+        repeat.MemberList.Add(Field("A"));
         var cursor = new PlanCursor<string>(Build(Group("Root", repeat)));
         cursor.Next();
         cursor.Enter("Root");
@@ -177,8 +177,8 @@ public class PlanCursorTests
     public void Choice_VisitsOnlySelectedAlternative()
     {
         var choice = new SchemaChoice { Name = "C", SelectedIndex = 1 };
-        choice.ChildList.Add(Field("A"));
-        choice.ChildList.Add(Field("B"));
+        choice.MemberList.Add(Field("A"));
+        choice.MemberList.Add(Field("B"));
         var cursor = new PlanCursor<string>(Build(Group("Root", choice)));
         cursor.Next();
         cursor.Enter("Root");
@@ -203,7 +203,7 @@ public class PlanCursorTests
     public void Choice_EnterWithoutIndexOrOutOfRange_Throws()
     {
         var choice = new SchemaChoice { Name = "C", SelectedIndex = 0 };
-        choice.ChildList.Add(Field("A"));
+        choice.MemberList.Add(Field("A"));
         var cursor = new PlanCursor<string>(Build(Group("Root", choice)));
         cursor.Next();
         cursor.Enter("Root");
@@ -259,10 +259,10 @@ public class PlanCursorTests
     private static SchemaField Field(string name)
         => new() { Name = name, DataType = SchemaDataType.Int32 };
 
-    private static SchemaGroup Group(string name, params SchemaNode[] children)
+    private static SchemaGroup Group(string name, params SchemaNode[] members)
     {
         var group = new SchemaGroup { Name = name };
-        group.ChildList.AddRange(children);
+        group.MemberList.AddRange(members);
         return group;
     }
 }

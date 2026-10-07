@@ -9,7 +9,7 @@ public class SessionStateTests
     private static ReaderSession CreateSession()
     {
         var group = new SchemaGroup { Name = "Root" };
-        group.ChildList.Add(SessionTestHelpers.Field("A"));
+        group.MemberList.Add(SessionTestHelpers.Field("A"));
         return new ReaderSession(SessionTestHelpers.Build(group));
     }
 

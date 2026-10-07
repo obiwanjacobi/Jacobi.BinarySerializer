@@ -13,7 +13,7 @@
       "4": null
     }
   ],
-  "children": [
+  "members": [
     {
       "name": "Png",
       "kind": "group",
@@ -23,7 +23,7 @@
           "byteorder": "big"
         }
       ],
-      "children": [
+      "members": [
         {
           "name": "Signature",
           "kind": "field",
@@ -34,7 +34,7 @@
         {
           "name": "Chunk",
           "kind": "repeat",
-          "children": [
+          "members": [
             {
               "name": "Length",
               "kind": "field",
@@ -47,7 +47,7 @@
                 { "processor": "sys.bytepacker" },
                 { "processor": "sys.crc" }
               ],
-              "children": [
+              "members": [
                 {
                   "name": "Type",
                   "kind": "field",
@@ -66,11 +66,11 @@
                   "selectedIndex": { "ref": "Png.Chunk[].Body.Type" },
                   "size": { "ref": "Png.Chunk[].Length" },
                   "valueProcessors": [ { "processor": "ref:chunkType" } ],
-                  "children": [
+                  "members": [
                     {
                       "name": "Header",
                       "kind": "group",
-                      "children": [
+                      "members": [
                         {
                           "name": "Width",
                           "kind": "field",
@@ -121,7 +121,7 @@
                     {
                       "name": "End",
                       "kind": "group",
-                      "children": []
+                      "members": []
                     },
                     {
                       "name": "Unknown",

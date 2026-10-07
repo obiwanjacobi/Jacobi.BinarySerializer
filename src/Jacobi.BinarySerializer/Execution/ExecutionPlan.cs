@@ -27,7 +27,7 @@ public sealed class ExecutionPlan
 
         if (node is GroupInfo group)
         {
-            foreach (var child in group.Children)
+            foreach (var child in group.Members)
             {
                 if (Find(child, path) is { } found)
                 {
@@ -196,11 +196,11 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         {
             ValidateLayoutChain(pipeline.LayoutProcessors, path, state);
         }
-        var children = new List<NodeInfo>(group.Children.Count);
-        foreach (var child in group.Children)
+        var members = new List<NodeInfo>(group.Members.Count);
+        foreach (var child in group.Members)
         {
             if (BuildNode(child, path.Append(child.Name), pipeline, state) is { } childInfo)
-                children.Add(childInfo);
+                members.Add(childInfo);
         }
 
         GroupInfo info = group switch
@@ -210,7 +210,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                 Name = group.Name,
                 Path = path,
                 Group = group,
-                Children = children,
+                Members = members,
                 Pipeline = pipeline,
                 Count = BindValueSource(repeat.Count, path, state),
                 Size = BindValueSource(repeat.Size, path, state),
@@ -221,7 +221,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                 Name = group.Name,
                 Path = path,
                 Group = group,
-                Children = children,
+                Members = members,
                 Pipeline = pipeline,
                 SelectedIndex = BindValueSource(choice.SelectedIndex, path, state),
                 Size = BindValueSource(choice.Size, path, state),
@@ -232,25 +232,25 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                 Name = group.Name,
                 Path = path,
                 Group = group,
-                Children = children,
+                Members = members,
                 Pipeline = pipeline,
                 Size = BindValueSource(group.Size, path, state),
             },
         };
 
-        if (info is ChoiceInfo { SelectedIndex: int index } && (index < 0 || index >= children.Count))
+        if (info is ChoiceInfo { SelectedIndex: int index } && (index < 0 || index >= members.Count))
         {
-            state.Error(path, $"Choice index {index} is out of range (0..{children.Count - 1}).");
+            state.Error(path, $"Choice index {index} is out of range (0..{members.Count - 1}).");
         }
 
-        for (var i = 0; i < children.Count; i++)
+        for (var i = 0; i < members.Count; i++)
         {
-            if (info is not ChoiceInfo && i < children.Count - 1 && IsOpenEnded(children[i]))
+            if (info is not ChoiceInfo && i < members.Count - 1 && IsOpenEnded(members[i]))
             {
-                state.Error(children[i].Path, "A node that reads until the end of the input or size window (a repeat without a count or size, a bytes field without a length, or a group or choice that ends in one) must be the last node of its group.");
+                state.Error(members[i].Path, "A node that reads until the end of the input or size window (a repeat without a count or size, a bytes field without a length, or a group or choice that ends in one) must be the last node of its group.");
             }
-            children[i].Parent = info;
-            children[i].Index = i;
+            members[i].Parent = info;
+            members[i].Index = i;
         }
 
         return info;
@@ -278,7 +278,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                 state.Error(node.Path, "A bytes field without a length takes the rest of the enclosing size window, but no enclosing group has a size.");
                 break;
             case GroupInfo group:
-                foreach (var child in group.Children)
+                foreach (var child in group.Members)
                 {
                     ValidateBytesWindow(child, inWindow || group.HasSize, state);
                 }
@@ -292,8 +292,8 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             GroupInfo { HasSize: true } => false,
             FieldInfo { Field.DataType: SchemaDataType.Bytes, HasLength: false } => true,
             RepeatInfo repeat => repeat.UntilEnd,
-            ChoiceInfo choice => choice.Children.Any(IsOpenEnded),
-            GroupInfo group => group.Children.Count > 0 && IsOpenEnded(group.Children[^1]),
+            ChoiceInfo choice => choice.Members.Any(IsOpenEnded),
+            GroupInfo group => group.Members.Count > 0 && IsOpenEnded(group.Members[^1]),
             _ => false,
         };
 
@@ -508,7 +508,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
 
         if (node is GroupInfo group)
         {
-            foreach (var child in group.Children)
+            foreach (var child in group.Members)
             {
                 if (Find(child, path) is { } found)
                 {
@@ -546,7 +546,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                     return null;
                 }
 
-                var child = group.Children.FirstOrDefault(c => c.Name == segments[i]);
+                var child = group.Members.FirstOrDefault(c => c.Name == segments[i]);
                 if (child is null)
                 {
                     return null;

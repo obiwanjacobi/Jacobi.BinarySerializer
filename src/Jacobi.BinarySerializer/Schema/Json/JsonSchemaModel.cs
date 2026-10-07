@@ -6,7 +6,7 @@ namespace Jacobi.BinarySerializer.Schema.Json;
 internal sealed class JsonSchema
 {
     public required string Name { get; init; }
-    public IReadOnlyList<JsonSchemaNode> Children { get; init; } = [];
+    public IReadOnlyList<JsonSchemaNode> Members { get; init; } = [];
     public IReadOnlyList<JsonSchemaTypeDef> TypeDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaProcessorDef> ProcessorDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaDocumentRef> Includes { get; init; } = [];
@@ -48,7 +48,7 @@ internal sealed class JsonSchemaField : JsonSchemaNode
 internal class JsonSchemaGroup : JsonSchemaNode
 {
     public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
-    public IReadOnlyList<JsonSchemaNode> Children { get; init; } = [];
+    public IReadOnlyList<JsonSchemaNode> Members { get; init; } = [];
     public JsonSchemaValueOrRef<int> Size { get; init; }
 }
 

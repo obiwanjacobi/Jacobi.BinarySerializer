@@ -63,7 +63,7 @@ public class SchemaSetTests
 
         schemaSet.Compile();
 
-        var resolvedField = rootGroup.Children.OfType<SchemaField>().Single();
+        var resolvedField = rootGroup.Members.OfType<SchemaField>().Single();
         Assert.That(main.IsCompiled, Is.True);
         Assert.That(resolvedField.DataType, Is.EqualTo(SchemaDataType.Int32));
     }
@@ -241,7 +241,7 @@ public class SchemaSetTests
             Roots = rootList,
             Groups = rootList,
             Fields = rootList.SelectMany(GetFields).ToList(),
-            ChildList = roots?.ToList() ?? [],
+            MemberList = roots?.ToList() ?? [],
             TypeDefs = typeDefs ?? [],
             ProcessorDefs = processorDefs ?? [],
             Includes = includes ?? []
@@ -259,12 +259,12 @@ public class SchemaSetTests
 
     private static void AddChild(SchemaGroup group, SchemaNode child)
     {
-        ((List<SchemaNode>)group.Children).Add(child);
+        ((List<SchemaNode>)group.Members).Add(child);
     }
 
     private static IEnumerable<SchemaField> GetFields(SchemaGroup group)
     {
-        foreach (var child in group.Children)
+        foreach (var child in group.Members)
         {
             if (child is SchemaField field)
             {

@@ -8,11 +8,11 @@ internal static class JsonSchemaMapper
 {
     public static Schema ToSchema(JsonSchema jsonSchema)
     {
-        var children = new List<SchemaNode>();
+        var members = new List<SchemaNode>();
         var schema = new Schema
         {
             Name = jsonSchema.Name,
-            ChildList = children,
+            MemberList = members,
             TypeDefs = jsonSchema.TypeDefs.Select(ToSchemaTypeDef).ToList(),
             ProcessorDefs = jsonSchema.ProcessorDefs.Select(ToSchemaProcessorDef).ToList(),
             Includes = jsonSchema.Includes.Select(include => new SchemaDocumentRef
@@ -23,15 +23,15 @@ internal static class JsonSchemaMapper
             PropertyList = MergeProperties(jsonSchema.Properties, jsonSchema.AdditionalData)
         };
 
-        foreach (var jsonNode in jsonSchema.Children)
+        foreach (var jsonNode in jsonSchema.Members)
         {
             var node = ToSchemaNode(jsonNode, false);
             if (node is not SchemaGroup group)
             {
-                throw new JsonException("Schema children must be group nodes.");
+                throw new JsonException("Schema members must be group nodes.");
             }
 
-            children.Add(group);
+            members.Add(group);
         }
 
         return schema;
@@ -42,7 +42,7 @@ internal static class JsonSchemaMapper
         return new JsonSchema
         {
             Name = schema.Name,
-            Children = schema.Children.Select(FromSchemaNode).ToList(),
+            Members = schema.Members.Select(FromSchemaNode).ToList(),
             TypeDefs = schema.TypeDefs.Select(FromSchemaTypeDef).ToList(),
             ProcessorDefs = schema.ProcessorDefs.Select(FromSchemaProcessorDef).ToList(),
             Includes = schema.Includes.Select(include => new JsonSchemaDocumentRef
@@ -119,7 +119,7 @@ internal static class JsonSchemaMapper
 
     private static SchemaGroup ToSchemaGroup(JsonSchemaGroup jsonGroup)
     {
-        var children = new List<SchemaNode>();
+        var members = new List<SchemaNode>();
 
         SchemaGroup group;
         if (jsonGroup is JsonSchemaRepeat repeat)
@@ -128,7 +128,7 @@ internal static class JsonSchemaMapper
             {
                 Name = repeat.Name,
                 ProcessorsList = repeat.Processors.Select(ToSchemaProcessorRef).ToList(),
-                ChildList = children,
+                MemberList = members,
                 Count = ToSchemaValueOrRef(repeat.Count),
                 Size = ToSchemaValueOrRef(repeat.Size),
                 ValueProcessorsList = repeat.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
@@ -141,7 +141,7 @@ internal static class JsonSchemaMapper
             {
                 Name = choice.Name,
                 ProcessorsList = choice.Processors.Select(ToSchemaProcessorRef).ToList(),
-                ChildList = children,
+                MemberList = members,
                 SelectedIndex = ToSchemaValueOrRef(choice.SelectedIndex),
                 Size = ToSchemaValueOrRef(choice.Size),
                 ValueProcessorsList = choice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
@@ -154,16 +154,16 @@ internal static class JsonSchemaMapper
             {
                 Name = jsonGroup.Name,
                 ProcessorsList = jsonGroup.Processors.Select(ToSchemaProcessorRef).ToList(),
-                ChildList = children,
+                MemberList = members,
                 Count = 1,
                 Size = ToSchemaValueOrRef(jsonGroup.Size),
                 PropertyList = MergeProperties(jsonGroup.Properties, jsonGroup.AdditionalData)
             };
         }
 
-        foreach (var child in jsonGroup.Children)
+        foreach (var child in jsonGroup.Members)
         {
-            children.Add(ToSchemaNode(child, true));
+            members.Add(ToSchemaNode(child, true));
         }
 
         return group;
@@ -232,7 +232,7 @@ internal static class JsonSchemaMapper
             {
                 Name = repeat.Name,
                 Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Children = repeat.Children.Select(FromSchemaNode).ToList(),
+                Members = repeat.Members.Select(FromSchemaNode).ToList(),
                 Count = FromSchemaValueOrRef(repeat.Count),
                 Size = FromSchemaValueOrRef(repeat.Size),
                 ValueProcessors = repeat.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
@@ -246,7 +246,7 @@ internal static class JsonSchemaMapper
             {
                 Name = choice.Name,
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Children = choice.Children.Select(FromSchemaNode).ToList(),
+                Members = choice.Members.Select(FromSchemaNode).ToList(),
                 SelectedIndex = FromSchemaValueOrRef(choice.SelectedIndex),
                 Size = FromSchemaValueOrRef(choice.Size),
                 ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),

@@ -13,7 +13,7 @@ public class SessionRepeatUntilEndTests
     private static SchemaRepeat Items()
     {
         var repeat = new SchemaRepeat { Name = "Items" };
-        repeat.ChildList.Add(Field("Byte", SchemaDataType.UInt8));
+        repeat.MemberList.Add(Field("Byte", SchemaDataType.UInt8));
         return repeat;
     }
 
@@ -58,8 +58,8 @@ public class SessionRepeatUntilEndTests
     public void Read_ChoiceAsRoot_ReadsTheSelectedAlternative()
     {
         var choice = new SchemaChoice { Name = "Root", SelectedIndex = 1 };
-        choice.ChildList.Add(Field("A", SchemaDataType.UInt8));
-        choice.ChildList.Add(Field("B", SchemaDataType.UInt16));
+        choice.MemberList.Add(Field("A", SchemaDataType.UInt8));
+        choice.MemberList.Add(Field("B", SchemaDataType.UInt16));
         var sink = new Sink();
 
         var result = new ReaderSession(Build(choice)).Read(new ReadOnlySequence<byte>(new byte[] { 1, 0 }), sink);
@@ -72,8 +72,8 @@ public class SessionRepeatUntilEndTests
     public void Build_ChoiceWithOpenAlternativeNotLast_ReportsError()
     {
         var choice = new SchemaChoice { Name = "Pick", SelectedIndex = 0 };
-        choice.ChildList.Add(Items());
-        choice.ChildList.Add(Field("Other", SchemaDataType.UInt8));
+        choice.MemberList.Add(Items());
+        choice.MemberList.Add(Field("Other", SchemaDataType.UInt8));
         var root = Group("Root", [], choice, Field("Tail", SchemaDataType.UInt8));
 
         var ex = Assert.Throws<ExecutionPlanException>(() => Build(root));
@@ -85,8 +85,8 @@ public class SessionRepeatUntilEndTests
     public void Build_ChoiceOfOpenAlternativesLast_Succeeds()
     {
         var choice = new SchemaChoice { Name = "Pick", SelectedIndex = 0 };
-        choice.ChildList.Add(Items());
-        choice.ChildList.Add(Items());
+        choice.MemberList.Add(Items());
+        choice.MemberList.Add(Items());
 
         Assert.That(() => Build(Group("Root", [], Field("Head", SchemaDataType.UInt8), choice)), Throws.Nothing);
     }
@@ -95,8 +95,8 @@ public class SessionRepeatUntilEndTests
     public void Build_SizedChoiceWithOpenAlternativeNotLast_Succeeds()
     {
         var choice = new SchemaChoice { Name = "Pick", SelectedIndex = 0, Size = 2 };
-        choice.ChildList.Add(Items());
-        choice.ChildList.Add(Items());
+        choice.MemberList.Add(Items());
+        choice.MemberList.Add(Items());
 
         Assert.That(() => Build(Group("Root", [], choice, Field("Tail", SchemaDataType.UInt8))), Throws.Nothing);
     }

@@ -1,4 +1,4 @@
-﻿using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Execution;
@@ -63,7 +63,7 @@ public class GroupInfo : NodeInfo
 {
     // schema group
     public required SchemaGroup Group { get; init; }
-    public required IReadOnlyList<NodeInfo> Children { get; init; }
+    public required IReadOnlyList<NodeInfo> Members { get; init; }
 
     /// <summary>
     /// Semantic processors that convert the referenced value of a repeat count or choice index into the int (empty for other groups).

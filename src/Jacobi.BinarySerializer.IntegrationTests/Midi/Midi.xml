@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<schema name="Midi">
+  <members>
+    <group name="Midi">
+      <processors>
+        <processor processor="sys.bytepacker" byteorder="big" />
+      </processors>
+      <members>
+        <group name="Header">
+          <members>
+            <field name="Type" type="String" length="4" value="MThd" />
+            <field name="Length" type="UInt32" value="6" />
+            <field name="Format" type="UInt16" />
+            <field name="TrackCount" type="UInt16" />
+            <field name="Division" type="UInt16" />
+          </members>
+        </group>
+        <repeat name="Track">
+          <count ref="Midi.Header.TrackCount" />
+          <members>
+            <field name="Type" type="String" length="4" value="MTrk" />
+            <field name="Length" type="UInt32" />
+            <field name="Events" type="Bytes">
+              <length ref="Midi.Track[].Length" />
+            </field>
+          </members>
+        </repeat>
+      </members>
+    </group>
+  </members>
+</schema>

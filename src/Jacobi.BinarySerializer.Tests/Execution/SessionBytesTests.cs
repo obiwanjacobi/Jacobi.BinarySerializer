@@ -52,7 +52,7 @@ public class SessionBytesTests
     [Test]
     public void Read_NoLengthInWindow_TakesRestOfWindow()
     {
-        var body = new SchemaGroup { Name = "Body", Size = new SchemaNodeRef { Path = "Root.Len" }, ChildList = { Blob() } };
+        var body = new SchemaGroup { Name = "Body", Size = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Blob() } };
         var plan = Build(Group("Root", [], Field("Len", SchemaDataType.UInt8), body, Field("Tail", SchemaDataType.UInt8)));
         var sink = new Sink();
 
@@ -70,7 +70,7 @@ public class SessionBytesTests
     [Test]
     public void Build_NoLengthNotLast_ReportsError()
     {
-        var body = new SchemaGroup { Name = "Body", Size = 4, ChildList = { Blob(), Field("Tail", SchemaDataType.UInt8) } };
+        var body = new SchemaGroup { Name = "Body", Size = 4, MemberList = { Blob(), Field("Tail", SchemaDataType.UInt8) } };
 
         Assert.That(() => Build(Group("Root", [], body)), Throws.TypeOf<ExecutionPlanException>());
     }

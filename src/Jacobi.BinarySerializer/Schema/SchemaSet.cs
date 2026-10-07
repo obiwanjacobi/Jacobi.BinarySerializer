@@ -216,7 +216,7 @@ public sealed class SchemaSet
 
         if (node is SchemaGroup g)
         {
-            foreach (var child in g.ChildList)
+            foreach (var child in g.MemberList)
             {
                 ExpandPropertyNames(child);
             }
@@ -276,7 +276,7 @@ public sealed class SchemaSet
 
         foreach (var root in document.Roots)
         {
-            CollectNodeDependencies(root.ChildList, document.Name, dependencies);
+            CollectNodeDependencies(root.MemberList, document.Name, dependencies);
         }
 
         return dependencies;
@@ -303,7 +303,7 @@ public sealed class SchemaSet
                     AddSchemaDependency(processor, documentName, dependencies);
                 }
 
-                CollectNodeDependencies(group.ChildList, documentName, dependencies);
+                CollectNodeDependencies(group.MemberList, documentName, dependencies);
             }
         }
     }
@@ -371,7 +371,7 @@ public sealed class SchemaSet
                 }
             }
 
-            if (!ResolveReferences(document, group.ChildList))
+            if (!ResolveReferences(document, group.MemberList))
             {
                 allResolved = false;
             }
@@ -442,7 +442,7 @@ public sealed class SchemaSet
                     }
                 }
 
-                if (!ResolveReferences(document, group.ChildList))
+                if (!ResolveReferences(document, group.MemberList))
                 {
                     allResolved = false;
                 }
@@ -484,7 +484,7 @@ public sealed class SchemaSet
                 Name = node.Name,
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(typeDef.Processors, repeatNode.Processors),
-                ChildList = [.. repeatNode.ChildList],
+                MemberList = [.. repeatNode.MemberList],
                 Count = repeatNode.Count,
                 Size = repeatNode.Size,
                 ValueProcessorsList = [.. repeatNode.ValueProcessors],
@@ -497,7 +497,7 @@ public sealed class SchemaSet
                 Name = node.Name,
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(typeDef.Processors, choiceNode.Processors),
-                ChildList = [.. choiceNode.ChildList],
+                MemberList = [.. choiceNode.MemberList],
                 SelectedIndex = choiceNode.SelectedIndex,
                 Size = choiceNode.Size,
                 ValueProcessorsList = [.. choiceNode.ValueProcessors],
@@ -510,7 +510,7 @@ public sealed class SchemaSet
                 Name = node.Name,
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(typeDef.Processors, groupNode.Processors),
-                ChildList = [.. groupNode.ChildList],
+                MemberList = [.. groupNode.MemberList],
                 Size = groupNode.Size,
             };
         }

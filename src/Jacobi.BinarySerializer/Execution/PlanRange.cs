@@ -148,7 +148,7 @@ public sealed class PlanRange
                 fields.Add(field);
                 break;
             case GroupInfo group:
-                foreach (var child in group.Children)
+                foreach (var child in group.Members)
                 {
                     CollectFields(child, fields);
                 }

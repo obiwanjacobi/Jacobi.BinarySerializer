@@ -45,9 +45,9 @@ read:   bytes -> (Stream, root only) -> Layout -> Representation -> Semantic -> 
 
 ## Structures
 
-- **Group**: a sequence of children. Optional `size` (constant or reference) bounds its bytes: the reader limits a window, the writer buffers the group and writes the size once it is known.
+- **Group**: a sequence of members. Optional `size` (constant or reference) bounds its bytes: the reader limits a window, the writer buffers the group and writes the size once it is known.
 - **Repeat**: a group with a count (constant, `ref:`, `pub:`) or *until end* (open). Each item is entered/exited as a separate frame with its own index.
-- **Choice**: a group where one child is selected by an index (constant or referenced); only the selected child is visited.
+- **Choice**: a group where one member is selected by an index (constant or referenced); only the selected member is visited.
 
 ## Forward references
 

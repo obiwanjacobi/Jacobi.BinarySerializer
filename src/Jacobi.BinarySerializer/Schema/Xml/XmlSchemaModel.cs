@@ -9,12 +9,12 @@ public sealed class XmlSchema
     [XmlAttribute("name")]
     public string Name { get; set; } = string.Empty;
 
-    [XmlArray("children")]
+    [XmlArray("members")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
     [XmlArrayItem("group", typeof(XmlSchemaGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
-    public List<XmlSchemaNode> Children { get; set; } = [];
+    public List<XmlSchemaNode> Members { get; set; } = [];
 
     [XmlArray("typeDefs")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
@@ -91,12 +91,12 @@ public class XmlSchemaGroup : XmlSchemaNode
     [XmlArrayItem("processor")]
     public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
 
-    [XmlArray("children")]
+    [XmlArray("members")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
     [XmlArrayItem("group", typeof(XmlSchemaGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
-    public List<XmlSchemaNode> Children { get; set; } = [];
+    public List<XmlSchemaNode> Members { get; set; } = [];
 
     /// <summary>A constant size in bytes (attribute); use <see cref="SizeRef"/> to refer to a value.</summary>
     [XmlAttribute("size")]

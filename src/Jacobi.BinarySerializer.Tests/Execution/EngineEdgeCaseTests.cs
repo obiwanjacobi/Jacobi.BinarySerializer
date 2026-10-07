@@ -23,7 +23,7 @@ public class EngineEdgeCaseTests
             ProcessorsList = [new SchemaProcessorRef { Processor = new SchemaProcessorName($"{Ns}.proc") }]
         };
         var group = new SchemaGroup { Name = "Root" };
-        group.ChildList.Add(field);
+        group.MemberList.Add(field);
         return new ExecutionPlanBuilder(manager).Build(group);
     }
 

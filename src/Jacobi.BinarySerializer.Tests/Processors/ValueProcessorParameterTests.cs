@@ -18,8 +18,8 @@ public class ValueProcessorParameterTests
             SelectedIndex = new SchemaNodeRef { Path = "Root.Type" },
             ValueProcessorsList = [.. valueProcessors],
         };
-        choice.ChildList.Add(Field("A", SchemaDataType.Int16));
-        choice.ChildList.Add(Field("B", SchemaDataType.Int16));
+        choice.MemberList.Add(Field("A", SchemaDataType.Int16));
+        choice.MemberList.Add(Field("B", SchemaDataType.Int16));
 
         return Group("Root", [],
             Field("Type", SchemaDataType.String, [Ref("string", ("length", "4"), ("encoding", "ascii"))]),

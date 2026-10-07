@@ -13,8 +13,8 @@ public class SessionChoiceTests
     private static ExecutionPlan Plan(SchemaValueOrRef<int> selectedIndex)
     {
         var choice = new SchemaChoice { Name = "Pick", SelectedIndex = selectedIndex };
-        choice.ChildList.Add(Field("A", SchemaDataType.Int16));
-        choice.ChildList.Add(Field("B", SchemaDataType.Int16));
+        choice.MemberList.Add(Field("A", SchemaDataType.Int16));
+        choice.MemberList.Add(Field("B", SchemaDataType.Int16));
         return Build(Group("Root", [], Field("Kind"), choice));
     }
 

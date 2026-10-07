@@ -29,7 +29,7 @@ public interface IValueSource
     /// <summary>Gets the number of items the model holds for a child repeat.</summary>
     int GetCount(RepeatContext context);
 
-    /// <summary>Enters one item of a child repeat. The scope holds the repeat's children.</summary>
+    /// <summary>Enters one item of a child repeat. The scope holds the repeat's members.</summary>
     IValueSource EnterItem(RepeatContext context, int index);
 
     /// <summary>Gets the index of the choice alternative that the model holds for a child choice.</summary>

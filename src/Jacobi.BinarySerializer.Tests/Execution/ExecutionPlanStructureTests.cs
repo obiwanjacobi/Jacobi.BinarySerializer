@@ -13,7 +13,7 @@ public class ExecutionPlanStructureTests
 
         var plan = Build(root);
 
-        Assert.That(plan.Root.Children.Select(c => c.Name), Is.EqualTo(new[] { "C", "A", "B" }));
+        Assert.That(plan.Root.Members.Select(c => c.Name), Is.EqualTo(new[] { "C", "A", "B" }));
     }
 
     [Test]
@@ -27,11 +27,11 @@ public class ExecutionPlanStructureTests
 
         var plan = Build(root);
 
-        var children = plan.Root.Children;
-        Assert.That(children[0], Is.TypeOf<FieldInfo>());
-        Assert.That(children[1], Is.TypeOf<GroupInfo>());
-        Assert.That(children[2], Is.TypeOf<RepeatInfo>());
-        Assert.That(children[3], Is.TypeOf<ChoiceInfo>());
+        var members = plan.Root.Members;
+        Assert.That(members[0], Is.TypeOf<FieldInfo>());
+        Assert.That(members[1], Is.TypeOf<GroupInfo>());
+        Assert.That(members[2], Is.TypeOf<RepeatInfo>());
+        Assert.That(members[3], Is.TypeOf<ChoiceInfo>());
     }
 
     [Test]
@@ -44,16 +44,16 @@ public class ExecutionPlanStructureTests
         var plan = Build(root);
 
         Assert.That(plan.Root.Group, Is.SameAs(root));
-        Assert.That(((FieldInfo)plan.Root.Children[0]).Field, Is.SameAs(field));
-        Assert.That(((GroupInfo)plan.Root.Children[1]).Group, Is.SameAs(inner));
+        Assert.That(((FieldInfo)plan.Root.Members[0]).Field, Is.SameAs(field));
+        Assert.That(((GroupInfo)plan.Root.Members[1]).Group, Is.SameAs(inner));
     }
 
     [Test]
-    public void Build_EmptyGroup_HasNoChildren()
+    public void Build_EmptyGroup_HasNoMembers()
     {
         var plan = Build(Group("Root"));
 
-        Assert.That(plan.Root.Children, Is.Empty);
+        Assert.That(plan.Root.Members, Is.Empty);
     }
 
     [Test]
@@ -64,9 +64,9 @@ public class ExecutionPlanStructureTests
 
         var plan = Build(root);
 
-        var l1 = (GroupInfo)plan.Root.Children.Single();
-        var l2 = (GroupInfo)l1.Children.Single();
-        var leafInfo = l2.Children.Single();
+        var l1 = (GroupInfo)plan.Root.Members.Single();
+        var l2 = (GroupInfo)l1.Members.Single();
+        var leafInfo = l2.Members.Single();
 
         Assert.That(leafInfo.Path, Is.EqualTo("L0.L1.L2.Leaf"));
         Assert.That(leafInfo.Parent, Is.SameAs(l2));
@@ -84,11 +84,11 @@ public class ExecutionPlanStructureTests
 
         var plan = Build(root);
 
-        Assert.That(plan.Root.Children.Select(c => c.Index), Is.EqualTo(new[] { 0, 1 }));
-        var g1 = (GroupInfo)plan.Root.Children[0];
-        var g2 = (GroupInfo)plan.Root.Children[1];
-        Assert.That(g1.Children.Select(c => c.Index), Is.EqualTo(new[] { 0, 1 }));
-        Assert.That(g2.Children.Select(c => c.Index), Is.EqualTo(new[] { 0, 1, 2 }));
+        Assert.That(plan.Root.Members.Select(c => c.Index), Is.EqualTo(new[] { 0, 1 }));
+        var g1 = (GroupInfo)plan.Root.Members[0];
+        var g2 = (GroupInfo)plan.Root.Members[1];
+        Assert.That(g1.Members.Select(c => c.Index), Is.EqualTo(new[] { 0, 1 }));
+        Assert.That(g2.Members.Select(c => c.Index), Is.EqualTo(new[] { 0, 1, 2 }));
     }
 
     [Test]
@@ -100,26 +100,26 @@ public class ExecutionPlanStructureTests
 
         var plan = Build(root);
 
-        var paths = plan.Root.Children
+        var paths = plan.Root.Members
             .Cast<GroupInfo>()
-            .SelectMany(g => g.Children)
+            .SelectMany(g => g.Members)
             .Select(c => c.Path);
         Assert.That(paths, Is.EqualTo(new[] { "Root.G1.Value", "Root.G2.Value" }));
     }
 
     [Test]
-    public void Build_RepeatOfGroup_KeepsNestedChildren()
+    public void Build_RepeatOfGroup_KeepsNestedMembers()
     {
         var root = Group("Root",
             Repeat("Items", 4, Group("Item", Field("Id"), Field("Name"))));
 
         var plan = Build(root);
 
-        var repeat = (RepeatInfo)plan.Root.Children.Single();
-        var item = (GroupInfo)repeat.Children.Single();
+        var repeat = (RepeatInfo)plan.Root.Members.Single();
+        var item = (GroupInfo)repeat.Members.Single();
         Assert.That(repeat.Count.Value, Is.EqualTo(4));
         Assert.That(item.Path, Is.EqualTo("Root.Items.Item"));
-        Assert.That(item.Children.Select(c => c.Name), Is.EqualTo(new[] { "Id", "Name" }));
+        Assert.That(item.Members.Select(c => c.Name), Is.EqualTo(new[] { "Id", "Name" }));
     }
 
     [Test]
@@ -132,10 +132,10 @@ public class ExecutionPlanStructureTests
 
         var plan = Build(root);
 
-        var choice = (ChoiceInfo)plan.Root.Children.Single();
+        var choice = (ChoiceInfo)plan.Root.Members.Single();
         Assert.That(choice.SelectedIndex.Value, Is.EqualTo(1));
-        Assert.That(choice.Children.Select(c => c.Name), Is.EqualTo(new[] { "OptA", "OptB" }));
-        Assert.That(((GroupInfo)choice.Children[1]).Children, Has.Count.EqualTo(2));
+        Assert.That(choice.Members.Select(c => c.Name), Is.EqualTo(new[] { "OptA", "OptB" }));
+        Assert.That(((GroupInfo)choice.Members[1]).Members, Has.Count.EqualTo(2));
     }
 
     [Test]
@@ -150,13 +150,13 @@ public class ExecutionPlanStructureTests
 
         var plan = Build(root);
 
-        var records = (RepeatInfo)plan.Root.Children[1];
-        var record = (GroupInfo)records.Children.Single();
-        var body = (ChoiceInfo)record.Children[1];
+        var records = (RepeatInfo)plan.Root.Members[1];
+        var record = (GroupInfo)records.Members.Single();
+        var body = (ChoiceInfo)record.Members[1];
 
-        Assert.That(plan.Root.Children[0], Is.TypeOf<FieldInfo>());
+        Assert.That(plan.Root.Members[0], Is.TypeOf<FieldInfo>());
         Assert.That(body.Path, Is.EqualTo("Root.Records.Record.Body"));
-        Assert.That(body.Children.Select(c => c.Path),
+        Assert.That(body.Members.Select(c => c.Path),
             Is.EqualTo(new[] { "Root.Records.Record.Body.Text", "Root.Records.Record.Body.Number" }));
         Assert.That(body.Parent, Is.SameAs(record));
         Assert.That(record.Parent, Is.SameAs(records));
@@ -201,7 +201,7 @@ public class ExecutionPlanStructureTests
 
         foreach (var node in Flatten(plan.Root).Where(n => n.Parent is not null))
         {
-            Assert.That(node.Parent!.Children[node.Index], Is.SameAs(node), node.Path.Value);
+            Assert.That(node.Parent!.Members[node.Index], Is.SameAs(node), node.Path.Value);
         }
     }
 
@@ -212,7 +212,7 @@ public class ExecutionPlanStructureTests
         yield return node;
         if (node is GroupInfo group)
         {
-            foreach (var child in group.Children)
+            foreach (var child in group.Members)
             {
                 foreach (var descendant in Flatten(child))
                 {
@@ -228,24 +228,24 @@ public class ExecutionPlanStructureTests
     private static SchemaField Field(string name)
         => new() { Name = name, DataType = SchemaDataType.Int32 };
 
-    private static SchemaGroup Group(string name, params SchemaNode[] children)
+    private static SchemaGroup Group(string name, params SchemaNode[] members)
     {
         var group = new SchemaGroup { Name = name };
-        group.ChildList.AddRange(children);
+        group.MemberList.AddRange(members);
         return group;
     }
 
-    private static SchemaRepeat Repeat(string name, int count, params SchemaNode[] children)
+    private static SchemaRepeat Repeat(string name, int count, params SchemaNode[] members)
     {
         var repeat = new SchemaRepeat { Name = name, Count = count };
-        repeat.ChildList.AddRange(children);
+        repeat.MemberList.AddRange(members);
         return repeat;
     }
 
-    private static SchemaChoice Choice(string name, int index, params SchemaNode[] children)
+    private static SchemaChoice Choice(string name, int index, params SchemaNode[] members)
     {
         var choice = new SchemaChoice { Name = name, SelectedIndex = index };
-        choice.ChildList.AddRange(children);
+        choice.MemberList.AddRange(members);
         return choice;
     }
 }

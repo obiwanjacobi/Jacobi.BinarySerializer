@@ -13,7 +13,7 @@ public class SessionRepeatWriteTests
     private static ExecutionPlan Plan(SchemaValueOrRef<int> count)
     {
         var repeat = new SchemaRepeat { Name = "Items", Count = count };
-        repeat.ChildList.Add(Field("Item", SchemaDataType.Int16));
+        repeat.MemberList.Add(Field("Item", SchemaDataType.Int16));
         return Build(Group("Root", [], Field("Length"), repeat));
     }
 

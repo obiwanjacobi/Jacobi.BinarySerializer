@@ -141,7 +141,7 @@ internal sealed class PlanCursor<TScope>
         if (_range is not null)
         {
             var instance = Instance;
-            while (frame.NextChild < frame.EndChild && !_range.Includes(frame.Group.Children[frame.NextChild], instance))
+            while (frame.NextChild < frame.EndChild && !_range.Includes(frame.Group.Members[frame.NextChild], instance))
             {
                 frame.NextChild++;
             }
@@ -149,7 +149,7 @@ internal sealed class PlanCursor<TScope>
 
         if (frame.NextChild < frame.EndChild)
         {
-            var child = frame.Group.Children[frame.NextChild++];
+            var child = frame.Group.Members[frame.NextChild++];
             switch (child)
             {
                 case FieldInfo:
@@ -190,7 +190,7 @@ internal sealed class PlanCursor<TScope>
         }
 
         var first = 0;
-        var end = _pendingEnter.Children.Count;
+        var end = _pendingEnter.Members.Count;
         if (_pendingEnter is ChoiceInfo)
         {
             if (selectedIndex is not { } index || index < 0 || index >= end)

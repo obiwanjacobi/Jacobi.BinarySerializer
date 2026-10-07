@@ -1,0 +1,73 @@
+{
+  "name": "Midi",
+  "members": [
+    {
+      "name": "Midi",
+      "kind": "group",
+      "processors": [
+        { "processor": "sys.bytepacker", "byteorder": "big" }
+      ],
+      "members": [
+        {
+          "name": "Header",
+          "kind": "group",
+          "members": [
+            {
+              "name": "Type",
+              "kind": "field",
+              "type": "String",
+              "length": 4,
+              "value": "MThd"
+            },
+            {
+              "name": "Length",
+              "kind": "field",
+              "type": "UInt32",
+              "value": 6
+            },
+            {
+              "name": "Format",
+              "kind": "field",
+              "type": "UInt16"
+            },
+            {
+              "name": "TrackCount",
+              "kind": "field",
+              "type": "UInt16"
+            },
+            {
+              "name": "Division",
+              "kind": "field",
+              "type": "UInt16"
+            }
+          ]
+        },
+        {
+          "name": "Track",
+          "kind": "repeat",
+          "count": { "ref": "Midi.Header.TrackCount" },
+          "members": [
+            {
+              "name": "Type",
+              "kind": "field",
+              "type": "String",
+              "length": 4,
+              "value": "MTrk"
+            },
+            {
+              "name": "Length",
+              "kind": "field",
+              "type": "UInt32"
+            },
+            {
+              "name": "Events",
+              "kind": "field",
+              "type": "Bytes",
+              "length": { "ref": "Midi.Track[].Length" }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

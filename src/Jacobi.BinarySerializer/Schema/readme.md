@@ -18,7 +18,7 @@ A schema describes the structure of a binary format: which fields exist, in what
 | `typeDefs` | Reusable group and field types: a data type plus processors. |
 | `processorDefs` | Named processor configurations (a processor key with default properties). |
 | `properties` / `processors` | Document-level defaults. |
-| `children` | The root groups. |
+| `members` | The root groups. |
 
 ## Nodes
 
@@ -27,9 +27,9 @@ Every node has a `name`, a `kind` and optional `properties`.
 | Kind | Meaning | Notable members |
 |------|---------|-----------------|
 | `field` | One value. | `type` (data type), `value` (constant or reference), `length` (for `Bytes`), `processors` |
-| `group` | An ordered sequence of children. | `children`, `size`, `processors` |
+| `group` | An ordered sequence of members. | `members`, `size`, `processors` |
 | `repeat` | A group that repeats. | `count` (constant or reference); no count means until the end of the data. `valueProcessors` convert a referenced count. |
-| `choice` | A group where exactly one child is used. | `selectedIndex` (constant or reference), `valueProcessors` |
+| `choice` | A group where exactly one member is used. | `selectedIndex` (constant or reference), `valueProcessors` |
 
 Nodes are addressed by path (`Png.Chunk.Body.Type`).
 
@@ -38,8 +38,10 @@ Nodes are addressed by path (`Png.Chunk.Body.Type`).
 A number of members (`value`, `length`, `size`, `count`, `selectedIndex`) accept either a constant or a reference:
 
 - constant: `"count": 3`
-- `ref:` a schema node value: `{ "reference": "ref:Png.Chunk[].Length" }`. An instance index selects the repeat occurrence (`[2]`); an empty `[]` means "the same occurrence as the referrer".
-- `pub:` a value published by a processor: `{ "reference": "pub:ns.name" }`. No indices.
+- `ref:` a schema node value: JSON `{ "ref": "Png.Chunk[].Length" }`, XML `<length ref="Png.Chunk[].Length" />`. An instance index selects the repeat occurrence (`[2]`); an empty `[]` means "the same occurrence as the referrer".
+- `pub:` a value published by a processor: JSON `{ "pub": "ns.name" }`, XML `<length pub="ns.name" />`. No indices.
+
+The `ref` and `pub` keys are mutually exclusive (both present is an error; neither means unset). The `ref:`/`pub:` prefixes of the in-memory form (`SchemaNodeRef`, `SchemaPubRef`) are not written in JSON/XML; the key says which kind it is. In XML a constant is an attribute (`count="3"`) and a reference is a nested element.
 
 A reference to a value that is not available yet is an error at runtime. Plan building checks that referenced paths exist.
 
@@ -47,10 +49,12 @@ A reference to a value that is not available yet is an error at runtime. Plan bu
 
 - A processor is used by its key (`sys.varint`: namespace `sys`, id `varint`) or by a reference to a definition (`ref:name`, or `ref:document.name` from another document).
 - Properties given on the use override the properties of the definition.
+- Properties of a processor use or definition can be given explicitly (`"properties": [ { "name": "byteorder", "value": "big" } ]`) or inline: any key that is not mapped to the model is a property. `{ "processor": "sys.bytepacker", "byteorder": "big" }` is the same as the explicit form; in XML use attributes or child elements (`<processor processor="sys.bytepacker" byteorder="big" />`).
+- JSON documents may contain `//` and `/* */` comments and trailing commas.
 - Inside a processor entry the properties belong to that processor, so no prefix is needed. Elsewhere the full name is used (`sys.enum.map`). `Compile()` expands the short names to the full form.
 - Properties on fields and groups themselves are generic (e.g. `byteorder` on a group is read by the layout processors that care about it).
 - A property value is a string interpreted by the processor; `null` is a valid value that a processor may give meaning.
-- Processors are sorted into stages by the pipeline. A child node inherits the stages of its parent and replaces a stage only when it specifies processors for it.
+A child node inherits the stages of its parent
 
 ## How to...
 
@@ -60,7 +64,7 @@ A reference to a value that is not available yet is an error at runtime. Plan bu
 
 **Read a fixed number of raw bytes:** type `Bytes` with `length`. Without a length the field takes the rest of the enclosing sized group.
 
-**Make a count/length that precedes its data:** add a field for it and reference it: `"count": { "reference": "ref:Header.Count" }`. The writer derives the referenced field from the model; it does not have to exist in the model.
+`"count": { "ref": "Header.Count" }`.
 
 **Bound a group by a byte size:** use `size` (constant or reference). The reader limits the group to that window; the writer derives the value from the encoded content.
 

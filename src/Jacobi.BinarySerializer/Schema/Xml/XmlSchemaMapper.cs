@@ -9,7 +9,7 @@ internal static class XmlSchemaMapper
     private static readonly HashSet<string> SchemaKnownNames = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(XmlSchema.Name),
-        nameof(XmlSchema.Children),
+        nameof(XmlSchema.Members),
         nameof(XmlSchema.TypeDefs),
         nameof(XmlSchema.ProcessorDefs),
         nameof(XmlSchema.Includes),
@@ -20,7 +20,7 @@ internal static class XmlSchemaMapper
     {
         nameof(XmlSchemaGroup.Name),
         nameof(XmlSchemaGroup.Processors),
-        nameof(XmlSchemaGroup.Children),
+        nameof(XmlSchemaGroup.Members),
         nameof(XmlSchemaGroup.Size),
         nameof(XmlSchemaGroup.SizeRef),
         nameof(XmlSchemaGroup.Properties)
@@ -30,7 +30,7 @@ internal static class XmlSchemaMapper
     {
         nameof(XmlSchemaRepeat.Name),
         nameof(XmlSchemaRepeat.Processors),
-        nameof(XmlSchemaRepeat.Children),
+        nameof(XmlSchemaRepeat.Members),
         nameof(XmlSchemaRepeat.Count),
         nameof(XmlSchemaRepeat.CountRef),
         nameof(XmlSchemaRepeat.Size),
@@ -43,7 +43,7 @@ internal static class XmlSchemaMapper
     {
         nameof(XmlSchemaChoice.Name),
         nameof(XmlSchemaChoice.Processors),
-        nameof(XmlSchemaChoice.Children),
+        nameof(XmlSchemaChoice.Members),
         nameof(XmlSchemaChoice.SelectedIndex),
         nameof(XmlSchemaChoice.SelectedIndexRef),
         nameof(XmlSchemaChoice.Size),
@@ -79,12 +79,12 @@ internal static class XmlSchemaMapper
 
     public static Schema ToSchema(XmlSchema xmlSchema)
     {
-        var children = new List<SchemaNode>();
+        var members = new List<SchemaNode>();
 
         var schema = new Schema
         {
             Name = xmlSchema.Name,
-            ChildList = children,
+            MemberList = members,
             TypeDefs = xmlSchema.TypeDefs.Select(ToSchemaTypeDef).ToList(),
             ProcessorDefs = xmlSchema.ProcessorDefs.Select(ToSchemaProcessorDef).ToList(),
             Includes = xmlSchema.Includes.Select(include => new SchemaDocumentRef
@@ -99,12 +99,12 @@ internal static class XmlSchemaMapper
                 SchemaKnownNames)
         };
 
-        foreach (var child in xmlSchema.Children)
+        foreach (var child in xmlSchema.Members)
         {
             var node = ToSchemaNode(child, false);
             if (node is SchemaGroup group)
             {
-                children.Add(group);
+                members.Add(group);
             }
         }
 
@@ -116,7 +116,7 @@ internal static class XmlSchemaMapper
         return new XmlSchema
         {
             Name = schema.Name,
-            Children = schema.Children.Select(FromSchemaNode).ToList(),
+            Members = schema.Members.Select(FromSchemaNode).ToList(),
             TypeDefs = schema.TypeDefs.Select(FromSchemaTypeDef).ToList(),
             ProcessorDefs = schema.ProcessorDefs.Select(FromSchemaProcessorDef).ToList(),
             Includes = schema.Includes.Select(include => new XmlSchemaDocumentRef
@@ -225,13 +225,13 @@ internal static class XmlSchemaMapper
 
     private static SchemaRepeat ToSchemaGroup(XmlSchemaGroup xmlGroup)
     {
-        var children = new List<SchemaNode>();
+        var members = new List<SchemaNode>();
 
         var group = new SchemaRepeat
         {
             Name = xmlGroup.Name,
             ProcessorsList = xmlGroup.Processors.Select(ToSchemaProcessorRef).ToList(),
-            ChildList = children,
+            MemberList = members,
             Count = 1,
             Size = ToSchemaValue(xmlGroup.Size, xmlGroup.SizeRef),
             PropertyList = MergeProperties(
@@ -241,9 +241,9 @@ internal static class XmlSchemaMapper
                 GroupKnownNames)
         };
 
-        foreach (var child in xmlGroup.Children)
+        foreach (var child in xmlGroup.Members)
         {
-            children.Add(ToSchemaNode(child, true));
+            members.Add(ToSchemaNode(child, true));
         }
 
         return group;
@@ -251,13 +251,13 @@ internal static class XmlSchemaMapper
 
     private static SchemaRepeat ToSchemaRepeat(XmlSchemaRepeat xmlRepeat)
     {
-        var children = new List<SchemaNode>();
+        var members = new List<SchemaNode>();
 
         var repeat = new SchemaRepeat
         {
             Name = xmlRepeat.Name,
             ProcessorsList = xmlRepeat.Processors.Select(ToSchemaProcessorRef).ToList(),
-            ChildList = children,
+            MemberList = members,
             Count = ToSchemaValue(xmlRepeat.Count, xmlRepeat.CountRef),
             Size = ToSchemaValue(xmlRepeat.Size, xmlRepeat.SizeRef),
             ValueProcessorsList = xmlRepeat.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
@@ -268,9 +268,9 @@ internal static class XmlSchemaMapper
                 RepeatKnownNames)
         };
 
-        foreach (var child in xmlRepeat.Children)
+        foreach (var child in xmlRepeat.Members)
         {
-            children.Add(ToSchemaNode(child, true));
+            members.Add(ToSchemaNode(child, true));
         }
 
         return repeat;
@@ -278,13 +278,13 @@ internal static class XmlSchemaMapper
 
     private static SchemaChoice ToSchemaChoice(XmlSchemaChoice xmlChoice)
     {
-        var children = new List<SchemaNode>();
+        var members = new List<SchemaNode>();
 
         var choice = new SchemaChoice
         {
             Name = xmlChoice.Name,
             ProcessorsList = xmlChoice.Processors.Select(ToSchemaProcessorRef).ToList(),
-            ChildList = children,
+            MemberList = members,
             SelectedIndex = ToSchemaValue(xmlChoice.SelectedIndex, xmlChoice.SelectedIndexRef),
             Size = ToSchemaValue(xmlChoice.Size, xmlChoice.SizeRef),
             ValueProcessorsList = xmlChoice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
@@ -295,9 +295,9 @@ internal static class XmlSchemaMapper
                 ChoiceKnownNames)
         };
 
-        foreach (var child in xmlChoice.Children)
+        foreach (var child in xmlChoice.Members)
         {
-            children.Add(ToSchemaNode(child, true));
+            members.Add(ToSchemaNode(child, true));
         }
 
         return choice;
@@ -363,7 +363,7 @@ internal static class XmlSchemaMapper
             {
                 Name = repeat.Name,
                 Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Children = repeat.Children.Select(FromSchemaNode).ToList(),
+                Members = repeat.Members.Select(FromSchemaNode).ToList(),
                 Count = ToConstantText(repeat.Count),
                 CountRef = ToXmlValueRef(repeat.Count),
                 Size = ToConstantText(repeat.Size),
@@ -379,7 +379,7 @@ internal static class XmlSchemaMapper
             {
                 Name = choice.Name,
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Children = choice.Children.Select(FromSchemaNode).ToList(),
+                Members = choice.Members.Select(FromSchemaNode).ToList(),
                 SelectedIndex = ToConstantText(choice.SelectedIndex),
                 SelectedIndexRef = ToXmlValueRef(choice.SelectedIndex),
                 Size = ToConstantText(choice.Size),
@@ -409,7 +409,7 @@ internal static class XmlSchemaMapper
         {
             Name = typeDef.Name,
             Processors = typeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
-            Children = [],
+            Members = [],
             Properties = typeDef.Properties.Select(FromSchemaProperty).ToList()
         };
     }

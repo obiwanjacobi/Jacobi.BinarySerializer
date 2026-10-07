@@ -22,10 +22,10 @@ public class LayoutChainTests
     private static SchemaField Field(string name, SchemaDataType type = SchemaDataType.UInt8)
         => new() { Name = name, DataType = type };
 
-    private static SchemaGroup Group(string name, SchemaProcessorRef[] processors, params SchemaNode[] children)
+    private static SchemaGroup Group(string name, SchemaProcessorRef[] processors, params SchemaNode[] members)
     {
         var group = new SchemaGroup { Name = name, ProcessorsList = [.. processors] };
-        group.ChildList.AddRange(children);
+        group.MemberList.AddRange(members);
         return group;
     }
 

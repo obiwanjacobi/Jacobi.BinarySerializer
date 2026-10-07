@@ -28,7 +28,7 @@ public class FieldChainTests
             ProcessorsList = [.. chain.Select(Ref)]
         };
         var group = new SchemaGroup { Name = "Root" };
-        group.ChildList.Add(field);
+        group.MemberList.Add(field);
         return group;
     }
 

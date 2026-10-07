@@ -310,7 +310,7 @@ public sealed class WriterSession : SessionState
         GroupInfo node = cursor.CurrentGroup!;
         while (node is not RepeatInfo || ReferenceEquals(node, cursor.CurrentGroup))
         {
-            var first = node.Children.Count > 0 ? node.Children[0] : null;
+            var first = node.Members.Count > 0 ? node.Members[0] : null;
             if (first is FieldInfo field)
             {
                 var context = new FieldContext { Node = field, Services = _services, Instance = cursor.Instance.Append(cursor.NextItemIndex) };

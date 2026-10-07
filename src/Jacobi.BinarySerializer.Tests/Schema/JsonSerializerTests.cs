@@ -11,7 +11,7 @@ public class JsonSerializerTests
         var json = @"
         {
             ""Name"": ""TestSchema"",
-            ""Children"": [
+            ""members"": [
             ],
             ""Properties"": [
             ]
@@ -27,14 +27,14 @@ public class JsonSerializerTests
         var json = @"
         {
             ""name"": ""TestSchema"",
-            ""children"": [
+            ""members"": [
                 {
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
                     ""processors"": [
                         { ""processor"": ""root"" }
                     ],
-                    ""children"": [],
+                    ""members"": [],
                     ""properties"": [
                         { ""name"": ""endianness"", ""type"": ""String"", ""value"": ""little"" }
                     ]
@@ -55,14 +55,14 @@ public class JsonSerializerTests
         var json = @"
         {
             ""name"": ""TestSchema"",
-            ""children"": [
+            ""members"": [
                 {
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
                     ""processors"": [
                         { ""processor"": ""root"" }
                     ],
-                    ""children"": [
+                    ""members"": [
                         {
                             ""name"": ""FieldA"",
                             ""kind"": ""field"",
@@ -81,7 +81,7 @@ public class JsonSerializerTests
 
         var document = JsonSerializer.Deserialize(json);
         var group = document.Groups.Single();
-        var field = (SchemaField)group.Children.Single();
+        var field = (SchemaField)group.Members.Single();
 
         Assert.That(document.Roots.Count, Is.EqualTo(1));
         Assert.That(document.Roots.Single().Name, Is.EqualTo("RootGroup"));
@@ -126,7 +126,7 @@ public class JsonSerializerTests
                     ""processors"": [
                         { ""processor"": ""ref:rootProcessor"" }
                     ],
-                    ""children"": [
+                    ""members"": [
                         {
                             ""name"": ""InnerField"",
                             ""kind"": ""field"",
@@ -138,14 +138,14 @@ public class JsonSerializerTests
                     ]
                 }
             ],
-            ""children"": [
+            ""members"": [
                 {
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
                     ""processors"": [
                         { ""processor"": ""ref:rootProcessor"" }
                     ],
-                    ""children"": [
+                    ""members"": [
                         {
                             ""name"": ""Value"",
                             ""typeDef"": ""CommonField"",
@@ -173,7 +173,7 @@ public class JsonSerializerTests
 
         // Resolver not implemented yet: usage remains as raw references.
         var rootGroup = document.Roots.Single();
-        var rootField = rootGroup.Children.OfType<SchemaField>().Single();
+        var rootField = rootGroup.Members.OfType<SchemaField>().Single();
         Assert.That(rootGroup.Processors.Single().Processor.ToString(), Is.EqualTo("ref:rootProcessor"));
         Assert.That(rootField.Processors.Single().Processor.ToString(), Is.EqualTo("ref:deltaProcessor"));
     }
@@ -188,7 +188,7 @@ public class JsonSerializerTests
                 { "name": "counterProcessor", "processor": "sys.align" },
                 { "name": "selectorProcessor", "processor": "sys.align" }
               ],
-              "children": [
+              "members": [
                 {
                   "kind": "repeat",
                   "name": "RepeatGroup",
@@ -196,7 +196,7 @@ public class JsonSerializerTests
                   "processors": [
                     { "processor": "rootProcessor" }
                   ],
-                  "children": [
+                  "members": [
                     {
                       "kind": "field",
                       "name": "Value",
@@ -214,7 +214,7 @@ public class JsonSerializerTests
                   "processors": [
                     { "processor": "ref:selectorProcessor" }
                   ],
-                  "children": [
+                  "members": [
                     {
                       "kind": "field",
                       "name": "OptionA",
@@ -255,7 +255,7 @@ public class JsonSerializerTests
         var json = """
             {
               "name": "ValueSchema",
-              "children": [ { "kind": "group", "name": "Root", "children": [
+              "members": [ { "kind": "group", "name": "Root", "members": [
                 { "kind": "field", "name": "Constant", "type": "UInt32", "value": "0x89504E47" },
                 { "kind": "field", "name": "Published", "type": "Int32", "value": { "pub": "hdr.magic" } },
                 { "kind": "field", "name": "Node", "type": "Int32", "value": { "ref": "Constant" } },
@@ -267,7 +267,7 @@ public class JsonSerializerTests
 
         var document = JsonSerializer.Deserialize(json);
         var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
-        var fields = roundTripped.Groups.Single().Children.OfType<SchemaField>().ToDictionary(f => f.Name);
+        var fields = roundTripped.Groups.Single().Members.OfType<SchemaField>().ToDictionary(f => f.Name);
 
         Assert.That(fields["Constant"].Value is string text && text == "0x89504E47");
         Assert.That(fields["Published"].Value is SchemaPubRef pub && pub.Namespace == "hdr" && pub.Name == "magic");
@@ -281,11 +281,11 @@ public class JsonSerializerTests
         var json = """
             {
               "name": "VpSchema",
-              "children": [ { "kind": "group", "name": "Root", "children": [
+              "members": [ { "kind": "group", "name": "Root", "members": [
                 { "kind": "repeat", "name": "Items", "count": { "ref": "Root.Kind" },
-                  "valueProcessors": [ { "processor": "sys.map", "properties": [ { "name": "a", "value": "1" } ] } ], "children": [] },
+                  "valueProcessors": [ { "processor": "sys.map", "properties": [ { "name": "a", "value": "1" } ] } ], "members": [] },
                 { "kind": "choice", "name": "Pick", "selectedIndex": { "ref": "Root.Kind" },
-                  "valueProcessors": [ { "processor": "sys.map", "properties": [ { "name": "b", "value": "2" } ] } ], "children": [] }
+                  "valueProcessors": [ { "processor": "sys.map", "properties": [ { "name": "b", "value": "2" } ] } ], "members": [] }
               ] } ],
               "properties": []
             }
@@ -293,9 +293,9 @@ public class JsonSerializerTests
 
         var document = JsonSerializer.Deserialize(json);
         var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
-        var children = roundTripped.Groups.Single(g => g.Name == "Root").Children;
-        var repeat = children.OfType<SchemaRepeat>().Single();
-        var choice = children.OfType<SchemaChoice>().Single();
+        var members = roundTripped.Groups.Single(g => g.Name == "Root").Members;
+        var repeat = members.OfType<SchemaRepeat>().Single();
+        var choice = members.OfType<SchemaChoice>().Single();
 
         Assert.That(repeat.ValueProcessors, Has.Count.EqualTo(1));
         Assert.That(repeat.ValueProcessors[0].Properties.Single().Value, Is.EqualTo("1"));
@@ -309,10 +309,10 @@ public class JsonSerializerTests
         var json = """
             {
               "name": "SizeSchema",
-              "children": [ { "kind": "group", "name": "Root", "children": [
-                { "kind": "repeat", "name": "Items", "size": { "ref": "Root.Len" }, "children": [] },
-                { "kind": "group", "name": "Fixed", "size": 4, "children": [] },
-                { "kind": "choice", "name": "Pick", "selectedIndex": 0, "size": 8, "children": [] }
+              "members": [ { "kind": "group", "name": "Root", "members": [
+                { "kind": "repeat", "name": "Items", "size": { "ref": "Root.Len" }, "members": [] },
+                { "kind": "group", "name": "Fixed", "size": 4, "members": [] },
+                { "kind": "choice", "name": "Pick", "selectedIndex": 0, "size": 8, "members": [] }
               ] } ],
               "properties": []
             }
@@ -320,13 +320,13 @@ public class JsonSerializerTests
 
         var document = JsonSerializer.Deserialize(json);
         var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
-        var children = roundTripped.Groups.Single(g => g.Name == "Root").Children.OfType<SchemaGroup>().ToList();
+        var members = roundTripped.Groups.Single(g => g.Name == "Root").Members.OfType<SchemaGroup>().ToList();
 
-        Assert.That(children[0], Is.InstanceOf<SchemaRepeat>());
-        Assert.That(((SchemaRepeat)children[0]).Count is not (int or SchemaNodeRef or SchemaPubRef), Is.True);
-        Assert.That(children[0].Size is SchemaNodeRef { Path: "Root.Len" }, Is.True);
-        Assert.That(children[1].Size is 4, Is.True);
-        Assert.That(children[2].Size is 8, Is.True);
+        Assert.That(members[0], Is.InstanceOf<SchemaRepeat>());
+        Assert.That(((SchemaRepeat)members[0]).Count is not (int or SchemaNodeRef or SchemaPubRef), Is.True);
+        Assert.That(members[0].Size is SchemaNodeRef { Path: "Root.Len" }, Is.True);
+        Assert.That(members[1].Size is 4, Is.True);
+        Assert.That(members[2].Size is 8, Is.True);
     }
 
     [Test]
@@ -335,7 +335,7 @@ public class JsonSerializerTests
         var json = """
             {
               "name": "LengthSchema",
-              "children": [ { "kind": "group", "name": "Root", "children": [
+              "members": [ { "kind": "group", "name": "Root", "members": [
                 { "kind": "field", "name": "Len", "type": "UInt8" },
                 { "kind": "field", "name": "Blob", "type": "Bytes", "length": { "ref": "Root.Len" } },
                 { "kind": "field", "name": "Sig", "type": "Bytes", "length": 2, "value": "0x8950" },
@@ -347,7 +347,7 @@ public class JsonSerializerTests
 
         var document = JsonSerializer.Deserialize(json);
         var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
-        var fields = roundTripped.Groups.Single(g => g.Name == "Root").Children.OfType<SchemaField>().ToList();
+        var fields = roundTripped.Groups.Single(g => g.Name == "Root").Members.OfType<SchemaField>().ToList();
 
         Assert.That(fields[1].DataType, Is.EqualTo(SchemaDataType.Bytes));
         Assert.That(fields[1].Length is SchemaNodeRef { Path: "Root.Len" }, Is.True);

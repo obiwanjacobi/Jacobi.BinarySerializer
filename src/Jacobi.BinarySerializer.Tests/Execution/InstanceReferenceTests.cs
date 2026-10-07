@@ -54,9 +54,9 @@ public class InstanceReferenceTests
     {
         SchemaNodeRef.TryParse(countRef, out var nodeRef);
         var lens = new SchemaRepeat { Name = "Lens", Count = 2 };
-        lens.ChildList.Add(Field("Len"));
+        lens.MemberList.Add(Field("Len"));
         var items = new SchemaRepeat { Name = "Items", Count = nodeRef! };
-        items.ChildList.Add(Field("Item", SchemaDataType.Int16));
+        items.MemberList.Add(Field("Item", SchemaDataType.Int16));
         return Build(Group("Root", [], lens, items));
     }
 
@@ -65,7 +65,7 @@ public class InstanceReferenceTests
     {
         var plan = IndexedPlan("ref:Root.Lens.Len");
 
-        var items = (RepeatInfo)plan.Root.Children[1];
+        var items = (RepeatInfo)plan.Root.Members[1];
         Assert.That(items.Count.Value, Is.EqualTo(PublishedValueKey.ForPath("Root.Lens.Len", new InstancePath([0]))));
     }
 
@@ -74,7 +74,7 @@ public class InstanceReferenceTests
     {
         var plan = IndexedPlan("ref:Root.Lens[1].Len");
 
-        var items = (RepeatInfo)plan.Root.Children[1];
+        var items = (RepeatInfo)plan.Root.Members[1];
         Assert.That(items.Count.Value, Is.EqualTo(PublishedValueKey.ForPath("Root.Lens.Len", new InstancePath([1]))));
     }
 
@@ -126,10 +126,10 @@ public class InstanceReferenceTests
     {
         SchemaNodeRef.TryParse("ref:Root.Rows[].Len", out var nodeRef);
         var vals = new SchemaRepeat { Name = "Vals", Count = nodeRef! };
-        vals.ChildList.Add(Field("Item", SchemaDataType.Int16));
+        vals.MemberList.Add(Field("Item", SchemaDataType.Int16));
         var rows = new SchemaRepeat { Name = "Rows", Count = 2 };
-        rows.ChildList.Add(Field("Len"));
-        rows.ChildList.Add(vals);
+        rows.MemberList.Add(Field("Len"));
+        rows.MemberList.Add(vals);
         return Build(Group("Root", [], rows));
     }
 
@@ -164,9 +164,9 @@ public class InstanceReferenceTests
     {
         SchemaNodeRef.TryParse("ref:Root.Lens[5].Len", out var nodeRef);
         var lens = new SchemaRepeat { Name = "Lens", Count = 0 };
-        lens.ChildList.Add(Field("Len"));
+        lens.MemberList.Add(Field("Len"));
         var items = new SchemaRepeat { Name = "Items", Count = nodeRef! };
-        items.ChildList.Add(Field("Item", SchemaDataType.Int16));
+        items.MemberList.Add(Field("Item", SchemaDataType.Int16));
         var plan = Build(Group("Root", [], lens, items));
         var source = new DictSource(new());
 
@@ -181,18 +181,18 @@ public class InstanceReferenceTests
     {
         var xml = """
             <schema name="IdxSchema">
-              <children>
+              <members>
                 <group name="Root">
-                  <children>
+                  <members>
                     <repeat name="Items">
                       <count ref="Root.Lens[].Len" />
-                      <children>
+                      <members>
                         <field name="Item" type="Int32" />
-                      </children>
+                      </members>
                     </repeat>
-                  </children>
+                  </members>
                 </group>
-              </children>
+              </members>
               <properties />
             </schema>
             """;
@@ -200,14 +200,14 @@ public class InstanceReferenceTests
         var document = new SchemaSet().LoadFromXml(xml);
         var serialized = Jacobi.BinarySerializer.Schema.Xml.XmlSerializer.Serialize(document);
         var repeat = new SchemaSet().LoadFromXml(serialized).Roots.OfType<SchemaGroup>().Single()
-            .Children.OfType<SchemaRepeat>().Single();
+            .Members.OfType<SchemaRepeat>().Single();
 
         Assert.That(serialized, Does.Contain("ref=\"Root.Lens[].Len\""));
         Assert.That(repeat.Count is SchemaNodeRef r && r.Indices.Single().IsCurrent);
 
         var json = Jacobi.BinarySerializer.Schema.Json.JsonSerializer.Serialize(document);
         var jsonRepeat = Jacobi.BinarySerializer.Schema.Json.JsonSerializer.Deserialize(json)
-            .Roots.OfType<SchemaGroup>().Single().Children.OfType<SchemaRepeat>().Single();
+            .Roots.OfType<SchemaGroup>().Single().Members.OfType<SchemaRepeat>().Single();
 
         Assert.That(json, Does.Contain("\"Ref\": \"Root.Lens[].Len\""));
         Assert.That(jsonRepeat.Count is SchemaNodeRef jr && jr.Indices.Single().IsCurrent);

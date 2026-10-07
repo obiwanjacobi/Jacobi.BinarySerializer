@@ -98,7 +98,7 @@ public class SerializerTests
             Roots = roots,
             Groups = roots,
             Fields = [],
-            ChildList = [.. roots],
+            MemberList = [.. roots],
             TypeDefs = [],
             ProcessorDefs = [],
             Includes = []
