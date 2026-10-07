@@ -104,7 +104,7 @@ internal static class JsonSchemaMapper
         {
             Name = processor.Name,
             Processor = new ProcessorKey(processor.Processor),
-            PropertyList = processor.Properties.Select(ToSchemaProperty).ToList()
+            PropertyList = MergeProperties(processor.Properties, processor.AdditionalData)
         };
     }
 
@@ -113,7 +113,7 @@ internal static class JsonSchemaMapper
         return new SchemaProcessorRef
         {
             Processor = new SchemaProcessorName(processor.Processor),
-            PropertyList = processor.Properties.Select(ToSchemaProperty).ToList()
+            PropertyList = MergeProperties(processor.Properties, processor.AdditionalData)
         };
     }
 

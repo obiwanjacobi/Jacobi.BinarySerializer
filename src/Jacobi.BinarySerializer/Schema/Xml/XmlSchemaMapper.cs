@@ -311,8 +311,8 @@ internal static class XmlSchemaMapper
             Processor = new ProcessorKey(processor.Processor),
             PropertyList = MergeProperties(
                 processor.Properties,
-                null,
-                null,
+                processor.AdditionalAttributes,
+                processor.AdditionalElements,
                 ProcessorDefKnownNames)
         };
     }
@@ -334,8 +334,8 @@ internal static class XmlSchemaMapper
             Processor = new SchemaProcessorName(processor.Processor),
             PropertyList = MergeProperties(
                 processor.Properties,
-                null,
-                null,
+                processor.AdditionalAttributes,
+                processor.AdditionalElements,
                 ProcessorRefKnownNames)
         };
     }

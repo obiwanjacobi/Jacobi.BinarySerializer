@@ -78,6 +78,9 @@ internal sealed class JsonSchemaProcessorDef
     public required string Name { get; init; }
     public required string Processor { get; init; }
     public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
+
+    [JsonExtensionData]
+    public IDictionary<string, JsonElement>? AdditionalData { get; init; }
 }
 
 /// <summary>A processor key ('namespace.id') or a reference to a processor declaration ('ref:name').</summary>
@@ -85,6 +88,9 @@ internal sealed class JsonSchemaProcessorRef
 {
     public required string Processor { get; init; }
     public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
+
+    [JsonExtensionData]
+    public IDictionary<string, JsonElement>? AdditionalData { get; init; }
 }
 
 internal sealed class JsonSchemaDocumentRef

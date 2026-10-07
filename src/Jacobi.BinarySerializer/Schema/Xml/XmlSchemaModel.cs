@@ -118,6 +118,12 @@ public sealed class XmlSchemaProcessorDef
     [XmlArray("properties")]
     [XmlArrayItem("property")]
     public List<XmlSchemaProperty> Properties { get; set; } = [];
+
+    [XmlAnyAttribute]
+    public XmlAttribute[]? AdditionalAttributes { get; set; }
+
+    [XmlAnyElement]
+    public XmlElement[]? AdditionalElements { get; set; }
 }
 
 /// <summary>A processor key ('namespace.id') or a reference to a processor declaration ('ref:name').</summary>
@@ -129,6 +135,12 @@ public sealed class XmlSchemaProcessorRef
     [XmlArray("properties")]
     [XmlArrayItem("property")]
     public List<XmlSchemaProperty> Properties { get; set; } = [];
+
+    [XmlAnyAttribute]
+    public XmlAttribute[]? AdditionalAttributes { get; set; }
+
+    [XmlAnyElement]
+    public XmlElement[]? AdditionalElements { get; set; }
 }
 
 public sealed class XmlSchemaDocumentRef

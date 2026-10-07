@@ -10,6 +10,8 @@ internal static class JsonSerializer
         var options = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true,
             AllowOutOfOrderMetadataProperties = true,
             Converters =
             {

@@ -1,77 +1,135 @@
 {
+  // binary schema for the png image file format.
   "name": "Png",
   "processorDefs": [
     {
       "name": "chunkType",
       "processor": "sys.map",
-      "properties": [
-        { "name": "logical", "value": "Int32" },
-        { "name": "0", "value": "IHDR" },
-        { "name": "1", "value": "PLTE" },
-        { "name": "2", "value": "IDAT" },
-        { "name": "3", "value": "IEND" },
-        { "name": "4", "value": null }
-      ]
+      "logical": "Int32",
+      "0": "IHDR",
+      "1": "PLTE",
+      "2": "IDAT",
+      "3": "IEND",
+      "4": null
     }
   ],
   "children": [
     {
       "name": "Png",
       "kind": "group",
-      "processors": [ { "processor": "sys.bytepacker" } ],
-      "properties": [ { "name": "byteorder", "value": "big" } ],
+      "processors": [
+        {
+          "processor": "sys.bytepacker",
+          "byteorder": "big"
+        }
+      ],
       "children": [
-        { "name": "Signature", "kind": "field", "type": "Bytes", "length": 8, "value": "0x89504E470D0A1A0A" },
+        {
+          "name": "Signature",
+          "kind": "field",
+          "type": "Bytes",
+          "length": 8,
+          "value": "0x89504E470D0A1A0A"
+        },
         {
           "name": "Chunk",
           "kind": "repeat",
           "children": [
-            { "name": "Length", "kind": "field", "type": "UInt32" },
+            {
+              "name": "Length",
+              "kind": "field",
+              "type": "UInt32"
+            },
             {
               "name": "Body",
               "kind": "group",
-              "processors": [ { "processor": "sys.bytepacker" }, { "processor": "sys.crc" } ],
-              "children": [
-            {
-              "name": "Type",
-              "kind": "field",
-              "type": "String",
               "processors": [
-                {
-                  "processor": "sys.string",
-                  "properties": [
-                    { "name": "length", "value": 4 },
-                    { "name": "encoding", "value": "ascii" }
-                  ]
-                }
-              ]
-            },
-            {
-              "name": "Data",
-              "kind": "choice",
-              "selectedIndex": { "reference": "ref:Png.Chunk[].Body.Type" },
-              "size": { "reference": "ref:Png.Chunk[].Length" },
-              "valueProcessors": [ { "processor": "ref:chunkType" } ],
+                { "processor": "sys.bytepacker" },
+                { "processor": "sys.crc" }
+              ],
               "children": [
                 {
-                  "name": "Header",
-                  "kind": "group",
-                  "children": [
-                    { "name": "Width", "kind": "field", "type": "UInt32" },
-                    { "name": "Height", "kind": "field", "type": "UInt32" },
-                    { "name": "BitDepth", "kind": "field", "type": "UInt8" },
-                    { "name": "ColorType", "kind": "field", "type": "UInt8" },
-                    { "name": "Compression", "kind": "field", "type": "UInt8" },
-                    { "name": "Filter", "kind": "field", "type": "UInt8" },
-                    { "name": "Interlace", "kind": "field", "type": "UInt8" }
+                  "name": "Type",
+                  "kind": "field",
+                  "type": "String",
+                  "processors": [
+                    {
+                      "processor": "sys.string",
+                      "length": 4,
+                      "encoding": "ascii"
+                    }
                   ]
                 },
-                { "name": "Palette", "kind": "field", "type": "Bytes" },
-                { "name": "ImageData", "kind": "field", "type": "Bytes" },
-                { "name": "End", "kind": "group", "children": [] },
-                { "name": "Unknown", "kind": "field", "type": "Bytes" }
-              ]
-            }
+                {
+                  "name": "Data",
+                  "kind": "choice",
+                  "selectedIndex": { "reference": "ref:Png.Chunk[].Body.Type" },
+                  "size": { "reference": "ref:Png.Chunk[].Length" },
+                  "valueProcessors": [ { "processor": "ref:chunkType" } ],
+                  "children": [
+                    {
+                      "name": "Header",
+                      "kind": "group",
+                      "children": [
+                        {
+                          "name": "Width",
+                          "kind": "field",
+                          "type": "UInt32"
+                        },
+                        {
+                          "name": "Height",
+                          "kind": "field",
+                          "type": "UInt32"
+                        },
+                        {
+                          "name": "BitDepth",
+                          "kind": "field",
+                          "type": "UInt8"
+                        },
+                        {
+                          "name": "ColorType",
+                          "kind": "field",
+                          "type": "UInt8"
+                        },
+                        {
+                          "name": "Compression",
+                          "kind": "field",
+                          "type": "UInt8"
+                        },
+                        {
+                          "name": "Filter",
+                          "kind": "field",
+                          "type": "UInt8"
+                        },
+                        {
+                          "name": "Interlace",
+                          "kind": "field",
+                          "type": "UInt8"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Palette",
+                      "kind": "field",
+                      "type": "Bytes"
+                    },
+                    {
+                      "name": "ImageData",
+                      "kind": "field",
+                      "type": "Bytes"
+                    },
+                    {
+                      "name": "End",
+                      "kind": "group",
+                      "children": []
+                    },
+                    {
+                      "name": "Unknown",
+                      "kind": "field",
+                      "type": "Bytes"
+                    }
+                  ]
+                }
               ]
             }
           ]
