@@ -4,10 +4,40 @@
     <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Title>Schema-driven Binary Serializer Processors</Title>
+    <Version>1.0.0</Version>
+    <Authors>Marc Jacobi</Authors>
+    <Company>Jacobi Software</Company>
+    <Description>Processors for the Schema-driven Binary Serializer framework</Description>
+    <Copyright>Copyright (c) 2026 Jacobi Software</Copyright>
+    <PackageProjectUrl>https://github.com/obiwanjacobi/Jacobi.BinarySerializer</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/obiwanjacobi/Jacobi.BinarySerializer</RepositoryUrl>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>binary; serializer; schema</PackageTags>
+    <PackageReleaseNotes>First version</PackageReleaseNotes>
+    <IncludeSymbols>True</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="..\..\LICENSE.txt">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Jacobi.BinarySerializer\Jacobi.BinarySerializer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="readme.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>
