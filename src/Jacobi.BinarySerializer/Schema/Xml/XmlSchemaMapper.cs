@@ -21,8 +21,8 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaGroup.Name),
         nameof(XmlSchemaGroup.Processors),
         nameof(XmlSchemaGroup.Members),
-        nameof(XmlSchemaGroup.Size),
-        nameof(XmlSchemaGroup.SizeRef),
+        nameof(XmlSchemaGroup.ByteSize),
+        nameof(XmlSchemaGroup.ByteSizeRef),
         nameof(XmlSchemaGroup.Properties)
     };
 
@@ -33,8 +33,8 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaRepeat.Members),
         nameof(XmlSchemaRepeat.Count),
         nameof(XmlSchemaRepeat.CountRef),
-        nameof(XmlSchemaRepeat.Size),
-        nameof(XmlSchemaRepeat.SizeRef),
+        nameof(XmlSchemaRepeat.ByteSize),
+        nameof(XmlSchemaRepeat.ByteSizeRef),
         nameof(XmlSchemaRepeat.ValueProcessors),
         nameof(XmlSchemaRepeat.Properties)
     };
@@ -46,8 +46,8 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaChoice.Members),
         nameof(XmlSchemaChoice.SelectedIndex),
         nameof(XmlSchemaChoice.SelectedIndexRef),
-        nameof(XmlSchemaChoice.Size),
-        nameof(XmlSchemaChoice.SizeRef),
+        nameof(XmlSchemaChoice.ByteSize),
+        nameof(XmlSchemaChoice.ByteSizeRef),
         nameof(XmlSchemaChoice.ValueProcessors),
         nameof(XmlSchemaChoice.Properties)
     };
@@ -59,8 +59,8 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaField.Type),
         nameof(XmlSchemaField.Value),
         nameof(XmlSchemaField.ValueRef),
-        nameof(XmlSchemaField.Length),
-        nameof(XmlSchemaField.LengthRef),
+        nameof(XmlSchemaField.ByteLength),
+        nameof(XmlSchemaField.ByteLengthRef),
         nameof(XmlSchemaField.Properties)
     };
 
@@ -149,7 +149,7 @@ internal static class XmlSchemaMapper
             ProcessorsList = xmlField.Processors.Select(ToSchemaProcessorRef).ToList(),
             DataType = new SchemaDataType(xmlField.Type ?? throw new InvalidOperationException($"The field '{xmlField.Name}' has no type.")),
             Value = ToSchemaValueOrText(xmlField.Value, xmlField.ValueRef),
-            Length = ToSchemaValue(xmlField.Length, xmlField.LengthRef),
+            ByteLength = ToSchemaValue(xmlField.ByteLength, xmlField.ByteLengthRef),
             PropertyList = MergeProperties(
                 xmlField.Properties,
                 xmlField.AdditionalAttributes,
@@ -233,7 +233,7 @@ internal static class XmlSchemaMapper
             ProcessorsList = xmlGroup.Processors.Select(ToSchemaProcessorRef).ToList(),
             MemberList = members,
             Count = 1,
-            Size = ToSchemaValue(xmlGroup.Size, xmlGroup.SizeRef),
+            ByteSize = ToSchemaValue(xmlGroup.ByteSize, xmlGroup.ByteSizeRef),
             PropertyList = MergeProperties(
                 xmlGroup.Properties,
                 xmlGroup.AdditionalAttributes,
@@ -259,7 +259,7 @@ internal static class XmlSchemaMapper
             ProcessorsList = xmlRepeat.Processors.Select(ToSchemaProcessorRef).ToList(),
             MemberList = members,
             Count = ToSchemaValue(xmlRepeat.Count, xmlRepeat.CountRef),
-            Size = ToSchemaValue(xmlRepeat.Size, xmlRepeat.SizeRef),
+            ByteSize = ToSchemaValue(xmlRepeat.ByteSize, xmlRepeat.ByteSizeRef),
             ValueProcessorsList = xmlRepeat.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
                 xmlRepeat.Properties,
@@ -286,7 +286,7 @@ internal static class XmlSchemaMapper
             ProcessorsList = xmlChoice.Processors.Select(ToSchemaProcessorRef).ToList(),
             MemberList = members,
             SelectedIndex = ToSchemaValue(xmlChoice.SelectedIndex, xmlChoice.SelectedIndexRef),
-            Size = ToSchemaValue(xmlChoice.Size, xmlChoice.SizeRef),
+            ByteSize = ToSchemaValue(xmlChoice.ByteSize, xmlChoice.ByteSizeRef),
             ValueProcessorsList = xmlChoice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
                 xmlChoice.Properties,
@@ -351,8 +351,8 @@ internal static class XmlSchemaMapper
                 Type = field.DataType.FullName,
                 Value = ToConstantText(field.Value),
                 ValueRef = ToXmlValueRef(field.Value),
-                Length = ToConstantText(field.Length),
-                LengthRef = ToXmlValueRef(field.Length),
+                ByteLength = ToConstantText(field.ByteLength),
+                ByteLengthRef = ToXmlValueRef(field.ByteLength),
                 Properties = field.Properties.Select(FromSchemaProperty).ToList()
             };
         }
@@ -366,8 +366,8 @@ internal static class XmlSchemaMapper
                 Members = repeat.Members.Select(FromSchemaNode).ToList(),
                 Count = ToConstantText(repeat.Count),
                 CountRef = ToXmlValueRef(repeat.Count),
-                Size = ToConstantText(repeat.Size),
-                SizeRef = ToXmlValueRef(repeat.Size),
+                ByteSize = ToConstantText(repeat.ByteSize),
+                ByteSizeRef = ToXmlValueRef(repeat.ByteSize),
                 ValueProcessors = repeat.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = repeat.Properties.Select(FromSchemaProperty).ToList()
             };
@@ -382,8 +382,8 @@ internal static class XmlSchemaMapper
                 Members = choice.Members.Select(FromSchemaNode).ToList(),
                 SelectedIndex = ToConstantText(choice.SelectedIndex),
                 SelectedIndexRef = ToXmlValueRef(choice.SelectedIndex),
-                Size = ToConstantText(choice.Size),
-                SizeRef = ToXmlValueRef(choice.Size),
+                ByteSize = ToConstantText(choice.ByteSize),
+                ByteSizeRef = ToXmlValueRef(choice.ByteSize),
                 ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()
             };

@@ -283,9 +283,9 @@ public class XmlSerializerTests
         var xml = """
             <schema name="SizeSchema">
               <members><group name="Root"><members>
-                <repeat name="Items"><size ref="Root.Len" /></repeat>
-                <group name="Fixed" size="4"><members /></group>
-                <choice name="Pick" selectedIndex="0" size="8" />
+                <repeat name="Items"><byteSize ref="Root.Len" /></repeat>
+                <group name="Fixed" byteSize="4"><members /></group>
+                <choice name="Pick" selectedIndex="0" byteSize="8" />
               </members></group></members>
               <properties />
             </schema>
@@ -297,9 +297,9 @@ public class XmlSerializerTests
 
         Assert.That(members[0], Is.InstanceOf<SchemaRepeat>());
         Assert.That(((SchemaRepeat)members[0]).Count is not (int or SchemaNodeRef or SchemaPubRef), Is.True);
-        Assert.That(members[0].Size is SchemaNodeRef { Path: "Root.Len" }, Is.True);
-        Assert.That(members[1].Size is 4, Is.True);
-        Assert.That(members[2].Size is 8, Is.True);
+        Assert.That(members[0].ByteSize is SchemaNodeRef { Path: "Root.Len" }, Is.True);
+        Assert.That(members[1].ByteSize is 4, Is.True);
+        Assert.That(members[2].ByteSize is 8, Is.True);
     }
 
     [Test]
@@ -309,8 +309,8 @@ public class XmlSerializerTests
             <schema name="LengthSchema">
               <members><group name="Root"><members>
                 <field name="Len" type="UInt8" />
-                <field name="Blob" type="Bytes"><length ref="Root.Len" /></field>
-                <field name="Sig" type="Bytes" length="2" value="0x8950" />
+                <field name="Blob" type="Bytes"><byteLength ref="Root.Len" /></field>
+                <field name="Sig" type="Bytes" byteLength="2" value="0x8950" />
                 <field name="Rest" type="Bytes" />
               </members></group></members>
               <properties />
@@ -322,9 +322,9 @@ public class XmlSerializerTests
         var fields = roundTripped.Groups.Single(g => g.Name == "Root").Members.OfType<SchemaField>().ToList();
 
         Assert.That(fields[1].DataType, Is.EqualTo(new SchemaDataType("Bytes")));
-        Assert.That(fields[1].Length is SchemaNodeRef { Path: "Root.Len" }, Is.True);
-        Assert.That(fields[2].Length is 2, Is.True);
+        Assert.That(fields[1].ByteLength is SchemaNodeRef { Path: "Root.Len" }, Is.True);
+        Assert.That(fields[2].ByteLength is 2, Is.True);
         Assert.That(fields[2].Value is "0x8950", Is.True);
-        Assert.That(fields[3].Length is not (int or SchemaNodeRef or SchemaPubRef), Is.True);
+        Assert.That(fields[3].ByteLength is not (int or SchemaNodeRef or SchemaPubRef), Is.True);
     }
 }

@@ -22,7 +22,7 @@ public class ValueProcessorParameterTests
         choice.MemberList.Add(Field("B", "Int16"));
 
         return Group("Root", [],
-            Field("Type", "String", [Ref("string", ("length", "4"), ("encoding", "ascii"))]),
+            Field("Type", "String", [Ref("string", ("byteLength", "4"), ("encoding", "ascii"))]),
             choice);
     }
 
@@ -80,7 +80,7 @@ public class ValueProcessorParameterTests
     [Test]
     public void Build_NonSemanticValueProcessor_ReportsError()
     {
-        var root = ChoiceRoot(Ref("string", ("length", "4")));
+        var root = ChoiceRoot(Ref("string", ("byteLength", "4")));
 
         var ex = Assert.Throws<ExecutionPlanException>(() => Build(root));
 

@@ -55,12 +55,12 @@ The width is decided by the value, so the reader offers a window and the engine 
 
 ### `sys.string`
 
-Strings, delimited by exactly one of `length` or `terminator`.
+Strings, delimited by exactly one of `byteLength` or `terminator`.
 
 | Property | Required | Description |
 |----------|----------|-------------|
 | `encoding` | no | Text encoding name (default `utf-8`). |
-| `length` | one of | Fixed length in bytes. Shorter strings are padded with `padding`; trailing padding is trimmed on read. |
+| `byteLength` | one of | Fixed length in bytes. Shorter strings are padded with `padding`; trailing padding is trimmed on read. |
 | `terminator` | one of | Byte value (0-255) that ends the string; not part of the string. |
 | `padding` | no | Byte value (0-255) used for padding a fixed length (default 0). |
 

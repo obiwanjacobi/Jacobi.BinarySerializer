@@ -77,12 +77,12 @@ public sealed class XmlSchemaField : XmlSchemaNode
     [XmlElement("value")]
     public XmlSchemaValueRef? ValueRef { get; set; }
 
-    /// <summary>A constant length (attribute); use <see cref="LengthRef"/> to refer to a value.</summary>
-    [XmlAttribute("length")]
-    public string? Length { get; set; }
+    /// <summary>A constant length in bytes (attribute); use <see cref="ByteLengthRef"/> to refer to a value.</summary>
+    [XmlAttribute("byteLength")]
+    public string? ByteLength { get; set; }
 
-    [XmlElement("length")]
-    public XmlSchemaValueRef? LengthRef { get; set; }
+    [XmlElement("byteLength")]
+    public XmlSchemaValueRef? ByteLengthRef { get; set; }
 }
 
 public class XmlSchemaGroup : XmlSchemaNode
@@ -98,12 +98,12 @@ public class XmlSchemaGroup : XmlSchemaNode
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode> Members { get; set; } = [];
 
-    /// <summary>A constant size in bytes (attribute); use <see cref="SizeRef"/> to refer to a value.</summary>
-    [XmlAttribute("size")]
-    public string? Size { get; set; }
+    /// <summary>A constant size in bytes (attribute); use <see cref="ByteSizeRef"/> to refer to a value.</summary>
+    [XmlAttribute("byteSize")]
+    public string? ByteSize { get; set; }
 
-    [XmlElement("size")]
-    public XmlSchemaValueRef? SizeRef { get; set; }
+    [XmlElement("byteSize")]
+    public XmlSchemaValueRef? ByteSizeRef { get; set; }
 }
 
 /// <summary>A named processor declaration: 'name' is used in a 'ref:name' (or 'ref:document.name').</summary>

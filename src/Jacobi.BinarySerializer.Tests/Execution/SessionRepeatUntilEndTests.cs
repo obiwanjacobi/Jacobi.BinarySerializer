@@ -94,7 +94,7 @@ public class SessionRepeatUntilEndTests
     [Test]
     public void Build_SizedChoiceWithOpenAlternativeNotLast_Succeeds()
     {
-        var choice = new SchemaChoice { Name = "Pick", SelectedIndex = 0, Size = 2 };
+        var choice = new SchemaChoice { Name = "Pick", SelectedIndex = 0, ByteSize = 2 };
         choice.MemberList.Add(Items());
         choice.MemberList.Add(Items());
 

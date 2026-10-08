@@ -150,7 +150,7 @@ public sealed class WriterSession : SessionState
                         {
                             cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services, Instance = _instance }));
                         }
-                        if (group.HasSize)
+                        if (group.HasByteSize)
                         {
                             _sizeStarts.Push(_counter.Written);
                         }
@@ -185,7 +185,7 @@ public sealed class WriterSession : SessionState
                         {
                             _choiceIndexes.Pop();
                         }
-                        if (group.HasSize)
+                        if (group.HasByteSize)
                         {
                             var size = _counter.Written - _sizeStarts.Pop();
                             if (_deferred.Count > 0 && ReferenceEquals(_deferred.Peek().Group, group))
@@ -198,7 +198,7 @@ public sealed class WriterSession : SessionState
                             }
                             else
                             {
-                                var declared = Resolve(group.Size, group.Path, _instance);
+                                var declared = Resolve(group.ByteSize, group.Path, _instance);
                                 if (declared != size)
                                 {
                                     throw EngineLogger.Fail($"'{group.Path}': the declared size {declared} does not match the {size} encoded bytes.");
@@ -267,7 +267,7 @@ public sealed class WriterSession : SessionState
 
         var width = probe.WrittenCount;
         var scratch = new ArrayBufferWriter<byte>();
-        _deferred.Push(new DeferredSize(field, scope, field.SizeOf!, savedCounter, savedTarget, scratch, width));
+        _deferred.Push(new DeferredSize(field, scope, field.ByteSizeOf!, savedCounter, savedTarget, scratch, width));
         _counter = new CountingBufferWriter(scratch, savedCounter.Written + width);
         _target = _counter;
         return WriteResult.Success;
@@ -364,7 +364,7 @@ public sealed class WriterSession : SessionState
                 var expected = ResolveExpected(field, _instance);
                 logical = new LogicalField(field.Name, field.DataType.ClrType, expected);
             }
-            else if (field.LengthOf is { } lengthOf)
+            else if (field.ByteLengthOf is { } lengthOf)
             {
                 var bytesResult = scope.GetField(new FieldContext { Node = lengthOf, Services = _services, Instance = _instance });
                 if (bytesResult.Status != SourceStatus.Value
@@ -374,7 +374,7 @@ public sealed class WriterSession : SessionState
                 }
                 logical = new LogicalField(field.Name, field.DataType.ClrType, derivedBytes.Length);
             }
-            else if (field.SizeOf is not null)
+            else if (field.ByteSizeOf is not null)
             {
                 return DeferSizeField(field, scope);
             }
@@ -408,9 +408,9 @@ public sealed class WriterSession : SessionState
         }
 
         EncodedField encoded;
-        var fieldLength = field.HasLength ? Resolve(field.Length, field.Path, _instance) : (int?)null;
-        _fieldContext.FieldData.Length = fieldLength;
-        _layoutContext.FieldData.Length = fieldLength;
+        var fieldLength = field.HasByteLength ? Resolve(field.ByteLength, field.Path, _instance) : (int?)null;
+        _fieldContext.FieldData.ByteLength = fieldLength;
+        _layoutContext.FieldData.ByteLength = fieldLength;
         switch (pipeline.FieldProcessors.Count)
         {
             case 0:
@@ -560,8 +560,8 @@ public sealed class WriterSession : SessionState
         _groupStarts.Push(_counter.Written);
         _layoutContext.Group = group;
         _layoutContext.Field = null;
-        _layoutContext.FieldData.Length = null;
-        _layoutContext.GroupData.Size = null;
+        _layoutContext.FieldData.ByteLength = null;
+        _layoutContext.GroupData.ByteSize = null;
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
         var chain = group.Pipeline.LayoutProcessors;
         var buffers = RentBuffers(chain.Count - 1);
@@ -583,9 +583,9 @@ public sealed class WriterSession : SessionState
 
         _layoutContext.Group = group;
         _layoutContext.Field = null;
-        _layoutContext.FieldData.Length = null;
+        _layoutContext.FieldData.ByteLength = null;
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
-        _layoutContext.GroupData.Size = group is not RepeatInfo && group.HasSize && _sizeStarts.Count > 0
+        _layoutContext.GroupData.ByteSize = group is not RepeatInfo && group.HasByteSize && _sizeStarts.Count > 0
             ? checked((int)(_counter.Written - _sizeStarts.Peek()))
             : null;
         var chain = group.Pipeline.LayoutProcessors;

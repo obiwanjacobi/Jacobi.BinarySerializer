@@ -17,7 +17,7 @@ public class MapProcessorTests
         => Group("Root", [],
             Field("Type", "String", [
                 Ref("map", ("logical", "Int32"), ("0", "IHDR"), ("1", "PLTE")),
-                Ref("string", ("length", "4"), ("encoding", "ascii"))]));
+                Ref("string", ("byteLength", "4"), ("encoding", "ascii"))]));
 
     [TestCase("Red", 1)]
     [TestCase("Blue", 4)]
@@ -61,7 +61,7 @@ public class MapProcessorTests
         var map = Ref("map", ("logical", "Int32"), ("0", "IHDR"));
         map.PropertyList.Add(new SchemaProperty { Name = new ProcessorKey("sys", "map").PropertyName("4"), Value = null });
         return Group("Root", [],
-            Field("Type", "String", [map, Ref("string", ("length", "4"), ("encoding", "ascii"))]));
+            Field("Type", "String", [map, Ref("string", ("byteLength", "4"), ("encoding", "ascii"))]));
     }
 
     [Test]

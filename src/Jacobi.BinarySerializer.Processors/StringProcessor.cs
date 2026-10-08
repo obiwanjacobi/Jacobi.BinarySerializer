@@ -1,6 +1,5 @@
-﻿using System.Text;
+using System.Text;
 using Jacobi.BinarySerializer.Processor;
-using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processors;
 
@@ -8,13 +7,13 @@ namespace Jacobi.BinarySerializer.Processors;
 /// Strings (sys:string). Exactly one of 'length' or 'terminator' delimits the string.
 /// 'length' is a fixed byte count: shorter strings are padded with the 'padding' byte (default 0), which is trimmed again on read.
 /// 'terminator' is a single byte value that ends the string and is not part of it.
-/// The 'encoding' property names the text encoding (default 'utf-8').
+/// The 'encoding' property names the text encoding (default 'utf-8'). See also <see cref="System.Text.Encoding.WebName"/>.
 /// </summary>
 internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
 {
     private static readonly PropertyDescriptor EncodingProperty = new("encoding", "sys.string", false, description: "The text encoding name; 'utf-8' by default.");
-    private static readonly PropertyDescriptor LengthProperty = new("length", "sys.int32", false, description: "A fixed length in bytes; shorter strings are padded. Exclusive with 'terminator'.");
-    private static readonly PropertyDescriptor TerminatorProperty = new("terminator", "sys.uint8", false, description: "The byte value (0-255) that ends the string. Exclusive with 'length'.");
+    private static readonly PropertyDescriptor ByteLengthProperty = new("byteLength", "sys.int32", false, description: "A fixed length in bytes; shorter strings are padded. Exclusive with 'terminator'.");
+    private static readonly PropertyDescriptor TerminatorProperty = new("terminator", "sys.uint8", false, description: "The byte value (0-255) that ends the string. Exclusive with 'byteLength'.");
     private static readonly PropertyDescriptor PaddingProperty = new("padding", "sys.uint8", false, description: "The byte value (0-255) that pads a fixed length; 0 by default. Trailing padding is trimmed on read.");
 
     public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
@@ -151,17 +150,17 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
             throw new InvalidOperationException($"Invalid '{properties.FullName(EncodingProperty.Name)}' value '{encodingName}'.", ex);
         }
 
-        int? length = properties.TryGet<int>(LengthProperty, out var lengthValue) ? lengthValue : null;
+        int? length = properties.TryGet<int>(ByteLengthProperty, out var lengthValue) ? lengthValue : null;
         if (length < 1)
         {
-            throw new InvalidOperationException($"Invalid '{properties.FullName(LengthProperty.Name)}' value '{length}'. Expected a number from 1 to {Int32.MaxValue}.");
+            throw new InvalidOperationException($"Invalid '{properties.FullName(ByteLengthProperty.Name)}' value '{length}'. Expected a number from 1 to {Int32.MaxValue}.");
         }
-        if (context.FieldData.Length is { } fieldLength)
+        if (context.FieldData.ByteLength is { } fieldLength)
         {
             if (length is not null)
             {
                 throw new InvalidOperationException(
-                    $"The field has a length; the '{properties.FullName(LengthProperty.Name)}' property cannot be used as well.");
+                    $"The field has a byte length; the '{properties.FullName(ByteLengthProperty.Name)}' property cannot be used as well.");
             }
             if (fieldLength < 1)
             {
@@ -175,7 +174,7 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
         if (length is null == terminator is null)
         {
             throw new InvalidOperationException(
-                $"The string processor requires exactly one of the field length, '{properties.FullName(LengthProperty.Name)}' or '{properties.FullName(TerminatorProperty.Name)}'.");
+                $"The string processor requires exactly one of the field byte length, '{properties.FullName(ByteLengthProperty.Name)}' or '{properties.FullName(TerminatorProperty.Name)}'.");
         }
 
         return new Options(encoding, length, terminator, padding);
@@ -186,5 +185,5 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
     public ProcessorKey Key => new("sys.string");
     public string Name => "String Processor";
     public PipelineStage Stage => PipelineStage.Representation;
-    public IReadOnlyList<PropertyDescriptor> Properties => [EncodingProperty, LengthProperty, TerminatorProperty, PaddingProperty];
+    public IReadOnlyList<PropertyDescriptor> Properties => [EncodingProperty, ByteLengthProperty, TerminatorProperty, PaddingProperty];
 }

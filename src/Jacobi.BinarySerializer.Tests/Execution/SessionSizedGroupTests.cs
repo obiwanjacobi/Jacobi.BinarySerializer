@@ -14,7 +14,7 @@ public class SessionSizedGroupTests
         => new()
         {
             Name = "Body",
-            Size = new SchemaNodeRef { Path = "Root.Len" },
+            ByteSize = new SchemaNodeRef { Path = "Root.Len" },
             MemberList = { Field("A", "Int16"), Field("B", "Int16") },
         };
 
@@ -77,7 +77,7 @@ public class SessionSizedGroupTests
     public void Read_OpenRepeatInWindow_EndsAtWindowEnd()
     {
         var items = new SchemaRepeat { Name = "Items", MemberList = { Field("Byte", "UInt8") } };
-        var body = new SchemaGroup { Name = "Body", Size = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { items } };
+        var body = new SchemaGroup { Name = "Body", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { items } };
         var plan = Build(Group("Root", [], Field("Len", "UInt8"), body, Field("Tail", "UInt8")));
         var sink = new Sink();
 

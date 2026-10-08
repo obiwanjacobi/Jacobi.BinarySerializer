@@ -16,7 +16,7 @@
               "name": "Type",
               "kind": "field",
               "type": "String",
-              "length": 4,
+              "byteLength": 4,
               "value": "MThd"
             },
             {
@@ -51,7 +51,7 @@
               "name": "Type",
               "kind": "field",
               "type": "String",
-              "length": 4,
+              "byteLength": 4,
               "value": "MTrk"
             },
             {
@@ -63,7 +63,7 @@
               "name": "Events",
               "kind": "field",
               "type": "Bytes",
-              "length": { "ref": "Midi.Track[].Length" }
+              "byteLength": { "ref": "Midi.Track[].Length" }
             }
           ]
         }

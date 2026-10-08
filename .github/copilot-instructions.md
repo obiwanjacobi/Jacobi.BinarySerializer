@@ -7,6 +7,9 @@
 - Two public APIs are planned: one over a generic value model (values with structure) and one over typed objects (types as structure, populated instances). Only the generic one is built first. The session/engine must talk to values only through `IValueSource` (write) and `IValueSink` (read), never to a concrete model, so the typed API can be added later without refactoring the engine.
 - Keep these rules for the engine: scopes live on the session's frame stack (resumable, no call-stack state); nodes are identified by plan `NodeInfo` (Name/Path); schema fields without a model member (lengths, counts, discriminators) are derived by the engine, not required from the model; derived values (repeat count, choice index) are resolved in the engine, not in the adapters.
 
+## Naming Conventions
+- Properties that refer to physical (encoded byte) attributes are explicitly prefixed 'byte' (e.g., byteLength, byteSize, like bitLength); plain length/size/count mean the logical value.
+
 ## Project Map (read this instead of exploring)
 - `Jacobi.BinarySerializer` - core library. Folders: `Schema/` (schema model, JSON/XML mappers, `SchemaSet.Compile`), `Execution/` (`ExecutionPlan`, `PlanCursor`, `ReaderSession`, `WriterSession`, `SessionState`, `InstancePath`), `Processor/` (contexts, `ProcessorPipeline`, `ProcessorManager`, layout chains), `Codecs/` (bit/endian/varint codecs; one static class per algorithm).
 - `Jacobi.BinarySerializer.Processors` - built-in `sys:` processors (e.g. `sys:varint`, `sys:align`).

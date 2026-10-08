@@ -45,7 +45,7 @@ public sealed class DataTypeDescriptor
     /// <summary>The size in bytes of the default representation, or null when it is variable.</summary>
     public int? FixedSize { get; init; }
 
-    /// <summary>The field may specify a length.</summary>
+    /// <summary>The field may specify a physical length in bytes.</summary>
     public bool SupportsLength { get; init; }
 
     /// <summary>Without a length the field takes the rest of the enclosing size window.</summary>

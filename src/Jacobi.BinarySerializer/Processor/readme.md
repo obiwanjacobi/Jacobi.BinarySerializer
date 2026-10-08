@@ -90,9 +90,6 @@ State is private: a processor cannot read the state of another one. State lives 
 
 ---
 
-- [ ] define a list of global/well-known properties (names and datatypes).
-- [ ] 
-
 ## Well-Known Properties
 
 A common set of properties that are used by the mechanism or other processors. 
@@ -100,7 +97,7 @@ A common set of properties that are used by the mechanism or other processors.
 | Property Name | Data Type | Description |
 |---------------|-----------|-------------|
 | pubns | string | Publish Namespace: the namespace used when a processor publishes public values. |
-| length | uint | The length of the data being processed. String with a fixed length can be encoded this way. |
+| length | int | The physical length in bytes of the data being processed (not a character or item count). `sys:string` also accepts the field-level `byteLength`. |
 
 ## Specifying Processor Properties
 

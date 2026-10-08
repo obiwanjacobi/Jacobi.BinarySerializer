@@ -42,14 +42,14 @@ internal sealed class JsonSchemaField : JsonSchemaNode
     public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
     public required SchemaDataType Type { get; init; }
     public JsonSchemaValueOrRef<string> Value { get; init; }
-    public JsonSchemaValueOrRef<int> Length { get; init; }
+    public JsonSchemaValueOrRef<int> ByteLength { get; init; }
 }
 
 internal class JsonSchemaGroup : JsonSchemaNode
 {
     public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
     public IReadOnlyList<JsonSchemaNode> Members { get; init; } = [];
-    public JsonSchemaValueOrRef<int> Size { get; init; }
+    public JsonSchemaValueOrRef<int> ByteSize { get; init; }
 }
 
 internal sealed class JsonSchemaRepeat : JsonSchemaGroup

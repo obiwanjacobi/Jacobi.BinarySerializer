@@ -28,7 +28,7 @@
           "name": "Signature",
           "kind": "field",
           "type": "Bytes",
-          "length": 8,
+          "byteLength": 8,
           "value": "0x89504E470D0A1A0A"
         },
         {
@@ -55,7 +55,7 @@
                   "processors": [
                     {
                       "processor": "sys.string",
-                      "length": 4,
+                      "byteLength": 4,
                       "encoding": "ascii"
                     }
                   ]
@@ -64,7 +64,7 @@
                   "name": "Data",
                   "kind": "choice",
                   "selectedIndex": { "ref": "Png.Chunk[].Body.Type" },
-                  "size": { "ref": "Png.Chunk[].Length" },
+                  "byteSize": { "ref": "Png.Chunk[].Length" },
                   "valueProcessors": [ { "processor": "ref:chunkType" } ],
                   "members": [
                     {

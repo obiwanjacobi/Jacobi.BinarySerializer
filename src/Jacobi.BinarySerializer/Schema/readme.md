@@ -26,8 +26,8 @@ Every node has a `name`, a `kind` and optional `properties`.
 
 | Kind | Meaning | Notable members |
 |------|---------|-----------------|
-`type` (data type name, e.g. `Int32` or `sys.int32`, resolved in the data type registry; required), `value` (constant or reference), `length` (for `sys.bytes`)
-| `group` | An ordered sequence of members. | `members`, `size`, `processors` |
+| `field` | A single value. | `type` (data type name, e.g. `Int32` or `sys.int32`, resolved in the data type registry; required), `value` (constant or reference; the logical value), `byteLength` (physical length in bytes, for types that support it such as `sys.bytes` and `sys.string`), `processors` |
+| `group` | An ordered sequence of members. | `members`, `byteSize` (physical size in bytes of the encoded content), `processors` |
 | `repeat` | A group that repeats. | `count` (constant or reference); no count means until the end of the data. `valueProcessors` convert a referenced count. |
 | `choice` | A group where exactly one member is used. | `selectedIndex` (constant or reference), `valueProcessors` |
 
@@ -35,7 +35,7 @@ Nodes are addressed by path (`Png.Chunk.Body.Type`).
 
 ## Values and references
 
-A number of members (`value`, `length`, `size`, `count`, `selectedIndex`) accept either a constant or a reference:
+A number of members (`value`, `byteLength`, `byteSize`, `count`, `selectedIndex`) accept either a constant or a reference:
 
 - constant: `"count": 3`
 - `ref:` a schema node value: JSON `{ "ref": "Png.Chunk[].Length" }`, XML `<length ref="Png.Chunk[].Length" />`. An instance index selects the repeat occurrence (`[2]`); an empty `[]` means "the same occurrence as the referrer".
@@ -62,11 +62,11 @@ A child node inherits the stages of its parent
 
 **Check a magic number:** give the field a `value`. The writer supplies it when the model has none; the reader fails when the data differs.
 
-**Read a fixed number of raw bytes:** type `Bytes` with `length`. Without a length the field takes the rest of the enclosing sized group.
+**Read a fixed number of raw bytes:** type `Bytes` with `byteLength` (always a byte count, also for `String`). Without a byte length the field takes the rest of the enclosing sized group.
 
 `"count": { "ref": "Header.Count" }`.
 
-**Bound a group by a byte size:** use `size` (constant or reference). The reader limits the group to that window; the writer derives the value from the encoded content.
+**Bound a group by a byte size:** use `byteSize` (constant or reference). The reader limits the group to that window; the writer derives the value from the encoded content.
 
 **Select a variant:** use a `choice` with a `selectedIndex` reference to a discriminator field. If the discriminator is not a number, add `valueProcessors` (e.g. a `sys.map` processor definition) that convert it to an index.
 

@@ -39,11 +39,11 @@ public sealed class SchemaField : SchemaNode
     public SchemaValueOrRef<string> Value { get; init; }
 
     /// <summary>
-    /// Optional logical length of the value (a constant or a reference to a value): the number of bytes for <c>sys.bytes</c>.
-    /// Without a length a Bytes field takes the rest of the enclosing sized group (size window).
-    /// The writer derives a referenced length field from the model value.
+    /// Optional physical length (in bytes) of the value (a constant or a reference to a value).
+    /// Without a length a <c>sys.bytes</c> field takes the rest of the enclosing sized group (size window).
+    /// The writer derives a referenced length field from the encoded byte count of the model value, not from its logical length (e.g. characters).
     /// </summary>
-    public SchemaValueOrRef<int> Length { get; init; }
+    public SchemaValueOrRef<int> ByteLength { get; init; }
 }
 
 public class SchemaGroup : SchemaNode
@@ -62,7 +62,7 @@ public class SchemaGroup : SchemaNode
     /// Optional size in bytes of the encoded content of this group (a constant or a reference to a value).
     /// The reader limits the group to that window; the writer derives the value from the encoded content.
     /// </summary>
-    public SchemaValueOrRef<int> Size { get; init; }
+    public SchemaValueOrRef<int> ByteSize { get; init; }
 }
 
 public sealed class SchemaRepeat : SchemaGroup

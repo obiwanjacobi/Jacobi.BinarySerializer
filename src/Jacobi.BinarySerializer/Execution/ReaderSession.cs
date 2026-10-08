@@ -129,9 +129,9 @@ public sealed class ReaderSession : SessionState
                         {
                             cursor.Enter(step.Scope.EnterGroup(new GroupContext { Node = group, Services = _services, Instance = _instance }));
                         }
-                        if (group.HasSize)
+                        if (group.HasByteSize)
                         {
-                            var size = Resolve(group.Size, group.Path, _instance);
+                            var size = Resolve(group.ByteSize, group.Path, _instance);
                             if (size < 0)
                             {
                                 throw EngineLogger.Fail($"'{group.Path}': the size {size} cannot be negative.");
@@ -189,7 +189,7 @@ public sealed class ReaderSession : SessionState
                     {
                         _choiceIndexes.Pop();
                     }
-                    if (step.Node is GroupInfo { HasSize: true } sized && _windows.Count > 0 && ReferenceEquals(_windows.Peek().Group, sized))
+                    if (step.Node is GroupInfo { HasByteSize: true } sized && _windows.Count > 0 && ReferenceEquals(_windows.Peek().Group, sized))
                     {
                         var end = _windows.Pop().End;
                         if (reader.Consumed != end)
@@ -211,7 +211,7 @@ public sealed class ReaderSession : SessionState
         => _windows.Count > 0 ? reader.Consumed >= _windows.Peek().End : reader.End;
 
     /// <summary>
-    /// The number of bytes a bytes field takes: its length, or the rest of the enclosing size window. Null for other fields.
+    /// The number of bytes (physical) a field with a length takes: its length, or the rest of the enclosing size window for a data type that takes the rest. Null for other fields.
     /// </summary>
     private int? BytesLength(FieldInfo field, ref SequenceReader<byte> reader)
     {
@@ -220,9 +220,9 @@ public sealed class ReaderSession : SessionState
             return null;
         }
 
-        if (field.HasLength)
+        if (field.HasByteLength)
         {
-            var length = Resolve(field.Length, field.Path, _instance);
+            var length = Resolve(field.ByteLength, field.Path, _instance);
             if (length < 0)
             {
                 throw EngineLogger.Fail($"'{field.Path}': the length is negative ({length}).");
@@ -262,8 +262,8 @@ public sealed class ReaderSession : SessionState
         _layoutContext.Group = field.Parent!;
         _layoutContext.Field = field;
         var fieldLength = BytesLength(field, ref reader);
-        _layoutContext.FieldData.Length = fieldLength;
-        _fieldContext.FieldData.Length = fieldLength;
+        _layoutContext.FieldData.ByteLength = fieldLength;
+        _fieldContext.FieldData.ByteLength = fieldLength;
         if (fieldLength is { } bytesLength && reader.Remaining < bytesLength)
         {
             return ReadResult.NeedMoreData;
@@ -356,8 +356,8 @@ public sealed class ReaderSession : SessionState
     private void SetGroupData(GroupInfo group, int? itemIndex, int? itemCount)
     {
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
-        _layoutContext.FieldData.Length = null;
-        _layoutContext.GroupData.Size = group is not RepeatInfo && group.HasSize ? Resolve(group.Size, group.Path, _instance) : null;
+        _layoutContext.FieldData.ByteLength = null;
+        _layoutContext.GroupData.ByteSize = group is not RepeatInfo && group.HasByteSize ? Resolve(group.ByteSize, group.Path, _instance) : null;
     }
 
     private void BeginLayout(GroupInfo group, ref SequenceReader<byte> reader, int? itemIndex = null, int? itemCount = null)

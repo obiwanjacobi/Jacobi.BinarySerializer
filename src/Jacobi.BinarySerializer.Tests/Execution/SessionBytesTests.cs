@@ -12,7 +12,7 @@ namespace Jacobi.BinarySerializer.Tests.Execution;
 public class SessionBytesTests
 {
     private static SchemaField Blob(SchemaValueOrRef<int> length = default)
-        => new() { Name = "Blob", DataType = "Bytes", Length = length };
+        => new() { Name = "Blob", DataType = "Bytes", ByteLength = length };
 
     private static SchemaGroup LengthPrefixed()
         => Group("Root", [], Field("Len", "UInt8"), Blob(new SchemaNodeRef { Path = "Root.Len" }), Field("Tail", "UInt8"));
@@ -52,7 +52,7 @@ public class SessionBytesTests
     [Test]
     public void Read_NoLengthInWindow_TakesRestOfWindow()
     {
-        var body = new SchemaGroup { Name = "Body", Size = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Blob() } };
+        var body = new SchemaGroup { Name = "Body", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Blob() } };
         var plan = Build(Group("Root", [], Field("Len", "UInt8"), body, Field("Tail", "UInt8")));
         var sink = new Sink();
 
@@ -70,7 +70,7 @@ public class SessionBytesTests
     [Test]
     public void Build_NoLengthNotLast_ReportsError()
     {
-        var body = new SchemaGroup { Name = "Body", Size = 4, MemberList = { Blob(), Field("Tail", "UInt8") } };
+        var body = new SchemaGroup { Name = "Body", ByteSize = 4, MemberList = { Blob(), Field("Tail", "UInt8") } };
 
         Assert.That(() => Build(Group("Root", [], body)), Throws.TypeOf<ExecutionPlanException>());
     }
@@ -78,7 +78,7 @@ public class SessionBytesTests
     [Test]
     public void Build_LengthOnOtherType_ReportsError()
     {
-        var field = new SchemaField { Name = "Number", DataType = "UInt8", Length = 2 };
+        var field = new SchemaField { Name = "Number", DataType = "UInt8", ByteLength = 2 };
 
         Assert.That(() => Build(Group("Root", [], field)), Throws.TypeOf<ExecutionPlanException>());
     }
@@ -118,7 +118,7 @@ public class SessionBytesTests
     [Test]
     public void Read_ConstantBytes_MismatchThrows()
     {
-        var signature = new SchemaField { Name = "Sig", DataType = "Bytes", Length = 2, Value = "0x8950" };
+        var signature = new SchemaField { Name = "Sig", DataType = "Bytes", ByteLength = 2, Value = "0x8950" };
         var plan = Build(Group("Root", [], signature));
 
         Assert.That(new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 0x89, 0x50 }), new Sink()), Is.EqualTo(ReadResult.Success));

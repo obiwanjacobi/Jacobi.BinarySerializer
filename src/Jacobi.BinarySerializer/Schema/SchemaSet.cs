@@ -472,7 +472,7 @@ public sealed class SchemaSet
                 Name = node.Name,
                 DataType = typeDef.DataType ?? throw new InvalidOperationException($"The typedef '{typeDef.Name}' has no data type and cannot be applied to the field '{node.Name}'."),
                 Value = fieldNode.Value,
-                Length = fieldNode.Length,
+                ByteLength = fieldNode.ByteLength,
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(typeDef.Processors, fieldNode.Processors),
             };
@@ -486,7 +486,7 @@ public sealed class SchemaSet
                 ProcessorsList = MergeProcessors(typeDef.Processors, repeatNode.Processors),
                 MemberList = [.. repeatNode.MemberList],
                 Count = repeatNode.Count,
-                Size = repeatNode.Size,
+                ByteSize = repeatNode.ByteSize,
                 ValueProcessorsList = [.. repeatNode.ValueProcessors],
             };
         }
@@ -499,7 +499,7 @@ public sealed class SchemaSet
                 ProcessorsList = MergeProcessors(typeDef.Processors, choiceNode.Processors),
                 MemberList = [.. choiceNode.MemberList],
                 SelectedIndex = choiceNode.SelectedIndex,
-                Size = choiceNode.Size,
+                ByteSize = choiceNode.ByteSize,
                 ValueProcessorsList = [.. choiceNode.ValueProcessors],
             };
         }
@@ -511,7 +511,7 @@ public sealed class SchemaSet
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(typeDef.Processors, groupNode.Processors),
                 MemberList = [.. groupNode.MemberList],
-                Size = groupNode.Size,
+                ByteSize = groupNode.ByteSize,
             };
         }
 

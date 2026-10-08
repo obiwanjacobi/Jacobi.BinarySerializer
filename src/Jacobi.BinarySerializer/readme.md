@@ -55,6 +55,7 @@ var result = serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, se
 ## TODOs
 
 - [ ] **Freeze `SchemaSet` and `ProcessorProvider` once handed to a `Serializer`.** Cached `ExecutionPlan`s go stale if a schema is loaded/recompiled or a processor is registered after `SerializerBuilder.Build()`. Fix: add an `IsFrozen`/`Freeze()` to `SchemaSet` (after `Compile`) and to the processor provider (`ProcessorManager`), call it in `Build()`, and throw `InvalidOperationException` on later modification. Add tests.
+  For `SchemaSet` use a builder pattern: `SchemaSetBuilder` loads then `Build()` (Compile) returns a frozen `SchemaSet`.
 - [ ] **Write API documentation for the public API** including some examples. Describe what services are supported and expected.
 - [ ] **Unknown processors throw from the builder.** `ExecutionPlanBuilder.Bind` throws for an unknown processor namespace or id instead of adding an error to `ExecutionPlanException`, so a schema with several problems reports only the first. Fix: use `TryCreateProcessor` and report it with the node path.
 - [ ] **Processer pipeline stage processing should add all parent (group) processors** in order when running them. A child (group) that defines a processor for a specific stage does NOT replace it's parent processors for that stage, but adds to the pipeline. The current implementation replaces the parent processors for that stage with the child processors. Or do we have to make it selectable/overridable per stage?
@@ -63,19 +64,20 @@ var result = serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, se
 - [ ] **Complex schema property values.** `PropertyDescriptor.DataType` now names a registered data type (`DataTypeDescriptor`, with a parser), so a processor can declare typed properties (including custom types such as `my.point`) and the string in `SchemaProperty.Value` is parsed by that type instead of by the processor itself. The plan builder already validates presence of required properties and that each value parses (`ExecutionPlanBuilder.ValidateProperties`). Open: the value is still a single string in the schema model (`SchemaNode.cs`), so lists and nested objects need a parser-defined text syntax; decide whether to allow structured JSON/XML values (list/object) that are handed to the data type parser. Also open: report unknown property names (typos) and value constraints (ranges) at plan build. Also open: allow value references (`ref:`/`pub:`) in complex property values (the engine currently only resolves them for simple string values).
 - [ ] **Data type follow-ups.** Composite/structured data types and a neutral value tree for processor property types; enum data types for the remaining string-valued properties (align `relative`, varint `encoding`); built-in typedefs; replacing a registered descriptor; unit tests for the `Descriptors` namespace.
 - [ ] **String follow-ups.** 
-  - [ ] `length` as `ref:`/`pub:` (processor property values are constants only, see complex property values), 
-  - [ ] publishing the detected length, 
-  - [ ] a length prefix (see above), 
-  - [ ] multi-byte terminators for UTF-16/32, and reporting property errors at plan build instead of at read time. A field processor that needs more data than the open-width window (10 bytes) is retried by the reader with a doubled window while more input is available.
-- [ ] **String: use the field-level `Length`.** 
-  - [x] Done for constant lengths: `sys:string` uses `FieldData.Length` (in bytes, same as `Bytes`) and the string data type supports a length; the processor property `length` still works as a fallback (both together is an error). 
-  - [ ] tests for `ref:`/`pub:` field lengths on strings, deriving a length field from a string value on write (`LengthOf` only handles `byte[]`), and deciding whether to drop the `length` property. Characters-based lengths are not supported (the encoded width depends on the encoding).
+  - [ ] `byteLength` as `ref:`/`pub:` (processor property values are constants only, see complex property values), 
+  - [ ] publishing the detected length
+  - [ ] a length prefix (see above)
+  - [ ] multi-byte terminators for UTF-16/32
+  - [ ] reporting property errors at plan build instead of at read time. A field processor that needs more data than the open-width window (10 bytes) is retried by the reader with a doubled window while more input is available.
+- [ ] **String: use the field-level `ByteLength`.** 
+  - [x] Done for constant lengths: `sys:string` uses `FieldData.ByteLength` (in bytes, same as `Bytes`) and the string data type supports a length; the processor property `byteLength` still works as a fallback (both together is an error). 
+  - [ ] tests for `ref:`/`pub:` field lengths on strings, deriving a length field from a string value on write (`ByteLengthOf` only handles `byte[]`), and deciding whether to drop the `byteLength` property. Characters-based lengths are not supported (the encoded width depends on the encoding).
 - [ ] **Running data on the contexts (`FieldData`, `GroupData`).**
   - [x] `FieldData.Length` and `GroupData.Size` exist (`Processor/NodeData.cs`; on the layout context and the field context, `GroupData` on the layout context only; the writer only knows the group size at `EndWrite`). 
   - [x] Positions (`GroupData.RootPosition`/`Position`), `FieldData.OpenWidthWindowBytes`, and `GroupData.RepeatIndex`/`RepeatCount`/`ChoiceIndex` are moved/added.
   - [ ] Add: window end/remaining.
 - [ ] **Size on groups: follow-ups.** 
-  - [x] `size` (constant or `ref:`/`pub:`) on any group/repeat/choice is done (see below). 
+  - [x] `byteSize` (constant or `ref:`/`pub:`) on any group/repeat/choice is done (see below). 
   - [ ] size value processors; a variable-width (varint) derived size field (the width must not change after the content is known); a size field that comes after its group is not derived; 
   - [ ] bit-level layouts/positions inside the deferred region; the probe encode of the size field runs twice (publishes the placeholder); 
   - [ ] size on a root and overlapping size regions; the reader checks the window only at group exit/open-repeat end (a field crossing the window is caught at exit).
@@ -97,14 +99,14 @@ var result = serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, se
 - [x] **SourceResult.** `IFieldSource`/`IValueSource` use `SourceResult GetField(FieldContext)` (Value, NoValue = engine derives or fails, EndOfData = no more items of a count-less repeat; elsewhere an error). Flat sources can now write count-less repeats.
 - [x] **Optimize the serialization formats for more consise property definition.** Allow properties to be defined as format-native properties instead of listing them under 'properties' with a 'name' and 'value'.
 - [x] **Repeat until end.** A repeat without a count runs until the end of the input (last node of its group only).
-**Bytes data type and field `Length`.** `sys.bytes` is a raw
-- [x] **Size on groups.** `size` on a group, repeat or choice bounds its encoded content in bytes (refers to the content, not the size field itself). The reader opens a window (content must end exactly at it; too little input is NeedMoreData; an open repeat stops at the window end). The writer derives the size field by encoding the content first, or checks a declared size against the measured one. Open-ended (count-less) nodes must be last, recursively through choices and plain groups, unless the group is sized.
+**Bytes data type and field `ByteLength`.** `sys.bytes` is a raw
+- [x] **Size on groups.** `byteSize` on a group, repeat or choice bounds its encoded content in bytes (refers to the content, not the size field itself). The reader opens a window (content must end exactly at it; too little input is NeedMoreData; an open repeat stops at the window end). The writer derives the size field by encoding the content first, or checks a declared size against the measured one. Open-ended (count-less) nodes must be last, recursively through choices and plain groups, unless the group is sized.
 - [x] **API: Add `Assembly` overloads**: to `LoadAssembly` in `SchemaSet` and `LoadFromAssembly` in `ProcessorManager`.
 - [X] **API: Allow `IProcessorFactory` through `IServiceProvider`**: Perhaps bypass the `ProcessManager` entirely. Implement a `IProcessorProvider` over `IServiceProvider` (`ProcessorProvider`).
 - [x] **API: Add `Serializer` root object** as a container for all dependencies. `SerializerBuilder` configures; `Serializer` is immutable and caches `ExecutionPlan`s per schema name (`GetPlan`/`Prepare`/`PrepareAll`).
 - [x] **Value processors on repeat/choice.** `valueProcessors` on a repeat or choice (separate from the layout/stream `processors`) convert the referenced count/index value to an int (read direction, e.g. `sys.map` over a string field).
 - [x] **Derive values the model does not hold.** Done: a field that a sibling repeat's `Count` refers to is derived from `IValueSource.GetCount` when the model has no value (flat `IFieldSource` models must be explicit).
-- [x] **String and variable-width fields.** `sys:string` field processor: `encoding` (default UTF-8), fixed `length` (padded with `padding`, trimmed on read) or single-byte `terminator`.
+- [x] **String and variable-width fields.** `sys:string` field processor: `encoding` (default UTF-8), fixed `byteLength` (padded with `padding`, trimmed on read) or single-byte `terminator`.
 - [x] **Processor diagnostics**. The engine currently has no logging. Add a `ILogger` to the sessions and processor context, and log the plan node path and instance indices for each processor call.
 - [x] **Private processor state key.** Processor state in `SessionState` is keyed by `ProcessorBinding`. A TODO notes it may need extra key data to tell two processors of the same type apart (e.g. the same processor bound at different nodes).
 - [x] **Processor private state per iteration.** State keyed per binding is shared across repeat iterations.

@@ -151,7 +151,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
 
     private FieldInfo? BuildFieldInfo(SchemaField field, SchemaPath path, ProcessorPipeline fieldPipeline, BuildState state)
     {
-        var length = BindValueSource(field.Length, path, state);
+        var length = BindValueSource(field.ByteLength, path, state);
         if (!_dataTypes.TryGet(field.DataType, out var dataType))
         {
             state.Error(path, $"The data type '{field.DataType}' is not registered.");
@@ -168,7 +168,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             Field = field,
             DataType = dataType,
             Pipeline = fieldPipeline,
-            Length = length,
+            ByteLength = length,
             ConstantValue = BindConstant(field, dataType, path, state),
             ValueReference = BindValueReference(field, path, state),
         };
@@ -225,7 +225,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
                 Members = members,
                 Pipeline = pipeline,
                 Count = BindValueSource(repeat.Count, path, state),
-                Size = BindValueSource(repeat.Size, path, state),
+                ByteSize = BindValueSource(repeat.ByteSize, path, state),
                 ValueProcessors = BindValueProcessors(repeat.ValueProcessors, path, state),
             },
             SchemaChoice choice => new ChoiceInfo
@@ -236,7 +236,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
                 Members = members,
                 Pipeline = pipeline,
                 SelectedIndex = BindValueSource(choice.SelectedIndex, path, state),
-                Size = BindValueSource(choice.Size, path, state),
+                ByteSize = BindValueSource(choice.ByteSize, path, state),
                 ValueProcessors = BindValueProcessors(choice.ValueProcessors, path, state),
             },
             _ => new GroupInfo
@@ -246,7 +246,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
                 Group = group,
                 Members = members,
                 Pipeline = pipeline,
-                Size = BindValueSource(group.Size, path, state),
+                ByteSize = BindValueSource(group.ByteSize, path, state),
             },
         };
 
@@ -286,13 +286,13 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
     {
         switch (node)
         {
-            case FieldInfo { DataType.TakesRestOfWindow: true, HasLength: false } when !inWindow:
+            case FieldInfo { DataType.TakesRestOfWindow: true, HasByteLength: false } when !inWindow:
                 state.Error(node.Path, "A bytes field without a length takes the rest of the enclosing size window, but no enclosing group has a size.");
                 break;
             case GroupInfo group:
                 foreach (var child in group.Members)
                 {
-                    ValidateBytesWindow(child, inWindow || group.HasSize, state);
+                    ValidateBytesWindow(child, inWindow || group.HasByteSize, state);
                 }
                 break;
         }
@@ -301,8 +301,8 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
     private static bool IsOpenEnded(NodeInfo node)
         => node switch
         {
-            GroupInfo { HasSize: true } => false,
-            FieldInfo { DataType.TakesRestOfWindow: true, HasLength: false } => true,
+            GroupInfo { HasByteSize: true } => false,
+            FieldInfo { DataType.TakesRestOfWindow: true, HasByteLength: false } => true,
             RepeatInfo repeat => repeat.UntilEnd,
             ChoiceInfo choice => choice.Members.Any(IsOpenEnded),
             GroupInfo group => group.Members.Count > 0 && IsOpenEnded(group.Members[^1]),
@@ -515,17 +515,17 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
                     {
                         field.CountOf = repeat;
                     }
-                    if (Find(root, from) is GroupInfo { HasSize: true, Size: PublishedValueKey sizeKey } sized
+                    if (Find(root, from) is GroupInfo { HasByteSize: true, ByteSize: PublishedValueKey sizeKey } sized
                         && sizeKey.Namespace.Length == 0 && sizeKey.Name == target.Value
                         && sized.Parent is not null && ReferenceEquals(sized.Parent, field.Parent))
                     {
-                        field.SizeOf = sized;
+                        field.ByteSizeOf = sized;
                     }
-                    if (Find(root, from) is FieldInfo { Length: PublishedValueKey lengthKey } bytesField
+                    if (Find(root, from) is FieldInfo { ByteLength: PublishedValueKey lengthKey } bytesField
                         && lengthKey.Namespace.Length == 0 && lengthKey.Name == target.Value
                         && bytesField.Parent is not null && ReferenceEquals(bytesField.Parent, field.Parent))
                     {
-                        field.LengthOf = bytesField;
+                        field.ByteLengthOf = bytesField;
                     }
                     break;
                 case null:

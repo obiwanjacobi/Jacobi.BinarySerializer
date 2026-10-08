@@ -8,9 +8,9 @@ public sealed class FieldData
 {
     /// <summary>
     /// The resolved length in bytes of the field (a constant, or a referenced/published value that is now known).
-    /// Null when the field declares no length.
+    /// Null when the field declares no byte length.
     /// </summary>
-    public int? Length { get; internal set; }
+    public int? ByteLength { get; internal set; }
 
     /// <summary>
     /// The most bytes the default layout read offers to a field processor that decides its own width.
@@ -30,7 +30,7 @@ public sealed class GroupData
     /// When reading: known when the group starts. When writing: only known (non-null) when the group ends.
     /// Null when the group declares no size (or the size is not known yet).
     /// </summary>
-    public int? Size { get; internal set; }
+    public int? ByteSize { get; internal set; }
 
     /// <summary>Bytes written/read since the start of the message (the layout payload), at the start of the current call.</summary>
     public long RootPosition { get; internal set; }

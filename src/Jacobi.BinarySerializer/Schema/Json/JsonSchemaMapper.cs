@@ -82,7 +82,7 @@ internal static class JsonSchemaMapper
             ProcessorsList = jsonField.Processors.Select(ToSchemaProcessorRef).ToList(),
             DataType = jsonField.Type,
             Value = ToSchemaValueOrRef(jsonField.Value),
-            Length = ToSchemaValueOrRef(jsonField.Length),
+            ByteLength = ToSchemaValueOrRef(jsonField.ByteLength),
             PropertyList = MergeProperties(jsonField.Properties, jsonField.AdditionalData)
         };
     }
@@ -130,7 +130,7 @@ internal static class JsonSchemaMapper
                 ProcessorsList = repeat.Processors.Select(ToSchemaProcessorRef).ToList(),
                 MemberList = members,
                 Count = ToSchemaValueOrRef(repeat.Count),
-                Size = ToSchemaValueOrRef(repeat.Size),
+                ByteSize = ToSchemaValueOrRef(repeat.ByteSize),
                 ValueProcessorsList = repeat.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(repeat.Properties, repeat.AdditionalData)
             };
@@ -143,7 +143,7 @@ internal static class JsonSchemaMapper
                 ProcessorsList = choice.Processors.Select(ToSchemaProcessorRef).ToList(),
                 MemberList = members,
                 SelectedIndex = ToSchemaValueOrRef(choice.SelectedIndex),
-                Size = ToSchemaValueOrRef(choice.Size),
+                ByteSize = ToSchemaValueOrRef(choice.ByteSize),
                 ValueProcessorsList = choice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(choice.Properties, choice.AdditionalData)
             };
@@ -156,7 +156,7 @@ internal static class JsonSchemaMapper
                 ProcessorsList = jsonGroup.Processors.Select(ToSchemaProcessorRef).ToList(),
                 MemberList = members,
                 Count = 1,
-                Size = ToSchemaValueOrRef(jsonGroup.Size),
+                ByteSize = ToSchemaValueOrRef(jsonGroup.ByteSize),
                 PropertyList = MergeProperties(jsonGroup.Properties, jsonGroup.AdditionalData)
             };
         }
@@ -205,7 +205,7 @@ internal static class JsonSchemaMapper
                 Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Type = field.DataType,
                 Value = FromSchemaValueOrRef(field.Value),
-                Length = FromSchemaValueOrRef(field.Length),
+                ByteLength = FromSchemaValueOrRef(field.ByteLength),
                 Properties = field.Properties.Select(FromSchemaProperty).ToList()
             },
             SchemaGroup group => CreateJsonGroupNode(group),
@@ -234,7 +234,7 @@ internal static class JsonSchemaMapper
                 Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Members = repeat.Members.Select(FromSchemaNode).ToList(),
                 Count = FromSchemaValueOrRef(repeat.Count),
-                Size = FromSchemaValueOrRef(repeat.Size),
+                ByteSize = FromSchemaValueOrRef(repeat.ByteSize),
                 ValueProcessors = repeat.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = repeat.Properties.Select(FromSchemaProperty).ToList()
             };
@@ -248,7 +248,7 @@ internal static class JsonSchemaMapper
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Members = choice.Members.Select(FromSchemaNode).ToList(),
                 SelectedIndex = FromSchemaValueOrRef(choice.SelectedIndex),
-                Size = FromSchemaValueOrRef(choice.Size),
+                ByteSize = FromSchemaValueOrRef(choice.ByteSize),
                 ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()
             };

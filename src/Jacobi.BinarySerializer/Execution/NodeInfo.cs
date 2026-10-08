@@ -36,19 +36,20 @@ public sealed class FieldInfo : NodeInfo
     /// <summary>
     /// The sibling group whose size refers to this field. When the model holds no value for the field, the writer derives it from the encoded size of that group.
     /// </summary>
-    public GroupInfo? SizeOf { get; internal set; }
+    public GroupInfo? ByteSizeOf { get; internal set; }
 
     /// <summary>
-    /// The length in bytes of a <c>sys.bytes</c> field (unset when the field has no length: it takes the rest of the enclosing size window).
+    /// The physical length in bytes of the encoded field, for a data type that supports a length (e.g. <c>sys.bytes</c>, <c>sys.string</c>).
+    /// Unset when the field has no length (a data type that takes the rest of the enclosing size window does so).
     /// </summary>
-    public ValueSource<int> Length { get; init; }
+    public ValueSource<int> ByteLength { get; init; }
 
-    public bool HasLength => Length is int or PublishedValueKey;
+    public bool HasByteLength => ByteLength is int or PublishedValueKey;
 
     /// <summary>
-    /// The sibling bytes field whose length refers to this field. When the model holds no value for the field, the writer derives it from the length of that field's value.
+    /// The sibling field whose length (in encoded bytes) refers to this field. When the model holds no value for the field, the writer derives it from the byte length of that field's value (currently only <c>byte[]</c>).
     /// </summary>
-    public FieldInfo? LengthOf { get; internal set; }
+    public FieldInfo? ByteLengthOf { get; internal set; }
 
     /// <summary>The parsed constant of <see cref="SchemaField.Value"/> (null when the field has no constant).</summary>
     public object? ConstantValue { get; internal set; }
@@ -58,9 +59,6 @@ public sealed class FieldInfo : NodeInfo
 
     /// <summary>True when the field has a constant or a referenced value that it must have.</summary>
     public bool HasExpectedValue => ConstantValue is not null || ValueReference is not null;
-
-    // previous FieldInfo
-    // next FieldInfo
 }
 
 public class GroupInfo : NodeInfo
@@ -80,12 +78,9 @@ public class GroupInfo : NodeInfo
     /// <summary>
     /// The size in bytes of the encoded content of the group (unset when the group has no size).
     /// </summary>
-    public ValueSource<int> Size { get; init; }
+    public ValueSource<int> ByteSize { get; init; }
 
-    public bool HasSize => Size is int or PublishedValueKey;
-
-    // previous GroupInfo
-    // next GroupInfo
+    public bool HasByteSize => ByteSize is int or PublishedValueKey;
 }
 
 public sealed class RepeatInfo : GroupInfo

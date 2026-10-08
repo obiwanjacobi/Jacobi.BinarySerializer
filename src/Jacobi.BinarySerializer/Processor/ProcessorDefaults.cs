@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using Jacobi.BinarySerializer.Codecs;
 
 namespace Jacobi.BinarySerializer.Processor;
@@ -111,7 +111,7 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
         var field = context.Field;
         var name = field?.Name ?? string.Empty;
 
-        if (field is not null && context.FieldData.Length is { } length)
+        if (field is not null && context.FieldData.ByteLength is { } length)
         {
             if (reader.Remaining < length)
             {
