@@ -54,5 +54,20 @@ public sealed class DataTypeDescriptor
     /// <summary>The type has a default representation (<see cref="Encode"/> and <see cref="Decode"/> are set).</summary>
     public bool HasDefaultRepresentation => Encode is not null && Decode is not null;
 
+    /// <summary>
+    /// Creates a descriptor for an enum: the schema literal is the (case-insensitive) member name.
+    /// </summary>
+    public static DataTypeDescriptor ForEnum<T>(SchemaName name) where T : struct, Enum
+        => new(name, typeof(T), (string? text, out object? value) =>
+        {
+            value = null;
+            if (text is not null && Enum.TryParse<T>(text, true, out var parsed) && Enum.IsDefined(parsed))
+            {
+                value = parsed;
+                return true;
+            }
+            return false;
+        });
+
     public override string ToString() => Name.FullName;
 }

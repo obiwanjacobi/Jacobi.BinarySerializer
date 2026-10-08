@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
@@ -12,7 +12,7 @@ namespace Jacobi.BinarySerializer.Processors;
 /// </summary>
 internal sealed class BytePackerProcessor : ILayoutProcessor
 {
-    private const string EndianProperty = "byteorder";
+    private static readonly PropertyDescriptor EndianProperty = new("byteorder", "sys.endianness", false, description: "Group: 'little' (default) or 'big' byte order of fixed-width values.");
 
     public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
         => ProcessorDefaults.DefaultLayoutProcessor.BeginWrite(writer, context);
@@ -56,27 +56,24 @@ internal sealed class BytePackerProcessor : ILayoutProcessor
 
     private static Endianness GetEndianness(LayoutProcessorContext context)
     {
-        var property = context.Properties.Find(EndianProperty);
-        for (var group = context.Group; property is null && group is not null; group = group.Parent as GroupInfo)
+        if (context.Properties.TryGet<Endianness>(EndianProperty, out var endianness))
         {
-            property = context.PropertiesOf(group.Group.Properties).Find(EndianProperty);
+            return endianness;
         }
 
-        if (property is null)
+        for (var group = context.Group; group is not null; group = group.Parent as GroupInfo)
         {
-            return Endianness.Little;
+            if (context.PropertiesOf(group.Group.Properties).TryGet(EndianProperty, out endianness))
+            {
+                return endianness;
+            }
         }
 
-        return Enum.TryParse<Endianness>(property.Value, true, out var endianness) && Enum.IsDefined(endianness)
-            ? endianness
-            : throw context.Logger.Fail($"Invalid '{EndianProperty}' value '{property.Value}'. Expected 'little' or 'big'.");
+        return Endianness.Little;
     }
 
     public ProcessorKey Key => new("sys.bytepacker");
     public string Name => "Byte-Packer Processor";
     public PipelineStage Stage => PipelineStage.Layout;
-    public IReadOnlyList<PropertyDescriptor> Properties =>
-    [
-        new(EndianProperty, typeof(Endianness), false, description: "Group: 'little' (default) or 'big' byte order of fixed-width values."),
-    ];
+    public IReadOnlyList<PropertyDescriptor> Properties => [EndianProperty];
 }

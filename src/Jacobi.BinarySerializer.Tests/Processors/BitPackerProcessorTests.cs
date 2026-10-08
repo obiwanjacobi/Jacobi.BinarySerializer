@@ -75,6 +75,6 @@ public class BitPackerProcessorTests
     public void Write_InvalidBitOrder_Throws()
     {
         Assert.That(() => Write(CreateRoot("sideways"), CreateValues(), out _),
-            Throws.InstanceOf<InvalidOperationException>());
+            Throws.InstanceOf<Jacobi.BinarySerializer.Execution.ExecutionPlanException>());
     }
 }

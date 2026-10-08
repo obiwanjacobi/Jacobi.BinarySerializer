@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using System.Globalization;
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Processor;
@@ -14,8 +14,14 @@ namespace Jacobi.BinarySerializer.Processors;
 internal sealed class CrcProcessor : ILayoutProcessor,
     ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
 {
-    private const string AlgorithmProperty = "algorithm";
-    private const string ByteOrderProperty = "byteorder";
+    private static readonly PropertyDescriptor AlgorithmProperty = new("algorithm", "sys.string", false, description: "CRC preset name, default 'crc32'.");
+    private static readonly PropertyDescriptor ByteOrderProperty = new("byteorder", "sys.endianness", false, description: "'big' (default) or 'little' byte order of the stored CRC.");
+    private static readonly PropertyDescriptor WidthProperty = new("width", "sys.int32", false, description: "Override: CRC width in bits (1-64).");
+    private static readonly PropertyDescriptor PolyProperty = new("poly", "sys.string", false, description: "Override: polynomial.");
+    private static readonly PropertyDescriptor InitProperty = new("init", "sys.string", false, description: "Override: initial value.");
+    private static readonly PropertyDescriptor RefInProperty = new("refin", "sys.boolean", false, description: "Override: reflect input bytes.");
+    private static readonly PropertyDescriptor RefOutProperty = new("refout", "sys.boolean", false, description: "Override: reflect the output.");
+    private static readonly PropertyDescriptor XorOutProperty = new("xorout", "sys.string", false, description: "Override: final XOR value.");
 
     private sealed class CrcState
     {
@@ -27,14 +33,7 @@ internal sealed class CrcProcessor : ILayoutProcessor,
     public PipelineStage Stage => PipelineStage.Layout;
     public IReadOnlyList<PropertyDescriptor> Properties =>
     [
-        new(AlgorithmProperty, typeof(string), false, description: "CRC preset name, default 'crc32'."),
-        new(ByteOrderProperty, typeof(Endianness), false, description: "'big' (default) or 'little' byte order of the stored CRC."),
-        new("width", typeof(int), false, description: "Override: CRC width in bits (1-64)."),
-        new("poly", typeof(string), false, description: "Override: polynomial."),
-        new("init", typeof(string), false, description: "Override: initial value."),
-        new("refin", typeof(bool), false, description: "Override: reflect input bytes."),
-        new("refout", typeof(bool), false, description: "Override: reflect the output."),
-        new("xorout", typeof(string), false, description: "Override: final XOR value."),
+        AlgorithmProperty, ByteOrderProperty, WidthProperty, PolyProperty, InitProperty, RefInProperty, RefOutProperty, XorOutProperty,
     ];
 
     public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
@@ -117,7 +116,7 @@ internal sealed class CrcProcessor : ILayoutProcessor,
 
     private static CrcCodec GetCodec(LayoutProcessorContext context)
     {
-        var name = context.Properties.Find(AlgorithmProperty)?.Value ?? "crc32";
+        var name = context.Properties.GetOrDefault(AlgorithmProperty, "crc32")!;
         if (!CrcCodec.TryGetPreset(name, out var p))
         {
             throw context.Logger.Fail($"Unknown CRC algorithm '{name}'.");
@@ -125,12 +124,12 @@ internal sealed class CrcProcessor : ILayoutProcessor,
 
         p = p with
         {
-            Width = (int)Number(context, "width", (ulong)p.Width),
-            Poly = Number(context, "poly", p.Poly),
-            Init = Number(context, "init", p.Init),
-            XorOut = Number(context, "xorout", p.XorOut),
-            RefIn = Bool(context, "refin", p.RefIn),
-            RefOut = Bool(context, "refout", p.RefOut),
+            Width = context.Properties.GetOrDefault(WidthProperty, p.Width),
+            Poly = Number(context, PolyProperty, p.Poly),
+            Init = Number(context, InitProperty, p.Init),
+            XorOut = Number(context, XorOutProperty, p.XorOut),
+            RefIn = context.Properties.GetOrDefault(RefInProperty, p.RefIn),
+            RefOut = context.Properties.GetOrDefault(RefOutProperty, p.RefOut),
         };
 
         try
@@ -143,9 +142,9 @@ internal sealed class CrcProcessor : ILayoutProcessor,
         }
     }
 
-    private static ulong Number(LayoutProcessorContext context, string name, ulong fallback)
+    private static ulong Number(LayoutProcessorContext context, PropertyDescriptor descriptor, ulong fallback)
     {
-        var text = context.Properties.Find(name)?.Value;
+        var text = context.Properties.GetOrDefault<string>(descriptor);
         if (text is null)
         {
             return fallback;
@@ -154,29 +153,9 @@ internal sealed class CrcProcessor : ILayoutProcessor,
         var ok = text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
             ? ulong.TryParse(text.AsSpan(2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var value)
             : ulong.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value);
-        return ok ? value : throw context.Logger.Fail($"Invalid '{name}' value '{text}'.");
-    }
-
-    private static bool Bool(LayoutProcessorContext context, string name, bool fallback)
-    {
-        var text = context.Properties.Find(name)?.Value;
-        if (text is null)
-        {
-            return fallback;
-        }
-        return bool.TryParse(text, out var value) ? value : throw context.Logger.Fail($"Invalid '{name}' value '{text}'.");
+        return ok ? value : throw context.Logger.Fail($"Invalid '{descriptor.Name}' value '{text}'.");
     }
 
     private static Endianness GetEndianness(LayoutProcessorContext context)
-    {
-        var property = context.Properties.Find(ByteOrderProperty);
-        if (property is null)
-        {
-            return Endianness.Big;
-        }
-
-        return Enum.TryParse<Endianness>(property.Value, true, out var endianness) && Enum.IsDefined(endianness)
-            ? endianness
-            : throw context.Logger.Fail($"Invalid '{ByteOrderProperty}' value '{property.Value}'. Expected 'little' or 'big'.");
-    }
+        => context.Properties.GetOrDefault(ByteOrderProperty, Endianness.Big);
 }

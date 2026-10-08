@@ -1,4 +1,5 @@
 using System.Collections;
+using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processor;
@@ -11,11 +12,13 @@ public sealed class ProcessorProperties : IReadOnlyList<SchemaProperty>
 {
     private readonly IReadOnlyList<SchemaProperty> _properties;
     private readonly ProcessorKey? _owner;
+    private readonly IDataTypeRegistry? _dataTypes;
 
-    public ProcessorProperties(IReadOnlyList<SchemaProperty> properties, ProcessorKey? owner)
+    public ProcessorProperties(IReadOnlyList<SchemaProperty> properties, ProcessorKey? owner, IDataTypeRegistry? dataTypes = null)
     {
         _properties = properties;
         _owner = owner;
+        _dataTypes = dataTypes;
     }
 
     public int Count => _properties.Count;
@@ -25,8 +28,8 @@ public sealed class ProcessorProperties : IReadOnlyList<SchemaProperty>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     /// <summary>The full (prefixed) name for a short property name.</summary>
-    public string FullName(string name)
-        => _owner is { } key ? key.PropertyName(name) : name;
+    public string FullName(string propertyName)
+        => _owner is { } key ? key.PropertyName(propertyName) : propertyName;
 
     /// <summary>
     /// Enumerates (short name, value) pairs: this processor's prefix is stripped, unprefixed names pass through,
@@ -55,70 +58,67 @@ public sealed class ProcessorProperties : IReadOnlyList<SchemaProperty>
             ?? _properties.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
     }
 
-    public bool TryGet(string name, out string value)
-    {
-        var property = Find(name);
-        value = property?.Value ?? String.Empty;
-        return property is not null;
-    }
+    /// <summary>
+    /// Gets the value of the property described by <paramref name="descriptor"/>, parsed by its data type.
+    /// Throws when the property is absent (a required property gets a 'required' message), its value is invalid or <typeparamref name="T"/> does not match the data type.
+    /// </summary>
+    public T Get<T>(PropertyDescriptor descriptor)
+        => Find(descriptor.Name)?.Value is { } text
+            ? Parse<T>(descriptor, text)
+            : throw (descriptor.IsRequired ? Required(descriptor) : NotFound(descriptor));
 
-    public string? GetOrDefault(string name) => Find(name)?.Value;
+    private InvalidOperationException Required(PropertyDescriptor descriptor)
+        => new($"The '{FullName(descriptor.Name)}' property is required" +
+            (_owner is { } key ? $" by the '{key}' processor." : "."));
 
-    public string Get(string name)
-        => Find(name)?.Value
-            ?? throw new InvalidOperationException(
-                $"The '{FullName(name)}' property is required" +
-                (_owner is { } key ? $" by the '{key}' processor." : "."));
+    private InvalidOperationException NotFound(PropertyDescriptor descriptor)
+        => new($"The '{FullName(descriptor.Name)}' property was not found.");
 
-    public bool TryGet<T>(string name, out T value) where T : IParsable<T>
+    /// <summary>
+    /// Gets the parsed value of the property, or <paramref name="defaultValue"/> when the property is absent.
+    /// Throws when the value is present but invalid, or when the property is absent and required.
+    /// </summary>
+    public T? GetOrDefault<T>(PropertyDescriptor descriptor, T? defaultValue = default)
+        => Find(descriptor.Name)?.Value is { } text
+            ? Parse<T>(descriptor, text)
+            : descriptor.IsRequired ? throw Required(descriptor) : defaultValue;
+
+    /// <summary>
+    /// Returns false when the property is absent, its value is invalid or <typeparamref name="T"/> does not match the data type. Never throws.
+    /// </summary>
+    public bool TryGet<T>(PropertyDescriptor descriptor, out T value)
     {
         value = default!;
-        return TryGet(name, out var text)
-            && T.TryParse(text, System.Globalization.CultureInfo.InvariantCulture, out value!);
-    }
-
-    public T Get<T>(string name) where T : IParsable<T>
-    {
-        var text = Get(name);
-        return T.TryParse(text, System.Globalization.CultureInfo.InvariantCulture, out var value)
-            ? value
-            : throw new InvalidOperationException($"Invalid '{FullName(name)}' value '{text}'.");
-    }
-
-    /// <summary>
-    /// Gets the value of the property described by <paramref name="descriptor"/>.
-    /// Returns the default when the property is absent and not required; throws when it is required.
-    /// </summary>
-    public T? Get<T>(PropertyDescriptor descriptor) where T : IParsable<T>
-    {
-        if (!descriptor.ClrType.IsAssignableTo(typeof(T)))
+        if (Find(descriptor.Name)?.Value is not { } text)
         {
-            throw new InvalidOperationException(
-                $"The '{FullName(descriptor.Name)}' property is of type '{descriptor.ClrType}', not '{typeof(T)}'.");
+            return false;
         }
 
-        return descriptor.IsRequired || Find(descriptor.Name) is not null
-            ? Get<T>(descriptor.Name)
-            : default;
+        try
+        {
+            value = Parse<T>(descriptor, text);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
-    /// <summary>
-    /// Gets the text value of the property described by <paramref name="descriptor"/>.
-    /// Returns null when the property is absent and not required; throws when it is required.
-    /// </summary>
-    public string? Get(PropertyDescriptor descriptor)
-        => descriptor.IsRequired ? Get(descriptor.Name) : GetOrDefault(descriptor.Name);
-
-    public T GetEnum<T>(string name, T defaultValue) where T : struct, Enum
+    private T Parse<T>(PropertyDescriptor descriptor, string text)
     {
-        var text = GetOrDefault(name);
-        if (text is null)
+        var dataType = _dataTypes?.TryGet(new SchemaDataType(descriptor.DataType.FullName), out var found) == true ? found
+            : throw new InvalidOperationException(
+                $"The data type '{descriptor.DataType}' of the '{FullName(descriptor.Name)}' property is not registered.");
+
+        if (!dataType.Parse(text, out var parsed))
         {
-            return defaultValue;
+            throw new InvalidOperationException($"Invalid '{FullName(descriptor.Name)}' value '{text}' for data type '{descriptor.DataType}'.");
         }
 
-        return Enum.TryParse<T>(text, ignoreCase: true, out var value)
-            ? value
-            : throw new InvalidOperationException($"Invalid '{FullName(name)}' value '{text}'.");
+        return parsed is T typed
+            ? typed
+            : throw new InvalidOperationException(
+                $"The '{FullName(descriptor.Name)}' property is of type '{dataType.ClrType}', not '{typeof(T)}'.");
     }
 }

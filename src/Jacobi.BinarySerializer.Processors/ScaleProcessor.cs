@@ -1,9 +1,11 @@
-using Jacobi.BinarySerializer.Processor;
+﻿using Jacobi.BinarySerializer.Processor;
 
 namespace Jacobi.BinarySerializer.Processors;
 
 internal sealed class ScaleProcessor : IValueProcessor
 {
+    private static readonly PropertyDescriptor ScaleProperty = new("scale", "sys.decimal", true);
+
     // logical value = raw value / scale
     public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context)
     {
@@ -36,13 +38,10 @@ internal sealed class ScaleProcessor : IValueProcessor
 
     private static decimal GetScale(ValueProcessorContext context)
     {
-        var property = context.Properties.Find("scale")
-            ?? throw context.Logger.Fail("The 'scale' property is required by the scale processor.");
-
-        if (!Decimal.TryParse(property.Value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var scale)
-            || scale == 0)
+        var scale = context.Properties.Get<decimal>(ScaleProperty);
+        if (scale == 0)
         {
-            throw context.Logger.Fail($"Invalid scale value '{property.Value}'.");
+            throw context.Logger.Fail($"Invalid scale value '{scale}'.");
         }
 
         return scale;
@@ -51,5 +50,5 @@ internal sealed class ScaleProcessor : IValueProcessor
     public ProcessorKey Key => new("sys.scale");
     public string Name => "Scale Processor";
     public PipelineStage Stage => PipelineStage.Semantic;
-    public IReadOnlyList<PropertyDescriptor> Properties => [new("scale", typeof(decimal), true)];
+    public IReadOnlyList<PropertyDescriptor> Properties => [ScaleProperty];
 }

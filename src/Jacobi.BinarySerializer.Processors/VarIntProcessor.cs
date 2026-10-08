@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Descriptors;
@@ -12,7 +12,7 @@ namespace Jacobi.BinarySerializer.Processors;
 /// </summary>
 internal sealed class VarIntProcessor : IFieldProcessor
 {
-    private const string EncodingProperty = "encoding";
+    private static readonly PropertyDescriptor EncodingProperty = new("encoding", "sys.string", false, description: "'leb128' (unsigned, default), 'sleb128' (signed), 'zigzag' (protobuf sint), 'vlq' (MIDI, unsigned) or 'prefix' (length-prefixed, unsigned).");
 
     public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
     {
@@ -130,7 +130,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
 
     private static VarIntEncoding GetEncoding(FieldProcessorContext context)
     {
-        var text = context.Properties.GetOrDefault(EncodingProperty);
+        var text = context.Properties.GetOrDefault<string>(EncodingProperty);
         return text?.ToLowerInvariant() switch
         {
             null or "leb128" => VarIntEncoding.Leb128,
@@ -139,7 +139,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
             "vlq" => VarIntEncoding.Vlq,
             "prefix" => VarIntEncoding.Prefix,
             _ => throw new InvalidOperationException(
-                $"Invalid '{context.Properties.FullName(EncodingProperty)}' value '{text}'. Expected 'leb128', 'sleb128', 'zigzag', 'vlq' or 'prefix'.")
+                $"Invalid '{context.Properties.FullName(EncodingProperty.Name)}' value '{text}'. Expected 'leb128', 'sleb128', 'zigzag', 'vlq' or 'prefix'.")
         };
     }
 
@@ -228,10 +228,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
     public ProcessorKey Key => new("sys.varint");
     public string Name => "Variable Integer Processor";
     public PipelineStage Stage => PipelineStage.Representation;
-    public IReadOnlyList<PropertyDescriptor> Properties =>
-    [
-        new(EncodingProperty, typeof(string), false, description: "'leb128' (unsigned, default), 'sleb128' (signed), 'zigzag' (protobuf sint), 'vlq' (MIDI, unsigned) or 'prefix' (length-prefixed, unsigned).")
-    ];
+    public IReadOnlyList<PropertyDescriptor> Properties => [EncodingProperty];
 
     private enum VarIntEncoding
     {

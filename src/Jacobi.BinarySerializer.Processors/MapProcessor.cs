@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -7,7 +7,7 @@ namespace Jacobi.BinarySerializer.Processors;
 
 internal sealed class MapProcessor : IValueProcessor
 {
-    private const string LogicalProperty = "logical";
+    private static readonly PropertyDescriptor LogicalProperty = new("logical", "sys.string", false);
 
     // each property maps a logical value (name) to a physical value (value), parsed as the field type.
     // a property without a value (null) is the default: on read, physical values that are not mapped give its logical value.
@@ -66,16 +66,16 @@ internal sealed class MapProcessor : IValueProcessor
             ?? throw context.Logger.Fail("The map processor requires a field (or a reference to a field) to know the physical type.");
 
         var logicalType = context.DataTypes.Get(new SchemaDataType("string"));
-        if (context.Properties.Find(LogicalProperty) is { } logicalProperty
-            && !context.DataTypes.TryGet(new SchemaDataType(logicalProperty.Value), out logicalType!))
+        if (context.Properties.GetOrDefault<string>(LogicalProperty) is { } logicalName
+            && !context.DataTypes.TryGet(new SchemaDataType(logicalName), out logicalType!))
         {
-            throw context.Logger.Fail($"Invalid logical type '{logicalProperty.Value}'.");
+            throw context.Logger.Fail($"Invalid logical type '{logicalName}'.");
         }
 
         var entries = new List<(object, object?)>();
         foreach (var property in context.Properties.ShortNames())
         {
-            if (property.Key.Equals(LogicalProperty, StringComparison.OrdinalIgnoreCase))
+            if (property.Key.Equals(LogicalProperty.Name, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -121,5 +121,5 @@ internal sealed class MapProcessor : IValueProcessor
     public ProcessorKey Key => new("sys.map");
     public string Name => "Map Processor";
     public PipelineStage Stage => PipelineStage.Semantic;
-    public IReadOnlyList<PropertyDescriptor> Properties => [new(LogicalProperty, typeof(string), false)];
+    public IReadOnlyList<PropertyDescriptor> Properties => [LogicalProperty];
 }

@@ -34,13 +34,13 @@ public closed class ProcessorContext
     /// Scoped lookup (full 'ns:id.name' names, short-name fallback) over the processor's own properties.
     /// </summary>
     public ProcessorProperties Properties
-        => new(ProcessorProperties, Current is null ? null : Current.Processor.Key);
+        => new(ProcessorProperties, Current is null ? null : Current.Processor.Key, _state.DataTypes);
 
     /// <summary>
     /// Scoped lookup over other properties (e.g. field or group properties) for the current processor.
     /// </summary>
     public ProcessorProperties PropertiesOf(IReadOnlyList<SchemaProperty>? properties)
-        => new(properties ?? [], Current is null ? null : Current.Processor.Key);
+        => new(properties ?? [], Current is null ? null : Current.Processor.Key, _state.DataTypes);
 
     public required IServiceProvider Services { get; init; }
 

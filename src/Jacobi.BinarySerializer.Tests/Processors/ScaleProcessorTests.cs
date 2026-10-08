@@ -33,6 +33,6 @@ public class ScaleProcessorTests
         var root = Group("Root", [], Field("Temperature", "Int32", [Ref("scale")]));
 
         Assert.That(() => Write(root, new() { ["Root.Temperature"] = 1m }, out _),
-            Throws.InstanceOf<InvalidOperationException>());
+            Throws.InstanceOf<Jacobi.BinarySerializer.Execution.ExecutionPlanException>());
     }
 }

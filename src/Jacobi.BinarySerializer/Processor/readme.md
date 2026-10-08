@@ -63,7 +63,12 @@ Every call gets a context for its stage (`ValueProcessorContext`, `FieldProcesso
 - The processor parses and validates the value itself (and fails with a clear message). Required properties that are missing are a failure.
 - Properties of the use override those of a processor definition (`processorDefs`), see [Schema](../Schema/readme.md).
 - Values are constants. Reading a value from a `ref:`/`pub:` in a property is not supported yet.
-- Each property is described by a `PropertyDescriptor` (`Name`, `ClrType`, `IsRequired`, ...). `context.Properties.Get<T>(descriptor)` returns the parsed value (default when optional and absent; throws when required and missing).
+- Each property is described by a `PropertyDescriptor` (`Name`, `DataType`, `IsRequired`, ...). `DataType` is the name of a registered data type (e.g. `sys.int32`, or the enum type `sys.endianness`), the same mechanism as schema field types. Processors keep their descriptors in `static readonly` fields and read values with `context.Properties`:
+  - `Get<T>(descriptor)` throws when the property is absent (a 'required' message if `IsRequired`, otherwise 'not found') or when the value is unparsable or not a `T`.
+  - `GetOrDefault<T>(descriptor, default)` returns the default when absent, but throws when absent and `IsRequired` (or when the value is invalid).
+  - `TryGet<T>(descriptor, out value)` never throws: false when absent, invalid or not a `T`.
+  - The plan builder validates at plan build that required properties are present and that supplied values parse with the declared data type.
+  - Enum data types are created with `DataTypeDescriptor.ForEnum<T>(name)` (case-insensitive member names).
 
 ## Data types
 

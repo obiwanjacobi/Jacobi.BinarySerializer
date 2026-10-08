@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processor;
 
@@ -109,17 +110,17 @@ public interface IStreamProcessor : IProcessor
 
 public sealed class PropertyDescriptor
 {
-    public PropertyDescriptor(string name, Type type)
+    public PropertyDescriptor(string name, SchemaName dataType)
     {
         Name = name;
-        ClrType = type;
+        DataType = dataType;
         Description = String.Empty;
     }
 
-    public PropertyDescriptor(string name, Type type, bool isRequired, bool isReadOnly = false, bool isPublished = false, string? description = null)
+    public PropertyDescriptor(string name, SchemaName dataType, bool isRequired, bool isReadOnly = false, bool isPublished = false, string? description = null)
     {
         Name = name;
-        ClrType = type;
+        DataType = dataType;
         IsRequired = isRequired;
         IsReadOnly = isReadOnly;
         IsPublished = isPublished;
@@ -127,7 +128,10 @@ public sealed class PropertyDescriptor
     }
 
     public string Name { get; }
-    public Type ClrType { get; }
+    /// <summary>
+    /// The name of the registered data type of the property value (for example 'sys.int32').
+    /// </summary>
+    public SchemaName DataType { get; }
 
     public bool IsRequired { get; }
     public bool IsReadOnly { get; }

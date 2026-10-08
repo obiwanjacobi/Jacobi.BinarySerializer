@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using Jacobi.BinarySerializer.Processor;
 
 namespace Jacobi.BinarySerializer.Processors;
@@ -15,17 +15,13 @@ namespace Jacobi.BinarySerializer.Processors;
 internal sealed class AlignProcessor : ILayoutProcessor,
     ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
 {
-    private const string BytesProperty = "bytes";
-    private const string RelativeProperty = "relative";
+    private static readonly PropertyDescriptor BytesProperty = new("bytes", "sys.int32", true, description: "The alignment in bytes.");
+    private static readonly PropertyDescriptor RelativeProperty = new("relative", "sys.string", false, description: "'group' (default) or 'root': what the position is relative to.");
 
     public ProcessorKey Key => new("sys.align");
     public string Name => "Align Processor";
     public PipelineStage Stage => PipelineStage.Layout;
-    public IReadOnlyList<PropertyDescriptor> Properties =>
-    [
-        new(BytesProperty, typeof(int), true, description: "The alignment in bytes."),
-        new(RelativeProperty, typeof(string), false, description: "'group' (default) or 'root': what the position is relative to."),
-    ];
+    public IReadOnlyList<PropertyDescriptor> Properties => [BytesProperty, RelativeProperty];
 
     // head
     public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
@@ -112,29 +108,24 @@ internal sealed class AlignProcessor : ILayoutProcessor,
 
     private static int GetAlignment(LayoutProcessorContext context)
     {
-        var property = context.Properties.Find(BytesProperty)
-            ?? throw context.Logger.Fail($"Missing required '{BytesProperty}' property on the align processor.");
-        if (!Int32.TryParse(property.Value, out var alignment) || alignment <= 0)
+        var alignment = context.Properties.Get<int>(BytesProperty);
+        if (alignment <= 0)
         {
-            throw context.Logger.Fail($"Invalid '{BytesProperty}' value '{property.Value}'. Expected a positive integer.");
+            throw context.Logger.Fail($"Invalid '{BytesProperty.Name}' value '{alignment}'. Expected a positive integer.");
         }
         return alignment;
     }
 
     private static bool IsRoot(LayoutProcessorContext context)
     {
-        var property = context.Properties.Find(RelativeProperty);
+        var value = context.Properties.GetOrDefault<string>(RelativeProperty);
 
-        if (property is null)
+        return value?.ToLowerInvariant() switch
         {
-            return false;
-        }
-
-        return property.Value?.ToLowerInvariant() switch
-        {
+            null => false,
             "group" => false,
             "root" => true,
-            _ => throw context.Logger.Fail($"Invalid '{RelativeProperty}' value '{property.Value}'. Expected 'group' or 'root'.")
+            _ => throw context.Logger.Fail($"Invalid '{RelativeProperty.Name}' value '{value}'. Expected 'group' or 'root'.")
         };
     }
 }

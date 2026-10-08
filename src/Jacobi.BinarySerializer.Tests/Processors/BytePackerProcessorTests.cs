@@ -51,6 +51,6 @@ public class BytePackerProcessorTests
     public void Write_InvalidEndian_Throws()
     {
         Assert.That(() => Write(CreateRoot("middle"), CreateValues(), out _),
-            Throws.InstanceOf<InvalidOperationException>());
+            Throws.InstanceOf<Jacobi.BinarySerializer.Execution.ExecutionPlanException>());
     }
 }

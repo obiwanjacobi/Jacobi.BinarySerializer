@@ -26,8 +26,16 @@ internal static class BuiltInDataTypes
         yield return Integer<ulong>("uint64", 8, v => Convert.ToUInt64(v, Culture), b => b);
         yield return CreateBoolean();
         yield return CreateDouble();
+        yield return new DataTypeDescriptor(Name("decimal"), typeof(decimal),
+            (string? text, out object? value) =>
+            {
+                value = null;
+                if (text is not null && Decimal.TryParse(text, NumberStyles.Number, Culture, out var number)) { value = number; return true; }
+                return false;
+            });
         yield return CreateDateTime();
         yield return CreateBytes();
+        yield return DataTypeDescriptor.ForEnum<Codecs.Endianness>(Name("endianness"));
         yield return new DataTypeDescriptor(Name("object"), typeof(object), (string? text, out object? value) => { value = text; return text is not null; });
     }
 

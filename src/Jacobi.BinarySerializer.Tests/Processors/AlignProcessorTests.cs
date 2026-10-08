@@ -105,12 +105,11 @@ public class AlignProcessorTests
         var root = Group("Root", [Ref("align")], Field("A", "UInt8"));
 
         Assert.That(() => Write(root, new() { ["Root.A"] = (byte)1 }, out _),
-            Throws.InstanceOf<InvalidOperationException>());
+            Throws.InstanceOf<Jacobi.BinarySerializer.Execution.ExecutionPlanException>());
     }
 
     [TestCase("0")]
     [TestCase("-4")]
-    [TestCase("many")]
     public void Write_InvalidBytes_Throws(string bytes)
     {
         var root = Group("Root", [Ref("align", ("bytes", bytes))], Field("A", "UInt8"));

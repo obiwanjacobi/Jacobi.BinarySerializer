@@ -355,7 +355,34 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
                 $"Processor '{processor.Key}' declares stage {processor.Stage} but does not implement its stage interface.");
         }
 
+        ValidateProperties(processor, processorRef.EffectiveProperties, path, state);
         return new(processor, processorRef.EffectiveProperties);
+    }
+
+    private void ValidateProperties(IProcessor processor, IReadOnlyList<SchemaProperty> properties, string path, BuildState state)
+    {
+        var lookup = new ProcessorProperties(properties, processor.Key, _dataTypes);
+        foreach (var descriptor in processor.Properties)
+        {
+            if (!_dataTypes.TryGet(new SchemaDataType(descriptor.DataType.FullName), out var dataType))
+            {
+                state.Error(path, $"The data type '{descriptor.DataType}' of the '{lookup.FullName(descriptor.Name)}' property is not registered.");
+                continue;
+            }
+
+            var property = lookup.Find(descriptor.Name);
+            if (property is null)
+            {
+                if (descriptor.IsRequired)
+                {
+                    state.Error(path, $"The '{lookup.FullName(descriptor.Name)}' property is required by the '{processor.Key}' processor.");
+                }
+            }
+            else if (!dataType.Parse(property.Value, out _))
+            {
+                state.Error(path, $"The '{lookup.FullName(descriptor.Name)}' value '{property.Value}' is not a valid {dataType} value.");
+            }
+        }
     }
 
     /// <summary>A layout chain is the head (first) followed by processors that implement the chained (bytes to bytes) interfaces.</summary>

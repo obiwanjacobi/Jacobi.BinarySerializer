@@ -144,9 +144,9 @@ public class LoggingTests
         var capture = new CaptureProvider();
         using var factory = LoggerFactory.Create(b => b.AddProvider(capture).SetMinimumLevel(LogLevel.Error));
         var root = Group("Root", [],
-            Field("A", "UInt32", [Ref("align")]));
+            Field("A", "UInt32", [Ref("align", ("bytes", "0"))]));
 
-        // 'align' has no required 'bytes' property: the processor throws.
+        // 'bytes' must be positive: the processor throws.
         Assert.Throws<InvalidOperationException>(() => new ReaderSession(Build(root), new Services(factory))
             .Read(new ReadOnlySequence<byte>(new byte[] { 1, 2, 3, 4 }), new DictSink()));
 

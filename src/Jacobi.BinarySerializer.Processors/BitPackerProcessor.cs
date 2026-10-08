@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
@@ -13,8 +13,8 @@ namespace Jacobi.BinarySerializer.Processors;
 /// </summary>
 internal sealed class BitPackerProcessor : ILayoutProcessor
 {
-    private const string BitsProperty = "bits";
-    private const string BitOrderProperty = "bitorder";
+    private static readonly PropertyDescriptor BitsProperty = new("bits", "sys.int32", false, description: "Field: the number of bits the field occupies.");
+    private static readonly PropertyDescriptor BitOrderProperty = new("bitorder", "sys.endianness", false, description: "Group: 'little' (default) or 'big' bit order within a byte.");
 
     public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
     {
@@ -143,40 +143,23 @@ internal sealed class BitPackerProcessor : ILayoutProcessor
 
     private static int GetBits(LayoutProcessorContext context, int defaultBits)
     {
-        var property = context.PropertiesOf(context.Field?.Field.Properties).Find(BitsProperty);
-        if (property is null)
-        {
-            return defaultBits;
-        }
-
-        return Int32.TryParse(property.Value, out var bits)
-            ? bits
-            : throw context.Logger.Fail($"'{context.Field!.Path}': invalid '{BitsProperty}' value '{property.Value}'.");
+        return context.PropertiesOf(context.Field?.Field.Properties).GetOrDefault(BitsProperty, defaultBits);
     }
 
     private static Endianness GetBitOrder(LayoutProcessorContext context)
     {
-        var property = context.Properties.Find(BitOrderProperty)
-            ?? context.PropertiesOf(context.Group?.Group.Properties).Find(BitOrderProperty);
-
-        if (property is null)
+        if (context.Properties.TryGet<Endianness>(BitOrderProperty, out var order))
         {
-            return Endianness.Little;
+            return order;
         }
 
-        return Enum.TryParse<Endianness>(property.Value, true, out var order) && Enum.IsDefined(order)
-            ? order
-            : throw context.Logger.Fail($"Invalid '{BitOrderProperty}' value '{property.Value}'. Expected 'little' or 'big'.");
+        return context.PropertiesOf(context.Group?.Group.Properties).GetOrDefault(BitOrderProperty, Endianness.Little);
     }
 
     public ProcessorKey Key => new("sys.bitpacker");
     public string Name => "Bit-Packer Processor";
     public PipelineStage Stage => PipelineStage.Layout;
-    public IReadOnlyList<PropertyDescriptor> Properties =>
-    [
-        new(BitsProperty, typeof(int), false, description: "Field: the number of bits the field occupies."),
-        new(BitOrderProperty, typeof(Endianness), false, description: "Group: 'little' (default) or 'big' bit order within a byte."),
-    ];
+    public IReadOnlyList<PropertyDescriptor> Properties => [BitsProperty, BitOrderProperty];
 
     private sealed class BitPackerState
     {

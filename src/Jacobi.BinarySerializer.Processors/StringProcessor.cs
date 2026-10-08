@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -12,10 +12,10 @@ namespace Jacobi.BinarySerializer.Processors;
 /// </summary>
 internal sealed class StringProcessor : IFieldProcessor
 {
-    private const string EncodingProperty = "encoding";
-    private const string LengthProperty = "length";
-    private const string TerminatorProperty = "terminator";
-    private const string PaddingProperty = "padding";
+    private static readonly PropertyDescriptor EncodingProperty = new("encoding", "sys.string", false, description: "The text encoding name; 'utf-8' by default.");
+    private static readonly PropertyDescriptor LengthProperty = new("length", "sys.int32", false, description: "A fixed length in bytes; shorter strings are padded. Exclusive with 'terminator'.");
+    private static readonly PropertyDescriptor TerminatorProperty = new("terminator", "sys.uint8", false, description: "The byte value (0-255) that ends the string. Exclusive with 'length'.");
+    private static readonly PropertyDescriptor PaddingProperty = new("padding", "sys.uint8", false, description: "The byte value (0-255) that pads a fixed length; 0 by default. Trailing padding is trimmed on read.");
 
     public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
     {
@@ -139,7 +139,7 @@ internal sealed class StringProcessor : IFieldProcessor
 
     private static Options ReadOptions(ProcessorProperties properties)
     {
-        var encodingName = properties.GetOrDefault(EncodingProperty);
+        var encodingName = properties.GetOrDefault<string>(EncodingProperty);
         Encoding encoding;
         try
         {
@@ -147,35 +147,24 @@ internal sealed class StringProcessor : IFieldProcessor
         }
         catch (ArgumentException ex)
         {
-            throw new InvalidOperationException($"Invalid '{properties.FullName(EncodingProperty)}' value '{encodingName}'.", ex);
+            throw new InvalidOperationException($"Invalid '{properties.FullName(EncodingProperty.Name)}' value '{encodingName}'.", ex);
         }
 
-        var length = ParseNumber(properties, LengthProperty, 1, Int32.MaxValue);
-        var terminator = ParseNumber(properties, TerminatorProperty, 0, Byte.MaxValue);
-        var padding = ParseNumber(properties, PaddingProperty, 0, Byte.MaxValue);
+        int? length = properties.TryGet<int>(LengthProperty, out var lengthValue) ? lengthValue : null;
+        if (length < 1)
+        {
+            throw new InvalidOperationException($"Invalid '{properties.FullName(LengthProperty.Name)}' value '{length}'. Expected a number from 1 to {Int32.MaxValue}.");
+        }
+        byte? terminator = properties.TryGet<byte>(TerminatorProperty, out var terminatorValue) ? terminatorValue : null;
+        var padding = properties.GetOrDefault<byte>(PaddingProperty);
 
         if (length is null == terminator is null)
         {
             throw new InvalidOperationException(
-                $"The string processor requires exactly one of '{properties.FullName(LengthProperty)}' or '{properties.FullName(TerminatorProperty)}'.");
+                $"The string processor requires exactly one of '{properties.FullName(LengthProperty.Name)}' or '{properties.FullName(TerminatorProperty.Name)}'.");
         }
 
-        return new Options(encoding, length, (byte?)terminator, (byte)(padding ?? 0));
-    }
-
-    private static int? ParseNumber(ProcessorProperties properties, string name, int min, int max)
-    {
-        var text = properties.GetOrDefault(name);
-        if (text is null)
-        {
-            return null;
-        }
-
-        if (!Int32.TryParse(text, System.Globalization.CultureInfo.InvariantCulture, out var value) || value < min || value > max)
-        {
-            throw new InvalidOperationException($"Invalid '{properties.FullName(name)}' value '{text}'. Expected a number from {min} to {max}.");
-        }
-        return value;
+        return new Options(encoding, length, terminator, padding);
     }
 
     private sealed record Options(Encoding Encoding, int? Length, byte? Terminator, byte Padding);
@@ -183,11 +172,5 @@ internal sealed class StringProcessor : IFieldProcessor
     public ProcessorKey Key => new("sys.string");
     public string Name => "String Processor";
     public PipelineStage Stage => PipelineStage.Representation;
-    public IReadOnlyList<PropertyDescriptor> Properties =>
-    [
-        new(EncodingProperty, typeof(string), false, description: "The text encoding name; 'utf-8' by default."),
-        new(LengthProperty, typeof(int), false, description: "A fixed length in bytes; shorter strings are padded. Exclusive with 'terminator'."),
-        new(TerminatorProperty, typeof(byte), false, description: "The byte value (0-255) that ends the string. Exclusive with 'length'."),
-        new(PaddingProperty, typeof(byte), false, description: "The byte value (0-255) that pads a fixed length; 0 by default. Trailing padding is trimmed on read.")
-    ];
+    public IReadOnlyList<PropertyDescriptor> Properties => [EncodingProperty, LengthProperty, TerminatorProperty, PaddingProperty];
 }
