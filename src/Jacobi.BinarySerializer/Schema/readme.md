@@ -4,7 +4,7 @@ A schema describes the structure of a binary format: which fields exist, in what
 
 ## General idea
 
-- A **schema document** (JSON, XML, ...) is loaded into a `SchemaSet`. All formats map onto the same in-memory model (`SchemaDocument`, `SchemaNode`).
+- A **schema document** (JSON, XML, YML) is loaded into a `SchemaSet`. All formats map onto the same in-memory model (`SchemaDocument`, `SchemaNode`).
 - `SchemaSet.Compile()` resolves references (between documents, to type definitions and to processor definitions), expands property names and validates. A document must be compiled before a plan can be built from it.
 - A document has one or more **roots**. A root is a group that is selected by name when the serializer asks for an `ExecutionPlan`.
 - The schema is data: it holds no logic. Everything that is not plain structure is expressed by a **processor** (with properties) or by a **reference**.
