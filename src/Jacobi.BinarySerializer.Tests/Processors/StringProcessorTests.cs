@@ -105,4 +105,26 @@ public class StringProcessorTests
 
         Assert.That(result, Is.EqualTo(ReadResult.NeedMoreData));
     }
+
+    [Test]
+    public void RoundTrip_FieldLength_PadsAndTrims()
+    {
+        var a = new SchemaField { Name = "A", DataType = "String", Length = 6, ProcessorsList = [Ref("string")] };
+        var root = Group("Root", [], a, Field("B", "UInt8"));
+        var values = new Dictionary<string, object?> { ["Root.A"] = "abc", ["Root.B"] = (byte)7 };
+
+        var (bytes, read) = RoundTrip(root, values);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { (byte)'a', (byte)'b', (byte)'c', 0, 0, 0, 7 }));
+        Assert.That(read, Is.EqualTo(values));
+    }
+
+    [Test]
+    public void Write_FieldLengthAndLengthProperty_Throws()
+    {
+        var a = new SchemaField { Name = "A", DataType = "String", Length = 6, ProcessorsList = [Ref("string", ("length", "6"))] };
+        var root = Group("Root", [], a);
+
+        Assert.That(() => Write(root, new() { ["Root.A"] = "abc" }, out _), Throws.InstanceOf<Exception>());
+    }
 }

@@ -76,7 +76,7 @@ public readonly record struct FieldReadResult<T>(ReadResult Status, T Value, int
 // Write: Begin runs last-to-first, End runs first-to-last; the bytes a stage emits (also in Begin/End) flow through the later stages.
 // Read: Begin/End work on the actual reader (same order as write). A chained field Read gets a reader over the unread input:
 //       it consumes the bytes it owns (e.g. padding) and returns the rest (see LayoutChain.Unread) for the next stage; keep the length.
-// Context.RootPosition / GroupPosition tell where in the actual stream the call happens.
+// Context.GroupData.RootPosition / Position tell where in the actual stream the call happens.
 public interface ILayoutProcessor : ILayoutWriter<EncodedField>, ILayoutReader<EncodedField> { }
 public interface ILayoutWriter<InT> : IProcessor where InT : allows ref struct
 {

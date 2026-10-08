@@ -117,6 +117,11 @@ public sealed class FieldProcessorContext : ProcessorContext
     /// The field being processed (set by the session before each call).
     /// </summary>
     public FieldInfo Field { get; internal set; } = null!;
+
+    /// <summary>
+    /// The running data of the field being processed (set by the session before each call).
+    /// </summary>
+    public FieldData FieldData { get; } = new();
 }
 
 public sealed class LayoutProcessorContext : ProcessorContext
@@ -124,8 +129,8 @@ public sealed class LayoutProcessorContext : ProcessorContext
     public LayoutProcessorContext(SessionState state) : base(state) { }
 
     internal override string NodePath => (Field?.Path ?? Group?.Path)?.ToString() ?? String.Empty;
-    internal override long? ScopeRootPosition => RootPosition;
-    internal override long? ScopeGroupPosition => GroupPosition;
+    internal override long? ScopeRootPosition => GroupData.RootPosition;
+    internal override long? ScopeGroupPosition => GroupData.Position;
 
     /// <summary>
     /// The group being laid out (set by the session before each call).
@@ -139,18 +144,15 @@ public sealed class LayoutProcessorContext : ProcessorContext
     public FieldInfo? Field { get; internal set; }
 
     /// <summary>
-    /// The number of bytes the reader must take for a bytes field (set by the session before each field read; null otherwise).
+    /// The running data of the field whose encoded value is being written/read (set by the session before each field call).
+    /// <see cref="FieldData.Length"/> is the number of bytes the reader must take for a field with a length.
     /// </summary>
-    public int? FieldLength { get; internal set; }
+    public FieldData FieldData { get; } = new();
 
-    /// <summary>Bytes written/read since the start of the message (the layout payload), at the start of the current call.</summary>
-    public long RootPosition { get; internal set; }
-
-    /// <summary>Bytes written/read since the start of the group that owns the layout (see RootPosition for the whole message).</summary>
-    public long GroupPosition { get; internal set; }
-
-    /// <summary>The most bytes the default layout read offers to a field processor that decides its own width; the session grows it when the processor needs more data.</summary>
-    public int OpenWidthWindowBytes { get; internal set; } = DefaultLayoutProcessor.OpenWidthWindowBytes;
+    /// <summary>
+    /// The running data of the group being laid out (set by the session before each call).
+    /// </summary>
+    public GroupData GroupData { get; } = new();
 }
 
 public sealed class StreamProcessorContext : ProcessorContext

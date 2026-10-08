@@ -89,7 +89,7 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var codec = GetCodec(context);
-        var length = context.GroupPosition;
+        var length = context.GroupData.Position;
         var data = reader.Sequence.Slice(reader.Consumed - length, length);
         var state = codec.Initial;
         foreach (var segment in data)

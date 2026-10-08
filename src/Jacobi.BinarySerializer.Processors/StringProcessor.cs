@@ -44,7 +44,7 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
     private static FieldWriteResult<EncodedField> WriteCore(LogicalField field, FieldProcessorContext context)
     {
         var path = context.Field.Path;
-        var options = ReadOptions(context.Properties);
+        var options = ReadOptions(context);
         CheckType(context, path);
 
         if (field.Value is not string text)
@@ -82,7 +82,7 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
     private static FieldReadResult<LogicalField> ReadCore(EncodedField field, FieldProcessorContext context)
     {
         var path = context.Field.Path;
-        var options = ReadOptions(context.Properties);
+        var options = ReadOptions(context);
         CheckType(context, path);
 
         if (field.Value is not byte[] bytes)
@@ -137,8 +137,9 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
         }
     }
 
-    private static Options ReadOptions(ProcessorProperties properties)
+    private static Options ReadOptions(FieldProcessorContext context)
     {
+        var properties = context.Properties;
         var encodingName = properties.GetOrDefault<string>(EncodingProperty);
         Encoding encoding;
         try
@@ -155,13 +156,26 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
         {
             throw new InvalidOperationException($"Invalid '{properties.FullName(LengthProperty.Name)}' value '{length}'. Expected a number from 1 to {Int32.MaxValue}.");
         }
+        if (context.FieldData.Length is { } fieldLength)
+        {
+            if (length is not null)
+            {
+                throw new InvalidOperationException(
+                    $"The field has a length; the '{properties.FullName(LengthProperty.Name)}' property cannot be used as well.");
+            }
+            if (fieldLength < 1)
+            {
+                throw new InvalidOperationException($"Invalid field length '{fieldLength}'. Expected a number from 1 to {Int32.MaxValue}.");
+            }
+            length = fieldLength;
+        }
         byte? terminator = properties.TryGet<byte>(TerminatorProperty, out var terminatorValue) ? terminatorValue : null;
         var padding = properties.GetOrDefault<byte>(PaddingProperty);
 
         if (length is null == terminator is null)
         {
             throw new InvalidOperationException(
-                $"The string processor requires exactly one of '{properties.FullName(LengthProperty.Name)}' or '{properties.FullName(TerminatorProperty.Name)}'.");
+                $"The string processor requires exactly one of the field length, '{properties.FullName(LengthProperty.Name)}' or '{properties.FullName(TerminatorProperty.Name)}'.");
         }
 
         return new Options(encoding, length, terminator, padding);

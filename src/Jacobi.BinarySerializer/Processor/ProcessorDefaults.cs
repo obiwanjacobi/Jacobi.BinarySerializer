@@ -111,7 +111,7 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
         var field = context.Field;
         var name = field?.Name ?? string.Empty;
 
-        if (field is not null && context.FieldLength is { } length)
+        if (field is not null && context.FieldData.Length is { } length)
         {
             if (reader.Remaining < length)
             {
@@ -128,7 +128,7 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
         {
             // The field processor decides how much of the window it uses (it reports that in its read result);
             // the engine gives the unused bytes back to the reader.
-            var window = (int)Math.Min(context.OpenWidthWindowBytes, reader.Remaining);
+            var window = (int)Math.Min(context.FieldData.OpenWidthWindowBytes, reader.Remaining);
             if (window == 0)
             {
                 return LayoutReadResult<EncodedField>.NeedMoreData();

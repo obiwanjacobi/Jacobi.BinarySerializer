@@ -45,7 +45,10 @@ internal static class BuiltInDataTypes
         => new($"{DataTypeRegistry.SystemNamespace}{SchemaName.Separator}{name}");
 
     private static DataTypeDescriptor CreateString()
-        => new(Name("string"), typeof(string), (string? text, out object? value) => { value = text; return text is not null; });
+        => new(Name("string"), typeof(string), (string? text, out object? value) => { value = text; return text is not null; })
+        {
+            SupportsLength = true,
+        };
 
     private static DataTypeDescriptor CreateBoolean()
         => Fixed<bool>("boolean", 1,

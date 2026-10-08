@@ -109,6 +109,37 @@ public class LayoutChainTests
     }
 
     [Test]
+    public void Chain_Write_ReportsRepeatIndexAndCount()
+    {
+        var log = new List<string>();
+        var repeat = new SchemaRepeat { Name = "Items", Count = 2, ProcessorsList = [Ref("probe")] };
+        repeat.MemberList.Add(Field("V"));
+        var plan = Build(Group("Root", [], repeat), log);
+
+        var output = new ArrayBufferWriter<byte>();
+        var result = new WriterSession(plan, output).Write(new ConstSource());
+
+        Assert.That(result, Is.EqualTo(WriteResult.Success));
+        Assert.That(log, Does.Contain("BeginW:r0/2"));
+        Assert.That(log, Does.Contain("BeginW:r1/2"));
+    }
+
+    [Test]
+    public void Chain_Read_ReportsChoiceIndex()
+    {
+        var log = new List<string>();
+        var choice = new SchemaChoice { Name = "Pick", SelectedIndex = 1, ProcessorsList = [Ref("probe")] };
+        choice.MemberList.Add(Field("A"));
+        choice.MemberList.Add(Field("B"));
+        var plan = Build(Group("Root", [], choice), log);
+
+        var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 5 }), new NullSink());
+
+        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That(log, Does.Contain("BeginR:c1"));
+    }
+
+    [Test]
     public void Chain_ProcessorWithoutChainSupport_FailsThePlan()
     {
         var log = new List<string>();
@@ -129,6 +160,7 @@ public class LayoutChainTests
             "trailhead" => new Head(log, "trailhead", true),
             "plainhead" => new Head(log, "plainhead", false),
             "align" => new Align(log),
+            "probe" => new Probe(log),
             _ => null
         };
     }
@@ -162,12 +194,54 @@ public class LayoutChainTests
 
         public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
-            log.Add($"Read:{context.RootPosition}/{context.GroupPosition}");
+            log.Add($"Read:{context.GroupData.RootPosition}/{context.GroupData.Position}");
             return ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
         }
 
         public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
             => log.Add($"End:{id}");
+    }
+
+    private sealed class ConstSource : IFieldSource
+    {
+        public SourceResult GetField(FieldContext context)
+            => SourceResult.Provided(new LogicalField(context.Name, typeof(byte), (byte)1));
+    }
+
+    private sealed class NullSink : IFieldSink
+    {
+        public void SetField(FieldContext context, LogicalField value) { }
+    }
+
+    private sealed class Probe(List<string> log) : ILayoutProcessor
+    {
+        public ProcessorKey Key => new(Ns, "probe");
+        public string Name => "probe";
+        public PipelineStage Stage => PipelineStage.Layout;
+        public IReadOnlyList<PropertyDescriptor> Properties => [];
+
+        private static string Describe(LayoutProcessorContext context)
+            => context.GroupData.ChoiceIndex is { } c ? $"c{c}" : $"r{context.GroupData.RepeatIndex}/{context.GroupData.RepeatCount}";
+
+        public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
+            => log.Add($"BeginW:{Describe(context)}");
+
+        public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
+            => ProcessorDefaults.DefaultLayoutProcessor.Write(writer, encodedValue, context);
+
+        public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
+        {
+        }
+
+        public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+            => log.Add($"BeginR:{Describe(context)}");
+
+        public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+            => ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
+
+        public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+        }
     }
 
     /// <summary>Pads to a multiple of 4 (relative to the owning group) before each value and at the end of the group.</summary>
@@ -178,7 +252,7 @@ public class LayoutChainTests
         public PipelineStage Stage => PipelineStage.Layout;
         public IReadOnlyList<PropertyDescriptor> Properties => [];
 
-        private static int Padding(LayoutProcessorContext context) => (int)((4 - context.GroupPosition % 4) % 4);
+        private static int Padding(LayoutProcessorContext context) => (int)((4 - context.GroupData.Position % 4) % 4);
 
         private static void Pad(IBufferWriter<byte> writer, int count)
         {
@@ -197,7 +271,7 @@ public class LayoutChainTests
 
         public WriteResult Write(IBufferWriter<byte> writer, ReadOnlySpan<byte> bytes, LayoutProcessorContext context)
         {
-            log.Add($"Write:{context.RootPosition}/{context.GroupPosition}");
+            log.Add($"Write:{context.GroupData.RootPosition}/{context.GroupData.Position}");
             Pad(writer, Padding(context));
             writer.Write(bytes);
             return WriteResult.Success;
@@ -217,7 +291,7 @@ public class LayoutChainTests
 
         LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
-            log.Add($"Read:{context.RootPosition}/{context.GroupPosition}");
+            log.Add($"Read:{context.GroupData.RootPosition}/{context.GroupData.Position}");
             var padding = Padding(context);
             if (reader.Remaining < padding)
             {

@@ -102,13 +102,13 @@ internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
 
         writer.GetSpan(padding).Slice(0, padding).Clear();
         writer.Advance(padding);
-        context.Logger.AlignPadded(padding, GetAlignment(context), IsRoot(context) ? context.RootPosition : context.GroupPosition);
+        context.Logger.AlignPadded(padding, GetAlignment(context), IsRoot(context) ? context.GroupData.RootPosition : context.GroupData.Position);
     }
 
     private static long Padding(LayoutProcessorContext context)
     {
         var alignment = GetAlignment(context);
-        var position = IsRoot(context) ? context.RootPosition : context.GroupPosition;
+        var position = IsRoot(context) ? context.GroupData.RootPosition : context.GroupData.Position;
         return (alignment - position % alignment) % alignment;
     }
 

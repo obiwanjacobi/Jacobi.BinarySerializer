@@ -20,6 +20,7 @@ public sealed class ReaderSession : SessionState
     private readonly IServiceProvider _services;
     private InstancePath _instance;
     private readonly Stack<long> _groupStarts = new();
+    private readonly Stack<int> _choiceIndexes = new();
     private readonly Stack<(GroupInfo Group, long End)> _windows = new();
 
     private readonly ValueProcessorContext _valueContext;
@@ -97,7 +98,9 @@ public sealed class ReaderSession : SessionState
                             }
                             else if (group is ChoiceInfo rootChoice)
                             {
-                                cursor.Enter(sink, Resolve(rootChoice.SelectedIndex, rootChoice, _valueContext, _instance));
+                                var rootIndex = Resolve(rootChoice.SelectedIndex, rootChoice, _valueContext, _instance);
+                                _choiceIndexes.Push(rootIndex);
+                                cursor.Enter(sink, rootIndex);
                             }
                             else
                             {
@@ -119,6 +122,7 @@ public sealed class ReaderSession : SessionState
                         {
                             var index = Resolve(choice.SelectedIndex, choice, _valueContext, _instance);
                             EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
+                            _choiceIndexes.Push(index);
                             var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index);                            cursor.Enter(choiceScope, index);
                         }
                         else
@@ -166,12 +170,12 @@ public sealed class ReaderSession : SessionState
                             new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index, step.Count);
                         cursor.Enter(item);
                         SetInstance(cursor.Instance);
-                        BeginLayout(repeat, ref reader);
+                        BeginLayout(repeat, ref reader, step.Index, step.Count);
                         break;
                     }
 
                 case CursorStepKind.ExitItem:
-                    EndLayout((GroupInfo)step.Node!, ref reader);
+                    EndLayout((GroupInfo)step.Node!, ref reader, step.Index, step.Count);
                     step.Scope!.Complete();
                     break;
 
@@ -180,6 +184,10 @@ public sealed class ReaderSession : SessionState
                     {
                         EndLayout((GroupInfo)step.Node!, ref reader);
                         step.Scope!.Complete();
+                    }
+                    if (step.Node is ChoiceInfo)
+                    {
+                        _choiceIndexes.Pop();
                     }
                     if (step.Node is GroupInfo { HasSize: true } sized && _windows.Count > 0 && ReferenceEquals(_windows.Peek().Group, sized))
                     {
@@ -222,8 +230,10 @@ public sealed class ReaderSession : SessionState
             return length;
         }
 
-        // validated at plan build: a length-less bytes field has an enclosing window.
-        return checked((int)(_windows.Peek().End - reader.Consumed));
+        // validated at plan build: a length-less rest-of-window field has an enclosing window.
+        return field.DataType.TakesRestOfWindow
+            ? checked((int)(_windows.Peek().End - reader.Consumed))
+            : null;
     }
 
     private ReadResult ReadField(FieldInfo field, IValueSink scope, ref SequenceReader<byte> reader)
@@ -233,7 +243,7 @@ public sealed class ReaderSession : SessionState
         var window = DefaultLayoutProcessor.OpenWidthWindowBytes;
         while (true)
         {
-            _layoutContext.OpenWidthWindowBytes = window;
+            _layoutContext.FieldData.OpenWidthWindowBytes = window;
             var result = ReadFieldWindow(field, scope, ref reader, out var needsLargerWindow);
             if (!needsLargerWindow)
             {
@@ -251,8 +261,10 @@ public sealed class ReaderSession : SessionState
         // Layout: bytes -> encoded
         _layoutContext.Group = field.Parent!;
         _layoutContext.Field = field;
-        _layoutContext.FieldLength = BytesLength(field, ref reader);
-        if (_layoutContext.FieldLength is { } bytesLength && reader.Remaining < bytesLength)
+        var fieldLength = BytesLength(field, ref reader);
+        _layoutContext.FieldData.Length = fieldLength;
+        _fieldContext.FieldData.Length = fieldLength;
+        if (fieldLength is { } bytesLength && reader.Remaining < bytesLength)
         {
             return ReadResult.NeedMoreData;
         }
@@ -341,7 +353,14 @@ public sealed class ReaderSession : SessionState
         return ReadResult.Success;
     }
 
-    private void BeginLayout(GroupInfo group, ref SequenceReader<byte> reader)
+    private void SetGroupData(GroupInfo group, int? itemIndex, int? itemCount)
+    {
+        _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
+        _layoutContext.FieldData.Length = null;
+        _layoutContext.GroupData.Size = group is not RepeatInfo && group.HasSize ? Resolve(group.Size, group.Path, _instance) : null;
+    }
+
+    private void BeginLayout(GroupInfo group, ref SequenceReader<byte> reader, int? itemIndex = null, int? itemCount = null)
     {
         if (!WriterSession.OwnsLayout(group))
         {
@@ -351,6 +370,7 @@ public sealed class ReaderSession : SessionState
         _groupStarts.Push(reader.Consumed);
         _layoutContext.Group = group;
         _layoutContext.Field = null;
+        SetGroupData(group, itemIndex, itemCount);
         var chain = group.Pipeline.LayoutProcessors;
         for (var i = chain.Count - 1; i >= 0; i--)
         {
@@ -360,7 +380,7 @@ public sealed class ReaderSession : SessionState
         }
     }
 
-    private void EndLayout(GroupInfo group, ref SequenceReader<byte> reader)
+    private void EndLayout(GroupInfo group, ref SequenceReader<byte> reader, int? itemIndex = null, int? itemCount = null)
     {
         if (!WriterSession.OwnsLayout(group))
         {
@@ -369,6 +389,7 @@ public sealed class ReaderSession : SessionState
 
         _layoutContext.Group = group;
         _layoutContext.Field = null;
+        SetGroupData(group, itemIndex, itemCount);
         foreach (var binding in group.Pipeline.LayoutProcessors)
         {
             Prepare(_layoutContext, binding);
@@ -403,8 +424,8 @@ public sealed class ReaderSession : SessionState
 
     private void SetPosition(long consumed)
     {
-        _layoutContext.RootPosition = consumed;
-        _layoutContext.GroupPosition = consumed - (_groupStarts.Count > 0 ? _groupStarts.Peek() : 0);
+        _layoutContext.GroupData.RootPosition = consumed;
+        _layoutContext.GroupData.Position = consumed - (_groupStarts.Count > 0 ? _groupStarts.Peek() : 0);
     }
 
     /// <summary>

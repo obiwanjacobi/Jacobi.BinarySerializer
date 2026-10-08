@@ -29,6 +29,7 @@ public sealed class WriterSession : SessionState
     private IBufferWriter<byte> _target;
     private CountingBufferWriter _counter;
     private readonly Stack<long> _groupStarts = new();
+    private readonly Stack<int> _choiceIndexes = new();
     private readonly Stack<long> _sizeStarts = new();
     private readonly Stack<DeferredSize> _deferred = new();
 
@@ -111,7 +112,9 @@ public sealed class WriterSession : SessionState
                             }
                             else if (group is ChoiceInfo rootChoice)
                             {
-                                cursor.Enter(source, Resolve(rootChoice.SelectedIndex, rootChoice, _valueContext, _instance));
+                                var rootIndex = Resolve(rootChoice.SelectedIndex, rootChoice, _valueContext, _instance);
+                                _choiceIndexes.Push(rootIndex);
+                                cursor.Enter(source, rootIndex);
                             }
                             else
                             {
@@ -140,6 +143,7 @@ public sealed class WriterSession : SessionState
                         {
                             var index = Resolve(choice.SelectedIndex, choice, _valueContext, _instance);
                             EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
+                            _choiceIndexes.Push(index);
                             var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance });                            cursor.Enter(choiceScope, index);
                         }
                         else
@@ -177,6 +181,10 @@ public sealed class WriterSession : SessionState
                         {
                             EndLayout(group);
                         }
+                        if (group is ChoiceInfo)
+                        {
+                            _choiceIndexes.Pop();
+                        }
                         if (group.HasSize)
                         {
                             var size = _counter.Written - _sizeStarts.Pop();
@@ -210,12 +218,12 @@ public sealed class WriterSession : SessionState
                         var item = step.Scope!.EnterItem(new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index);
                         cursor.Enter(item);
                         SetInstance(cursor.Instance);
-                        BeginLayout(repeat);
+                        BeginLayout(repeat, step.Index, step.Count);
                         break;
                     }
 
                 case CursorStepKind.ExitItem:
-                    EndLayout((GroupInfo)step.Node!);
+                    EndLayout((GroupInfo)step.Node!, step.Index, step.Count);
                     break;
 
                 case CursorStepKind.Done:
@@ -400,6 +408,9 @@ public sealed class WriterSession : SessionState
         }
 
         EncodedField encoded;
+        var fieldLength = field.HasLength ? Resolve(field.Length, field.Path, _instance) : (int?)null;
+        _fieldContext.FieldData.Length = fieldLength;
+        _layoutContext.FieldData.Length = fieldLength;
         switch (pipeline.FieldProcessors.Count)
         {
             case 0:
@@ -432,9 +443,8 @@ public sealed class WriterSession : SessionState
         }
 
         // Length: a bytes field must be exactly as long as its declared length
-        if (field.HasLength && encoded.Value is byte[] lengthBytes)
+        if (fieldLength is { } declaredLength && encoded.Value is byte[] lengthBytes)
         {
-            var declaredLength = Resolve(field.Length, field.Path, _instance);
             if (declaredLength != lengthBytes.Length)
             {
                 throw EngineLogger.Fail($"'{field.Path}': the length is {declaredLength} but the value has {lengthBytes.Length} bytes.");
@@ -476,8 +486,8 @@ public sealed class WriterSession : SessionState
 
     private void SetPosition()
     {
-        _layoutContext.RootPosition = _counter.Written;
-        _layoutContext.GroupPosition = _counter.Written - (_groupStarts.Count > 0 ? _groupStarts.Peek() : 0);
+        _layoutContext.GroupData.RootPosition = _counter.Written;
+        _layoutContext.GroupData.Position = _counter.Written - (_groupStarts.Count > 0 ? _groupStarts.Peek() : 0);
     }
 
     private List<ArrayBufferWriter<byte>> RentBuffers(int count)
@@ -540,7 +550,7 @@ public sealed class WriterSession : SessionState
         }
     }
 
-    private void BeginLayout(GroupInfo group)
+    private void BeginLayout(GroupInfo group, int? itemIndex = null, int? itemCount = null)
     {
         if (!OwnsLayout(group))
         {
@@ -550,6 +560,9 @@ public sealed class WriterSession : SessionState
         _groupStarts.Push(_counter.Written);
         _layoutContext.Group = group;
         _layoutContext.Field = null;
+        _layoutContext.FieldData.Length = null;
+        _layoutContext.GroupData.Size = null;
+        _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
         var chain = group.Pipeline.LayoutProcessors;
         var buffers = RentBuffers(chain.Count - 1);
         for (var i = chain.Count - 1; i >= 0; i--)
@@ -561,7 +574,7 @@ public sealed class WriterSession : SessionState
         }
     }
 
-    private void EndLayout(GroupInfo group)
+    private void EndLayout(GroupInfo group, int? itemIndex = null, int? itemCount = null)
     {
         if (!OwnsLayout(group))
         {
@@ -570,6 +583,11 @@ public sealed class WriterSession : SessionState
 
         _layoutContext.Group = group;
         _layoutContext.Field = null;
+        _layoutContext.FieldData.Length = null;
+        _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
+        _layoutContext.GroupData.Size = group is not RepeatInfo && group.HasSize && _sizeStarts.Count > 0
+            ? checked((int)(_counter.Written - _sizeStarts.Peek()))
+            : null;
         var chain = group.Pipeline.LayoutProcessors;
         var buffers = RentBuffers(chain.Count - 1);
         for (var i = 0; i < chain.Count; i++)
