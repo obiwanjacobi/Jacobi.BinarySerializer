@@ -11,7 +11,7 @@ namespace Jacobi.BinarySerializer.Processors;
 /// Field property 'bits' sets the width (default: the encoded width). Group property 'bitorder' ('little' or 'big') sets the bit order (default: little).
 /// A partially filled byte is padded with zero bits at the end of the group.
 /// </summary>
-internal sealed class BitPackerProcessor : ILayoutProcessor
+internal sealed class BitPackerProcessor : ProcessorBase, ILayoutProcessor
 {
     private static readonly PropertyDescriptor BitsProperty = new("bits", "sys.int32", false, description: "Field: the number of bits the field occupies.");
     private static readonly PropertyDescriptor BitOrderProperty = new("bitorder", "sys.endianness", false, description: "Group: 'little' (default) or 'big' bit order within a byte.");

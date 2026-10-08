@@ -10,7 +10,7 @@ namespace Jacobi.BinarySerializer.Processors;
 /// 'terminator' is a single byte value that ends the string and is not part of it.
 /// The 'encoding' property names the text encoding (default 'utf-8').
 /// </summary>
-internal sealed class StringProcessor : IFieldProcessor
+internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
 {
     private static readonly PropertyDescriptor EncodingProperty = new("encoding", "sys.string", false, description: "The text encoding name; 'utf-8' by default.");
     private static readonly PropertyDescriptor LengthProperty = new("length", "sys.int32", false, description: "A fixed length in bytes; shorter strings are padded. Exclusive with 'terminator'.");

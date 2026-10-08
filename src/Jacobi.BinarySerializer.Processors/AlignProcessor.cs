@@ -1,5 +1,7 @@
 ﻿using System.Buffers;
+using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processors;
 
@@ -12,11 +14,15 @@ namespace Jacobi.BinarySerializer.Processors;
 /// Chained after a bit packer, only the bytes the packer emits are aligned. On read, the aligner cannot tell which fields
 /// consumed bits only, so combine them with care.
 /// </remarks>
-internal sealed class AlignProcessor : ILayoutProcessor,
+internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
     ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
 {
     private static readonly PropertyDescriptor BytesProperty = new("bytes", "sys.int32", true, description: "The alignment in bytes.");
-    private static readonly PropertyDescriptor RelativeProperty = new("relative", "sys.string", false, description: "'group' (default) or 'root': what the position is relative to.");
+    public static readonly SchemaName RelativeDataType = "sys.alignrelativeto";
+
+    private static readonly PropertyDescriptor RelativeProperty = new("relative", RelativeDataType, false, description: "'group' (default) or 'root': what the position is relative to.");
+
+    public override IEnumerable<DataTypeDescriptor> DataTypes => [DataTypeDescriptor.ForEnum<AlignRelativeTo>(RelativeDataType)];
 
     public ProcessorKey Key => new("sys.align");
     public string Name => "Align Processor";
@@ -117,15 +123,11 @@ internal sealed class AlignProcessor : ILayoutProcessor,
     }
 
     private static bool IsRoot(LayoutProcessorContext context)
-    {
-        var value = context.Properties.GetOrDefault<string>(RelativeProperty);
+        => context.Properties.GetOrDefault(RelativeProperty, AlignRelativeTo.Group) == AlignRelativeTo.Root;
+}
 
-        return value?.ToLowerInvariant() switch
-        {
-            null => false,
-            "group" => false,
-            "root" => true,
-            _ => throw context.Logger.Fail($"Invalid '{RelativeProperty.Name}' value '{value}'. Expected 'group' or 'root'.")
-        };
-    }
+internal enum AlignRelativeTo
+{
+    Group,
+    Root
 }

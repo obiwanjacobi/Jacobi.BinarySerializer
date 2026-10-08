@@ -55,13 +55,15 @@ public sealed class DataTypeDescriptor
     public bool HasDefaultRepresentation => Encode is not null && Decode is not null;
 
     /// <summary>
-    /// Creates a descriptor for an enum: the schema literal is the (case-insensitive) member name.
+    /// Creates a descriptor for an enum: the schema literal is the member name, case-insensitive and ignoring '-' and '_'
+    /// (so 'crc32-bzip2' matches the member Crc32Bzip2).
     /// </summary>
     public static DataTypeDescriptor ForEnum<T>(SchemaName name) where T : struct, Enum
         => new(name, typeof(T), (string? text, out object? value) =>
         {
             value = null;
-            if (text is not null && Enum.TryParse<T>(text, true, out var parsed) && Enum.IsDefined(parsed))
+            var normalized = text?.Replace("-", String.Empty).Replace("_", String.Empty);
+            if (normalized is not null && Enum.TryParse<T>(normalized, true, out var parsed) && Enum.IsDefined(parsed))
             {
                 value = parsed;
                 return true;

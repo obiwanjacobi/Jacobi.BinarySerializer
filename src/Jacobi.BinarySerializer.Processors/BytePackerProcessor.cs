@@ -10,7 +10,7 @@ namespace Jacobi.BinarySerializer.Processors;
 /// Group property 'endian' ('little' or 'big') sets the byte order of fixed-width values (default: little, the canonical form).
 /// Values without a fixed width (strings) are passed on unchanged.
 /// </summary>
-internal sealed class BytePackerProcessor : ILayoutProcessor
+internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor
 {
     private static readonly PropertyDescriptor EndianProperty = new("byteorder", "sys.endianness", false, description: "Group: 'little' (default) or 'big' byte order of fixed-width values.");
 

@@ -209,7 +209,7 @@ public class VarIntProcessorTests
     {
         var root = Group("Root", [], Field("A", "UInt32", [Ref("varint", ("encoding", "bogus"))]));
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.Throws<Jacobi.BinarySerializer.Execution.ExecutionPlanException>(() =>
             Write(root, new Dictionary<string, object?> { ["Root.A"] = 1u }, out _));
         Assert.That(ex!.Message, Does.Contain("sys.varint.encoding"));
     }

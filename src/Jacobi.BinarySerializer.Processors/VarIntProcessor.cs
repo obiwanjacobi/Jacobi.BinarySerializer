@@ -2,6 +2,7 @@
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Descriptors;
+using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processors;
 
@@ -10,9 +11,13 @@ namespace Jacobi.BinarySerializer.Processors;
 /// 'leb128' (unsigned, default), 'sleb128' (signed LEB128), 'zigzag' (protobuf sint: zigzag + LEB128),
 /// 'vlq' (MIDI big-endian base-128, unsigned) or 'prefix' (UTF-8 style length prefix, unsigned).
 /// </summary>
-internal sealed class VarIntProcessor : IFieldProcessor
+internal sealed class VarIntProcessor : ProcessorBase, IFieldProcessor
 {
-    private static readonly PropertyDescriptor EncodingProperty = new("encoding", "sys.string", false, description: "'leb128' (unsigned, default), 'sleb128' (signed), 'zigzag' (protobuf sint), 'vlq' (MIDI, unsigned) or 'prefix' (length-prefixed, unsigned).");
+    public static readonly SchemaName EncodingDataType = "sys.varintencoding";
+
+    private static readonly PropertyDescriptor EncodingProperty = new("encoding", EncodingDataType, false, description: "'leb128' (unsigned, default), 'sleb128' (signed), 'zigzag' (protobuf sint), 'vlq' (MIDI, unsigned) or 'prefix' (length-prefixed, unsigned).");
+
+    public override IEnumerable<DataTypeDescriptor> DataTypes => [DataTypeDescriptor.ForEnum<VarIntEncoding>(EncodingDataType)];
 
     public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
     {
@@ -129,19 +134,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
     }
 
     private static VarIntEncoding GetEncoding(FieldProcessorContext context)
-    {
-        var text = context.Properties.GetOrDefault<string>(EncodingProperty);
-        return text?.ToLowerInvariant() switch
-        {
-            null or "leb128" => VarIntEncoding.Leb128,
-            "sleb128" => VarIntEncoding.SLeb128,
-            "zigzag" => VarIntEncoding.ZigZag,
-            "vlq" => VarIntEncoding.Vlq,
-            "prefix" => VarIntEncoding.Prefix,
-            _ => throw new InvalidOperationException(
-                $"Invalid '{context.Properties.FullName(EncodingProperty.Name)}' value '{text}'. Expected 'leb128', 'sleb128', 'zigzag', 'vlq' or 'prefix'.")
-        };
-    }
+        => context.Properties.GetOrDefault(EncodingProperty, VarIntEncoding.Leb128);
 
     private static bool IsSignedType(DataTypeDescriptor type)
         => type.ClrType == typeof(sbyte) || type.ClrType == typeof(short) || type.ClrType == typeof(int) || type.ClrType == typeof(long);
@@ -229,13 +222,13 @@ internal sealed class VarIntProcessor : IFieldProcessor
     public string Name => "Variable Integer Processor";
     public PipelineStage Stage => PipelineStage.Representation;
     public IReadOnlyList<PropertyDescriptor> Properties => [EncodingProperty];
+}
 
-    private enum VarIntEncoding
-    {
-        Leb128,
-        SLeb128,
-        ZigZag,
-        Vlq,
-        Prefix
-    }
+internal enum VarIntEncoding
+{
+    Leb128,
+    SLeb128,
+    ZigZag,
+    Vlq,
+    Prefix
 }

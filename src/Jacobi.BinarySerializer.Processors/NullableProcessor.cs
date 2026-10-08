@@ -2,7 +2,7 @@ using Jacobi.BinarySerializer.Processor;
 
 namespace Jacobi.BinarySerializer.Processors;
 
-internal sealed class NullableProcessor : IValueProcessor
+internal sealed class NullableProcessor : ProcessorBase, IValueProcessor
 {
     public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context)
     {

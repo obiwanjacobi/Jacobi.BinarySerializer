@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using Jacobi.BinarySerializer.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Jacobi.BinarySerializer.Processor;
@@ -8,6 +9,12 @@ public interface IProcessorFactory
     string Namespace { get; }
 
     IProcessor? CreateProcessor(string id);
+
+    /// <summary>
+    /// The data types this factory's processors use for their properties.
+    /// They are registered when the serializer is built; use names in the factory's own namespace.
+    /// </summary>
+    IEnumerable<DataTypeDescriptor> DataTypes => [];
 }
 
 public interface IProcessorFactoryProvider
@@ -20,11 +27,16 @@ public interface IProcessorProvider
 {
     IProcessor CreateProcessor(ProcessorKey key);
     bool TryCreateProcessor(ProcessorKey key, [NotNullWhen(true)] out IProcessor? processor);
+
+    /// <summary>The data types published by the known processor factories.</summary>
+    IEnumerable<DataTypeDescriptor> DataTypes => [];
 }
 
 public sealed class ProcessorManager : IProcessorProvider, IProcessorFactoryProvider
 {
     private readonly Dictionary<string, IProcessorFactory> _processorFactories = new(StringComparer.OrdinalIgnoreCase);
+
+    public IEnumerable<DataTypeDescriptor> DataTypes => _processorFactories.Values.SelectMany(f => f.DataTypes);
 
     public IProcessor CreateProcessor(ProcessorKey key)
     {
@@ -110,6 +122,9 @@ public sealed class ProcessorManager : IProcessorProvider, IProcessorFactoryProv
 public sealed class ProcessorProvider : IProcessorProvider
 {
     private readonly IServiceProvider _serviceProvider;
+
+    public IEnumerable<DataTypeDescriptor> DataTypes
+        => _serviceProvider.GetServices<IProcessorFactory>().SelectMany(f => f.DataTypes);
 
     public ProcessorProvider(IServiceProvider serviceProvider)
     {

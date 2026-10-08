@@ -1,7 +1,9 @@
 ﻿using System.Buffers;
 using System.Globalization;
 using Jacobi.BinarySerializer.Codecs;
+using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processors;
 
@@ -11,10 +13,14 @@ namespace Jacobi.BinarySerializer.Processors;
 /// and optional overrides 'width', 'poly', 'init', 'refin', 'refout', 'xorout' (numbers may be hex with 0x).
 /// Usable as the layout head, or chained after a head (e.g. the byte packer).
 /// </summary>
-internal sealed class CrcProcessor : ILayoutProcessor,
+internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
 {
-    private static readonly PropertyDescriptor AlgorithmProperty = new("algorithm", "sys.string", false, description: "CRC preset name, default 'crc32'.");
+    public static readonly SchemaName AlgorithmDataType = "sys.crcalgorithm";
+
+    public override IEnumerable<DataTypeDescriptor> DataTypes => [DataTypeDescriptor.ForEnum<CrcAlgorithm>(AlgorithmDataType)];
+
+    private static readonly PropertyDescriptor AlgorithmProperty = new("algorithm", AlgorithmDataType, false, description: "CRC preset name, default 'crc32'.");
     private static readonly PropertyDescriptor ByteOrderProperty = new("byteorder", "sys.endianness", false, description: "'big' (default) or 'little' byte order of the stored CRC.");
     private static readonly PropertyDescriptor WidthProperty = new("width", "sys.int32", false, description: "Override: CRC width in bits (1-64).");
     private static readonly PropertyDescriptor PolyProperty = new("poly", "sys.string", false, description: "Override: polynomial.");
@@ -116,11 +122,7 @@ internal sealed class CrcProcessor : ILayoutProcessor,
 
     private static CrcCodec GetCodec(LayoutProcessorContext context)
     {
-        var name = context.Properties.GetOrDefault(AlgorithmProperty, "crc32")!;
-        if (!CrcCodec.TryGetPreset(name, out var p))
-        {
-            throw context.Logger.Fail($"Unknown CRC algorithm '{name}'.");
-        }
+        var p = context.Properties.GetOrDefault(AlgorithmProperty, CrcAlgorithm.Crc32).ToParameters();
 
         p = p with
         {

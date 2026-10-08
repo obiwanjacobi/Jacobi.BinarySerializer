@@ -14,7 +14,12 @@ internal static class ProcessorTestHelpers
     {
         var manager = new ProcessorManager();
         manager.Register(new ProcessorFactory());
-        return new ExecutionPlanBuilder(manager).Build(root);
+        var dataTypes = Jacobi.BinarySerializer.Descriptors.DataTypeRegistry.CreateDefault();
+        foreach (var dataType in manager.DataTypes)
+        {
+            dataTypes.Register(dataType);
+        }
+        return new ExecutionPlanBuilder(manager, dataTypes).Build(root);
     }
 
     /// <summary>Property names are expanded to the full 'sys:{id}.{name}' form (enum options stay as-is; they are values, not settings).</summary>

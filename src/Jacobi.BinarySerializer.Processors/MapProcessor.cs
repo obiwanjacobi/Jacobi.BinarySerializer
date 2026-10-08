@@ -5,7 +5,7 @@ using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processors;
 
-internal sealed class MapProcessor : IValueProcessor
+internal sealed class MapProcessor : ProcessorBase, IValueProcessor
 {
     private static readonly PropertyDescriptor LogicalProperty = new("logical", "sys.string", false);
 

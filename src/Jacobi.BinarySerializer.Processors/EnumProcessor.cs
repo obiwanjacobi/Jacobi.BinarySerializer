@@ -3,7 +3,7 @@ using Jacobi.BinarySerializer.Processor;
 
 namespace Jacobi.BinarySerializer.Processors;
 
-internal sealed class EnumProcessor : IValueProcessor
+internal sealed class EnumProcessor : ProcessorBase, IValueProcessor
 {
     // each property represents a valid enumeration value and its corresponding integer representation
 

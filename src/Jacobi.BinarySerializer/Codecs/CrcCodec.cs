@@ -5,7 +5,27 @@ namespace Jacobi.BinarySerializer.Codecs;
 /// <summary>
 /// Parameters of a CRC following the Rocksoft model (as used by the reveng CRC catalog).
 /// </summary>
-public readonly record struct CrcParameters(int Width, ulong Poly, ulong Init, bool RefIn, bool RefOut, ulong XorOut);
+public readonly record struct CrcParameters(int Width, ulong Poly, ulong Init, bool RefIn, bool RefOut, ulong XorOut)
+{
+    public static CrcParameters Crc32 { get; } = new(32, 0x04C11DB7, 0xFFFFFFFF, true, true, 0xFFFFFFFF);
+    public static CrcParameters Crc32C { get; } = new(32, 0x1EDC6F41, 0xFFFFFFFF, true, true, 0xFFFFFFFF);
+    public static CrcParameters Crc32Bzip2 { get; } = new(32, 0x04C11DB7, 0xFFFFFFFF, false, false, 0xFFFFFFFF);
+    public static CrcParameters Crc32Mpeg2 { get; } = new(32, 0x04C11DB7, 0xFFFFFFFF, false, false, 0);
+    public static CrcParameters Crc16CcittFalse { get; } = new(16, 0x1021, 0xFFFF, false, false, 0);
+    public static CrcParameters Crc16Xmodem { get; } = new(16, 0x1021, 0, false, false, 0);
+    public static CrcParameters Crc16Kermit { get; } = new(16, 0x1021, 0, true, true, 0);
+    public static CrcParameters Crc16X25 { get; } = new(16, 0x1021, 0xFFFF, true, true, 0xFFFF);
+    public static CrcParameters Crc16Modbus { get; } = new(16, 0x8005, 0xFFFF, true, true, 0);
+    public static CrcParameters Crc16Arc { get; } = new(16, 0x8005, 0, true, true, 0);
+    public static CrcParameters Crc16Usb { get; } = new(16, 0x8005, 0xFFFF, true, true, 0xFFFF);
+    public static CrcParameters Crc8 { get; } = new(8, 0x07, 0, false, false, 0);
+    public static CrcParameters Crc8Maxim { get; } = new(8, 0x31, 0, true, true, 0);
+    public static CrcParameters Crc8SaeJ1850 { get; } = new(8, 0x1D, 0xFF, false, false, 0xFF);
+    public static CrcParameters Crc5Usb { get; } = new(5, 0x05, 0x1F, true, true, 0x1F);
+    public static CrcParameters Crc24OpenPgp { get; } = new(24, 0x864CFB, 0xB704CE, false, false, 0);
+    public static CrcParameters Crc64Xz { get; } = new(64, 0x42F0E1EBA9EA3693, ulong.MaxValue, true, true, ulong.MaxValue);
+    public static CrcParameters Crc64Ecma182 { get; } = new(64, 0x42F0E1EBA9EA3693, 0, false, false, 0);
+}
 
 /// <summary>
 /// Generic table-driven CRC for widths 1 to 64.
@@ -17,24 +37,24 @@ public sealed class CrcCodec
 
     private static readonly Dictionary<string, CrcParameters> Presets = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["crc32"] = new(32, 0x04C11DB7, 0xFFFFFFFF, true, true, 0xFFFFFFFF),
-        ["crc32c"] = new(32, 0x1EDC6F41, 0xFFFFFFFF, true, true, 0xFFFFFFFF),
-        ["crc32-bzip2"] = new(32, 0x04C11DB7, 0xFFFFFFFF, false, false, 0xFFFFFFFF),
-        ["crc32-mpeg2"] = new(32, 0x04C11DB7, 0xFFFFFFFF, false, false, 0),
-        ["crc16-ccitt-false"] = new(16, 0x1021, 0xFFFF, false, false, 0),
-        ["crc16-xmodem"] = new(16, 0x1021, 0, false, false, 0),
-        ["crc16-kermit"] = new(16, 0x1021, 0, true, true, 0),
-        ["crc16-x25"] = new(16, 0x1021, 0xFFFF, true, true, 0xFFFF),
-        ["crc16-modbus"] = new(16, 0x8005, 0xFFFF, true, true, 0),
-        ["crc16-arc"] = new(16, 0x8005, 0, true, true, 0),
-        ["crc16-usb"] = new(16, 0x8005, 0xFFFF, true, true, 0xFFFF),
-        ["crc8"] = new(8, 0x07, 0, false, false, 0),
-        ["crc8-maxim"] = new(8, 0x31, 0, true, true, 0),
-        ["crc8-sae-j1850"] = new(8, 0x1D, 0xFF, false, false, 0xFF),
-        ["crc5-usb"] = new(5, 0x05, 0x1F, true, true, 0x1F),
-        ["crc24-openpgp"] = new(24, 0x864CFB, 0xB704CE, false, false, 0),
-        ["crc64-xz"] = new(64, 0x42F0E1EBA9EA3693, ulong.MaxValue, true, true, ulong.MaxValue),
-        ["crc64-ecma-182"] = new(64, 0x42F0E1EBA9EA3693, 0, false, false, 0),
+        ["crc32"] = CrcParameters.Crc32,
+        ["crc32c"] = CrcParameters.Crc32C,
+        ["crc32-bzip2"] = CrcParameters.Crc32Bzip2,
+        ["crc32-mpeg2"] = CrcParameters.Crc32Mpeg2,
+        ["crc16-ccitt-false"] = CrcParameters.Crc16CcittFalse,
+        ["crc16-xmodem"] = CrcParameters.Crc16Xmodem,
+        ["crc16-kermit"] = CrcParameters.Crc16Kermit,
+        ["crc16-x25"] = CrcParameters.Crc16X25,
+        ["crc16-modbus"] = CrcParameters.Crc16Modbus,
+        ["crc16-arc"] = CrcParameters.Crc16Arc,
+        ["crc16-usb"] = CrcParameters.Crc16Usb,
+        ["crc8"] = CrcParameters.Crc8,
+        ["crc8-maxim"] = CrcParameters.Crc8Maxim,
+        ["crc8-sae-j1850"] = CrcParameters.Crc8SaeJ1850,
+        ["crc5-usb"] = CrcParameters.Crc5Usb,
+        ["crc24-openpgp"] = CrcParameters.Crc24OpenPgp,
+        ["crc64-xz"] = CrcParameters.Crc64Xz,
+        ["crc64-ecma-182"] = CrcParameters.Crc64Ecma182,
     };
 
     private readonly ulong[]? _table;

@@ -55,7 +55,12 @@ public sealed class SerializerBuilder
             ?? throw new InvalidOperationException("No processors were added. Call AddProcessors or AddServices first.");
 
         _built = true;
-        return new Serializer(_schemas, processorProvider, _serviceProvider, _dataTypes);
+        var dataTypes = _dataTypes ?? DataTypeRegistry.CreateDefault();
+        foreach (var dataType in processorProvider.DataTypes)
+        {
+            dataTypes.Register(dataType);
+        }
+        return new Serializer(_schemas, processorProvider, _serviceProvider, dataTypes);
     }
 
     private void ThrowIfBuilt()

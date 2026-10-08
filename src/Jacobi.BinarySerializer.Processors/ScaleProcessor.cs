@@ -2,7 +2,7 @@
 
 namespace Jacobi.BinarySerializer.Processors;
 
-internal sealed class ScaleProcessor : IValueProcessor
+internal sealed class ScaleProcessor : ProcessorBase, IValueProcessor
 {
     private static readonly PropertyDescriptor ScaleProperty = new("scale", "sys.decimal", true);
 
