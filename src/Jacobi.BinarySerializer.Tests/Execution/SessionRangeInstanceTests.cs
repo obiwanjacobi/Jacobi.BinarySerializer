@@ -12,7 +12,7 @@ public class SessionRangeInstanceTests
     private static ExecutionPlan Plan()
     {
         var repeat = new SchemaRepeat { Name = "Items", Count = 4 };
-        repeat.MemberList.Add(Field("Item", SchemaDataType.Int16));
+        repeat.MemberList.Add(Field("Item", "Int16"));
         return Build(Group("Root", [], repeat));
     }
 

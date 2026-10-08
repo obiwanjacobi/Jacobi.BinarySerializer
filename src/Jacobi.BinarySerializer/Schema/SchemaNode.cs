@@ -17,7 +17,7 @@ public closed class SchemaNode
 public sealed class SchemaTypeDef : SchemaNode
 {
     public required IReadOnlyList<SchemaProcessorRef> Processors { get; init; }
-    public SchemaDataType DataType { get; init; } = SchemaDataType.None;
+    public SchemaDataType? DataType { get; init; }
 }
 
 public sealed class SchemaField : SchemaNode
@@ -28,7 +28,7 @@ public sealed class SchemaField : SchemaNode
     }
 
     public IReadOnlyList<SchemaProcessorRef> Processors => ProcessorsList;
-    public List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
+    internal List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
     public required SchemaDataType DataType { get; init; }
 
     /// <summary>
@@ -39,7 +39,7 @@ public sealed class SchemaField : SchemaNode
     public SchemaValueOrRef<string> Value { get; init; }
 
     /// <summary>
-    /// Optional logical length of the value (a constant or a reference to a value): the number of bytes for <see cref="SchemaDataType.Bytes"/>.
+    /// Optional logical length of the value (a constant or a reference to a value): the number of bytes for <c>sys.bytes</c>.
     /// Without a length a Bytes field takes the rest of the enclosing sized group (size window).
     /// The writer derives a referenced length field from the model value.
     /// </summary>
@@ -78,7 +78,7 @@ public sealed class SchemaRepeat : SchemaGroup
     /// Semantic (value) processors that convert the referenced count value into the (int) count.
     /// </summary>
     public IReadOnlyList<SchemaProcessorRef> ValueProcessors => ValueProcessorsList;
-    public List<SchemaProcessorRef> ValueProcessorsList { get; init; } = [];
+    internal List<SchemaProcessorRef> ValueProcessorsList { get; init; } = [];
 }
 
 public sealed class SchemaChoice : SchemaGroup
@@ -94,7 +94,7 @@ public sealed class SchemaChoice : SchemaGroup
     /// Semantic (value) processors that convert the referenced value into the (int) selected index.
     /// </summary>
     public IReadOnlyList<SchemaProcessorRef> ValueProcessors => ValueProcessorsList;
-    public List<SchemaProcessorRef> ValueProcessorsList { get; init; } = [];
+    internal List<SchemaProcessorRef> ValueProcessorsList { get; init; } = [];
 }
 
 public readonly union SchemaObject(SchemaField, SchemaGroup, SchemaRepeat, SchemaChoice);
@@ -221,23 +221,4 @@ public enum SchemaNodeKind
     Choice,
 }
 
-public enum SchemaDataType
-{
-    /// <summary>Not set/not used (for group typedefs)</summary>
-    None,
-    String,
-    Int8,
-    Int16,
-    Int32,
-    Int64,
-    UInt8,
-    UInt16,
-    UInt32,
-    UInt64,
-    Boolean,
-    Double,
-    DateTime,
-    /// <summary>A byte array (raw bytes), see <see cref="SchemaField.Length"/>.</summary>
-    Bytes,
-    Object,
-}
+

@@ -1,4 +1,5 @@
 using System.Buffers;
+using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -79,7 +80,7 @@ public class DefaultProcessorTests
     {
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>([1, 0, 0, 0, 9, 9]));
         var context = new LayoutProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
-        context.Field = CreateField(SchemaDataType.Int32);
+        context.Field = CreateField("Int32");
 
         var result = new DefaultLayoutProcessor().Read(ref reader, context);
         var encoded = result.Value;
@@ -95,7 +96,7 @@ public class DefaultProcessorTests
     {
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>([1, 0]));
         var context = new LayoutProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
-        context.Field = CreateField(SchemaDataType.Int32);
+        context.Field = CreateField("Int32");
 
         var result = new DefaultLayoutProcessor().Read(ref reader, context);
 
@@ -107,7 +108,7 @@ public class DefaultProcessorTests
     public void Field_Write_EncodesValueAsFixedWidthBytes()
     {
         var context = new FieldProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
-        context.Field = CreateField(SchemaDataType.UInt16);
+        context.Field = CreateField("UInt16");
 
         var encoded = new DefaultFieldProcessor().Write(new LogicalField("F", typeof(int), 258), context).Value;
 
@@ -119,19 +120,19 @@ public class DefaultProcessorTests
     public void Field_Write_ValueDoesNotFit_ThrowsWithPath()
     {
         var context = new FieldProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
-        context.Field = CreateField(SchemaDataType.UInt8);
+        context.Field = CreateField("UInt8");
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => new DefaultFieldProcessor().Write(new LogicalField("F", typeof(int), 999), context));
 
-        Assert.That(ex!.Message, Does.Contain("Root.F").And.Contain("UInt8"));
+        Assert.That(ex!.Message, Does.Contain("Root.F").And.Contain("sys.uint8"));
     }
 
     [Test]
     public void Field_Read_DecodesBytesToTypedValue()
     {
         var context = new FieldProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
-        context.Field = CreateField(SchemaDataType.Int16);
+        context.Field = CreateField("Int16");
 
         var logical = new DefaultFieldProcessor().Read(new EncodedField("F", typeof(byte[]), new byte[] { 0xFE, 0xFF }, 16), context).Value;
 
@@ -142,7 +143,7 @@ public class DefaultProcessorTests
     [Test]
     public void DefaultStages_WriteThenRead_RoundTripsAValue()
     {
-        var field = CreateField(SchemaDataType.Double);
+        var field = CreateField("Double");
         var writeContext = new FieldProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
         writeContext.Field = field;
         var layoutWrite = new LayoutProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
@@ -182,6 +183,7 @@ public class DefaultProcessorTests
             Name = "F",
             Path = "Root.F",
             Field = new SchemaField { Name = "F", DataType = type },
+            DataType = DataTypeRegistry.CreateDefault().Get(type),
             Pipeline = new ProcessorPipeline([]),
         };
 }

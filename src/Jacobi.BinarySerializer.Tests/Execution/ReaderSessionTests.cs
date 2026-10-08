@@ -12,7 +12,7 @@ public class ReaderSessionTests
     [Test]
     public void Read_FixedWidthFields_InOrder()
     {
-        var root = Group("Root", [], Field("A"), Group("G", [], Field("B", SchemaDataType.UInt8)));
+        var root = Group("Root", [], Field("A"), Group("G", [], Field("B", "UInt8")));
 
         var (result, sink) = Run(root, [1, 0, 0, 0, 7]);
 
@@ -43,7 +43,7 @@ public class ReaderSessionTests
     [Test]
     public void Read_InvalidBytes_Throws()
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.DateTime));
+        var root = Group("Root", [], Field("A", "DateTime"));
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => Run(root, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F]));

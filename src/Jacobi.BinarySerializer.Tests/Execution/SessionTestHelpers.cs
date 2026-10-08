@@ -22,11 +22,11 @@ internal static class SessionTestHelpers
     public static SchemaProcessorRef Ref(string id)
         => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
 
-    public static SchemaField Field(string name, SchemaDataType type = SchemaDataType.Int32)
-        => new() { Name = name, DataType = type };
+    public static SchemaField Field(string name, SchemaDataType? type = null)
+        => new() { Name = name, DataType = type ?? "Int32" };
 
     public static SchemaField FieldWith(string name, SchemaProcessorRef processor)
-        => new() { Name = name, DataType = SchemaDataType.Int32, ProcessorsList = [processor] };
+        => new() { Name = name, DataType = "Int32", ProcessorsList = [processor] };
 
     public static SchemaGroup Group(string name, SchemaProcessorRef[] processors, params SchemaNode[] members)
     {
@@ -117,7 +117,7 @@ internal static class SessionTestHelpers
 
         public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
         {
-            DataTypeCodec.TryEncode(context.Field.Field.DataType, field.Value, out var bytes);
+            context.Field.DataType.Encode!(field.Value, out var bytes);
             Array.Reverse(bytes);
             return FieldWriteResult<EncodedField>.Written(new EncodedField(field.Name, typeof(byte[]), bytes, bytes.Length * 8), bytes.Length * 8);
         }
@@ -125,9 +125,9 @@ internal static class SessionTestHelpers
         public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
         {
             var all = (byte[])field.Value!;
-            var size = DataTypeCodec.FixedSize(context.Field.Field.DataType) ?? all.Length;
+            var size = context.Field.DataType.FixedSize ?? all.Length;
             var bytes = all.Take(size).Reverse().ToArray();
-            DataTypeCodec.TryDecode(context.Field.Field.DataType, bytes, out var value);
+            context.Field.DataType.Decode!(bytes, out var value);
             return FieldReadResult<LogicalField>.Consumed(new LogicalField(field.Name, value!.GetType(), value), size * 8);
         }
     }

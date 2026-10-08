@@ -63,7 +63,7 @@ public class LoggingTests
         });
 
         var root = Group("Root", [],
-            Field("A", SchemaDataType.UInt32, [Ref("varint")]));
+            Field("A", "UInt32", [Ref("varint")]));
 
         var result = new ReaderSession(Build(root), new Services(factory))
             .Read(new ReadOnlySequence<byte>(new byte[] { 0xAC, 0x02 }), new DictSink());
@@ -76,7 +76,7 @@ public class LoggingTests
     public void Read_WithoutLoggerFactory_DoesNotThrow()
     {
         var root = Group("Root", [],
-            Field("A", SchemaDataType.UInt32, [Ref("varint")]));
+            Field("A", "UInt32", [Ref("varint")]));
 
         Assert.DoesNotThrow(() => new ReaderSession(Build(root))
             .Read(new ReadOnlySequence<byte>(new byte[] { 0xAC, 0x02 }), new DictSink()));
@@ -144,7 +144,7 @@ public class LoggingTests
         var capture = new CaptureProvider();
         using var factory = LoggerFactory.Create(b => b.AddProvider(capture).SetMinimumLevel(LogLevel.Error));
         var root = Group("Root", [],
-            Field("A", SchemaDataType.UInt32, [Ref("align")]));
+            Field("A", "UInt32", [Ref("align")]));
 
         // 'align' has no required 'bytes' property: the processor throws.
         Assert.Throws<InvalidOperationException>(() => new ReaderSession(Build(root), new Services(factory))

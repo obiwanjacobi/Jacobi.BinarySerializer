@@ -68,7 +68,7 @@ public sealed class XmlSchemaField : XmlSchemaNode
     public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
 
     [XmlAttribute("type")]
-    public SchemaDataType Type { get; set; }
+    public string? Type { get; set; }
 
     /// <summary>A constant value (attribute); use <see cref="ValueRef"/> to refer to a value.</summary>
     [XmlAttribute("value")]

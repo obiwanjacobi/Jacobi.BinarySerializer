@@ -63,6 +63,11 @@ Every call gets a context for its stage (`ValueProcessorContext`, `FieldProcesso
 - The processor parses and validates the value itself (and fails with a clear message). Required properties that are missing are a failure.
 - Properties of the use override those of a processor definition (`processorDefs`), see [Schema](../Schema/readme.md).
 - Values are constants. Reading a value from a `ref:`/`pub:` in a property is not supported yet.
+- Each property is described by a `PropertyDescriptor` (`Name`, `ClrType`, `IsRequired`, ...). `context.Properties.Get<T>(descriptor)` returns the parsed value (default when optional and absent; throws when required and missing).
+
+## Data types
+
+`context.DataTypes` is a read-only `IDataTypeRegistry`: processors look up `DataTypeDescriptor`s (parse, encode/decode, CLR type) by name but cannot register or change types while processing. Registration happens on the `DataTypeRegistry` handed to the `SerializerBuilder`.
 
 ## State
 

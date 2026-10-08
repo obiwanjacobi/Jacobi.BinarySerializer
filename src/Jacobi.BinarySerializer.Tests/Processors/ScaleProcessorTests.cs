@@ -7,7 +7,7 @@ public class ScaleProcessorTests
 {
     private static SchemaGroup CreateRoot(string scale = "100")
         => Group("Root", [],
-            Field("Temperature", SchemaDataType.Int32, [Ref("scale", ("scale", scale))]));
+            Field("Temperature", "Int32", [Ref("scale", ("scale", scale))]));
 
     [Test]
     public void RoundTrip_ScalesToAnIntegerOnTheWire_AndBack()
@@ -30,7 +30,7 @@ public class ScaleProcessorTests
     [Test]
     public void Write_MissingScaleProperty_Throws()
     {
-        var root = Group("Root", [], Field("Temperature", SchemaDataType.Int32, [Ref("scale")]));
+        var root = Group("Root", [], Field("Temperature", "Int32", [Ref("scale")]));
 
         Assert.That(() => Write(root, new() { ["Root.Temperature"] = 1m }, out _),
             Throws.InstanceOf<InvalidOperationException>());

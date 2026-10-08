@@ -1,3 +1,4 @@
+using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -12,6 +13,7 @@ public sealed class SerializerBuilder
     private SchemaSet? _schemas;
     private IProcessorProvider? _processorProvider;
     private IServiceProvider? _serviceProvider;
+    private DataTypeRegistry? _dataTypes;
     private bool _built;
 
     public SerializerBuilder AddSchemas(SchemaSet schemas)
@@ -25,6 +27,13 @@ public sealed class SerializerBuilder
     {
         ThrowIfBuilt();
         _processorProvider = processorProvider ?? throw new ArgumentNullException(nameof(processorProvider));
+        return this;
+    }
+
+    public SerializerBuilder AddDataTypes(DataTypeRegistry dataTypes)
+    {
+        ThrowIfBuilt();
+        _dataTypes = dataTypes ?? throw new ArgumentNullException(nameof(dataTypes));
         return this;
     }
 
@@ -46,7 +55,7 @@ public sealed class SerializerBuilder
             ?? throw new InvalidOperationException("No processors were added. Call AddProcessors or AddServices first.");
 
         _built = true;
-        return new Serializer(_schemas, processorProvider, _serviceProvider);
+        return new Serializer(_schemas, processorProvider, _serviceProvider, _dataTypes);
     }
 
     private void ThrowIfBuilt()

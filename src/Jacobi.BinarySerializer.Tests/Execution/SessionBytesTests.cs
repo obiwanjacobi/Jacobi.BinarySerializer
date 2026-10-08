@@ -12,10 +12,10 @@ namespace Jacobi.BinarySerializer.Tests.Execution;
 public class SessionBytesTests
 {
     private static SchemaField Blob(SchemaValueOrRef<int> length = default)
-        => new() { Name = "Blob", DataType = SchemaDataType.Bytes, Length = length };
+        => new() { Name = "Blob", DataType = "Bytes", Length = length };
 
     private static SchemaGroup LengthPrefixed()
-        => Group("Root", [], Field("Len", SchemaDataType.UInt8), Blob(new SchemaNodeRef { Path = "Root.Len" }), Field("Tail", SchemaDataType.UInt8));
+        => Group("Root", [], Field("Len", "UInt8"), Blob(new SchemaNodeRef { Path = "Root.Len" }), Field("Tail", "UInt8"));
 
     [Test]
     public void Read_LengthFromReference_ReadsThatManyBytes()
@@ -32,7 +32,7 @@ public class SessionBytesTests
     [Test]
     public void Read_ConstantLength_ReadsThatManyBytes()
     {
-        var plan = Build(Group("Root", [], Blob(2), Field("Tail", SchemaDataType.UInt8)));
+        var plan = Build(Group("Root", [], Blob(2), Field("Tail", "UInt8")));
         var sink = new Sink();
 
         var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 7, 8, 9 }), sink);
@@ -53,7 +53,7 @@ public class SessionBytesTests
     public void Read_NoLengthInWindow_TakesRestOfWindow()
     {
         var body = new SchemaGroup { Name = "Body", Size = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Blob() } };
-        var plan = Build(Group("Root", [], Field("Len", SchemaDataType.UInt8), body, Field("Tail", SchemaDataType.UInt8)));
+        var plan = Build(Group("Root", [], Field("Len", "UInt8"), body, Field("Tail", "UInt8")));
         var sink = new Sink();
 
         var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 3, 10, 11, 12, 99 }), sink);
@@ -70,7 +70,7 @@ public class SessionBytesTests
     [Test]
     public void Build_NoLengthNotLast_ReportsError()
     {
-        var body = new SchemaGroup { Name = "Body", Size = 4, MemberList = { Blob(), Field("Tail", SchemaDataType.UInt8) } };
+        var body = new SchemaGroup { Name = "Body", Size = 4, MemberList = { Blob(), Field("Tail", "UInt8") } };
 
         Assert.That(() => Build(Group("Root", [], body)), Throws.TypeOf<ExecutionPlanException>());
     }
@@ -78,7 +78,7 @@ public class SessionBytesTests
     [Test]
     public void Build_LengthOnOtherType_ReportsError()
     {
-        var field = new SchemaField { Name = "Number", DataType = SchemaDataType.UInt8, Length = 2 };
+        var field = new SchemaField { Name = "Number", DataType = "UInt8", Length = 2 };
 
         Assert.That(() => Build(Group("Root", [], field)), Throws.TypeOf<ExecutionPlanException>());
     }
@@ -106,18 +106,19 @@ public class SessionBytesTests
     [Test]
     public void Parse_HexLiteral_ReadsBytes()
     {
-        Assert.That(DataTypeCodec.TryParse(SchemaDataType.Bytes, "0x89504E47", out var value), Is.True);
+        var Bytes = Jacobi.BinarySerializer.Descriptors.DataTypeRegistry.CreateDefault().Get(new SchemaDataType("Bytes"));
+        Assert.That(Bytes.Parse("0x89504E47", out var value), Is.True);
         Assert.That((byte[])value!, Is.EqualTo(new byte[] { 0x89, 0x50, 0x4E, 0x47 }));
-        Assert.That(DataTypeCodec.TryParse(SchemaDataType.Bytes, "89 50 4E", out value), Is.True);
+        Assert.That(Bytes.Parse("89 50 4E", out value), Is.True);
         Assert.That((byte[])value!, Is.EqualTo(new byte[] { 0x89, 0x50, 0x4E }));
-        Assert.That(DataTypeCodec.TryParse(SchemaDataType.Bytes, "0x8", out _), Is.False);
-        Assert.That(DataTypeCodec.TryParse(SchemaDataType.Bytes, "0xZZ", out _), Is.False);
+        Assert.That(Bytes.Parse("0x8", out _), Is.False);
+        Assert.That(Bytes.Parse("0xZZ", out _), Is.False);
     }
 
     [Test]
     public void Read_ConstantBytes_MismatchThrows()
     {
-        var signature = new SchemaField { Name = "Sig", DataType = SchemaDataType.Bytes, Length = 2, Value = "0x8950" };
+        var signature = new SchemaField { Name = "Sig", DataType = "Bytes", Length = 2, Value = "0x8950" };
         var plan = Build(Group("Root", [], signature));
 
         Assert.That(new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 0x89, 0x50 }), new Sink()), Is.EqualTo(ReadResult.Success));

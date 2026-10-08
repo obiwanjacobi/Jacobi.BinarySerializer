@@ -470,7 +470,7 @@ public sealed class SchemaSet
             return new SchemaField
             {
                 Name = node.Name,
-                DataType = typeDef.DataType,
+                DataType = typeDef.DataType ?? throw new InvalidOperationException($"The typedef '{typeDef.Name}' has no data type and cannot be applied to the field '{node.Name}'."),
                 Value = fieldNode.Value,
                 Length = fieldNode.Length,
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),

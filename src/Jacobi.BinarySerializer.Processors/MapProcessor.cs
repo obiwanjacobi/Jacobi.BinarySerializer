@@ -1,5 +1,5 @@
 using System.Globalization;
-using Jacobi.BinarySerializer.Codecs;
+using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -34,7 +34,7 @@ internal sealed class MapProcessor : IValueProcessor
             throw context.Logger.Fail($"Value '{logicalValue.Value}' is the default of the map and has no physical value to write.");
         }
 
-        return new(logicalValue.Name, DataTypeCodec.ClrType(physicalType) ?? typeof(string), entry.Physical);
+        return new(logicalValue.Name, physicalType.ClrType, entry.Physical);
     }
 
     public LogicalField Read(LogicalField logicalValue, ValueProcessorContext context)
@@ -57,17 +57,17 @@ internal sealed class MapProcessor : IValueProcessor
         }
         var entry = entries[index];
 
-        return new(logicalValue.Name, DataTypeCodec.ClrType(logicalType) ?? typeof(string), entry.Logical);
+        return new(logicalValue.Name, logicalType.ClrType, entry.Logical);
     }
 
-    private static (SchemaDataType Logical, SchemaDataType Physical, List<(object Logical, object? Physical)> Entries) GetMap(ValueProcessorContext context)
+    private static (DataTypeDescriptor Logical, DataTypeDescriptor Physical, List<(object Logical, object? Physical)> Entries) GetMap(ValueProcessorContext context)
     {
         var physicalType = context.DataType
             ?? throw context.Logger.Fail("The map processor requires a field (or a reference to a field) to know the physical type.");
 
-        var logicalType = SchemaDataType.String;
+        var logicalType = context.DataTypes.Get(new SchemaDataType("string"));
         if (context.Properties.Find(LogicalProperty) is { } logicalProperty
-            && !Enum.TryParse(logicalProperty.Value, true, out logicalType))
+            && !context.DataTypes.TryGet(new SchemaDataType(logicalProperty.Value), out logicalType!))
         {
             throw context.Logger.Fail($"Invalid logical type '{logicalProperty.Value}'.");
         }
@@ -80,7 +80,7 @@ internal sealed class MapProcessor : IValueProcessor
                 continue;
             }
 
-            if (!DataTypeCodec.TryParse(logicalType, property.Key, out var logical) || logical is null)
+            if (!logicalType.Parse(property.Key, out var logical) || logical is null)
             {
                 throw context.Logger.Fail($"The map key '{property.Key}' is not a valid {logicalType} value.");
             }
@@ -89,7 +89,7 @@ internal sealed class MapProcessor : IValueProcessor
                 entries.Add((logical, null));
                 continue;
             }
-            if (!DataTypeCodec.TryParse(physicalType, property.Value, out var physical) || physical is null)
+            if (!physicalType.Parse(property.Value, out var physical) || physical is null)
             {
                 throw context.Logger.Fail($"The map value '{property.Value}' is not a valid {physicalType} value.");
             }
@@ -105,9 +105,9 @@ internal sealed class MapProcessor : IValueProcessor
         return (logicalType, physicalType, entries);
     }
 
-    private static object Normalize(object value, SchemaDataType type, ValueProcessorContext context)
+    private static object Normalize(object value, DataTypeDescriptor type, ValueProcessorContext context)
     {
-        var clrType = DataTypeCodec.ClrType(type) ?? typeof(string);
+        var clrType = type.ClrType;
         try
         {
             return Convert.ChangeType(value, clrType, CultureInfo.InvariantCulture);

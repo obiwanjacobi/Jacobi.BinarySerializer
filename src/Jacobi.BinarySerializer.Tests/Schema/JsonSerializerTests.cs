@@ -168,8 +168,8 @@ public class JsonSerializerTests
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "deltaProcessor" && p.Processor.ToString() == "sys.scale" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
         Assert.That(document.TypeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == SchemaDataType.Int32));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType == SchemaDataType.None));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == "Int32"));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType is null));
 
         // Resolver not implemented yet: usage remains as raw references.
         var rootGroup = document.Roots.Single();
@@ -247,6 +247,23 @@ public class JsonSerializerTests
 
         Assert.That(repeat.Count is SchemaPubRef repeatCount && repeatCount.Namespace == "hdr" && repeatCount.Name == "count");
         Assert.That(choice.SelectedIndex is int selected && selected == 2);
+    }
+
+    [Test]
+    public void Serialize_RoundTrip_TypeDefWithoutDataType_StaysNull()
+    {
+        var json = """
+            {
+              "name": "TypeDefSchema",
+              "typeDefs": [ { "name": "CommonGroup", "kind": "group", "processors": [] } ],
+              "members": [ { "kind": "group", "name": "Root", "members": [] } ]
+            }
+            """;
+
+        var document = JsonSerializer.Deserialize(json);
+        var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
+
+        Assert.That(roundTripped.TypeDefs.Single().DataType, Is.Null);
     }
 
     [Test]
@@ -349,7 +366,7 @@ public class JsonSerializerTests
         var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
         var fields = roundTripped.Groups.Single(g => g.Name == "Root").Members.OfType<SchemaField>().ToList();
 
-        Assert.That(fields[1].DataType, Is.EqualTo(SchemaDataType.Bytes));
+        Assert.That(fields[1].DataType, Is.EqualTo(new SchemaDataType("Bytes")));
         Assert.That(fields[1].Length is SchemaNodeRef { Path: "Root.Len" }, Is.True);
         Assert.That(fields[2].Length is 2, Is.True);
         Assert.That(fields[2].Value is "0x8950", Is.True);

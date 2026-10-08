@@ -56,7 +56,7 @@ public class InstanceReferenceTests
         var lens = new SchemaRepeat { Name = "Lens", Count = 2 };
         lens.MemberList.Add(Field("Len"));
         var items = new SchemaRepeat { Name = "Items", Count = nodeRef! };
-        items.MemberList.Add(Field("Item", SchemaDataType.Int16));
+        items.MemberList.Add(Field("Item", "Int16"));
         return Build(Group("Root", [], lens, items));
     }
 
@@ -126,7 +126,7 @@ public class InstanceReferenceTests
     {
         SchemaNodeRef.TryParse("ref:Root.Rows[].Len", out var nodeRef);
         var vals = new SchemaRepeat { Name = "Vals", Count = nodeRef! };
-        vals.MemberList.Add(Field("Item", SchemaDataType.Int16));
+        vals.MemberList.Add(Field("Item", "Int16"));
         var rows = new SchemaRepeat { Name = "Rows", Count = 2 };
         rows.MemberList.Add(Field("Len"));
         rows.MemberList.Add(vals);
@@ -166,7 +166,7 @@ public class InstanceReferenceTests
         var lens = new SchemaRepeat { Name = "Lens", Count = 0 };
         lens.MemberList.Add(Field("Len"));
         var items = new SchemaRepeat { Name = "Items", Count = nodeRef! };
-        items.MemberList.Add(Field("Item", SchemaDataType.Int16));
+        items.MemberList.Add(Field("Item", "Int16"));
         var plan = Build(Group("Root", [], lens, items));
         var source = new DictSource(new());
 

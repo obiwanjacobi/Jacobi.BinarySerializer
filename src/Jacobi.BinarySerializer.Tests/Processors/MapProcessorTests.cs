@@ -11,11 +11,11 @@ public class MapProcessorTests
 {
     private static SchemaGroup IntRoot()
         => Group("Root", [],
-            Field("Color", SchemaDataType.Int32, [Ref("map", ("Red", "1"), ("Green", "2"), ("Blue", "4"))]));
+            Field("Color", "Int32", [Ref("map", ("Red", "1"), ("Green", "2"), ("Blue", "4"))]));
 
     private static SchemaGroup StringRoot()
         => Group("Root", [],
-            Field("Type", SchemaDataType.String, [
+            Field("Type", "String", [
                 Ref("map", ("logical", "Int32"), ("0", "IHDR"), ("1", "PLTE")),
                 Ref("string", ("length", "4"), ("encoding", "ascii"))]));
 
@@ -50,7 +50,7 @@ public class MapProcessorTests
     public void Write_InvalidKeyForLogicalType_Throws()
     {
         var root = Group("Root", [],
-            Field("A", SchemaDataType.Int32, [Ref("map", ("logical", "Int32"), ("x", "1"))]));
+            Field("A", "Int32", [Ref("map", ("logical", "Int32"), ("x", "1"))]));
 
         Assert.That(() => Write(root, new() { ["Root.A"] = 1 }, out _),
             Throws.InstanceOf<InvalidOperationException>());
@@ -61,7 +61,7 @@ public class MapProcessorTests
         var map = Ref("map", ("logical", "Int32"), ("0", "IHDR"));
         map.PropertyList.Add(new SchemaProperty { Name = new ProcessorKey("sys", "map").PropertyName("4"), Value = null });
         return Group("Root", [],
-            Field("Type", SchemaDataType.String, [map, Ref("string", ("length", "4"), ("encoding", "ascii"))]));
+            Field("Type", "String", [map, Ref("string", ("length", "4"), ("encoding", "ascii"))]));
     }
 
     [Test]

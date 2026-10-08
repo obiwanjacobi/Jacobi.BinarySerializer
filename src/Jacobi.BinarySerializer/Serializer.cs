@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
+using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -11,13 +12,15 @@ public sealed class Serializer
     private readonly SchemaSet _schemas;
     private readonly IProcessorProvider _processorProvider;
     private readonly IServiceProvider? _serviceProvider;
+    private readonly DataTypeRegistry _dataTypes;
     private readonly ConcurrentDictionary<SchemaName, Lazy<ExecutionPlan>> _plans = new();
 
-    internal Serializer(SchemaSet schemas, IProcessorProvider processorProvider, IServiceProvider? serviceProvider = null)
+    internal Serializer(SchemaSet schemas, IProcessorProvider processorProvider, IServiceProvider? serviceProvider = null, DataTypeRegistry? dataTypes = null)
     {
         _schemas = schemas ?? throw new ArgumentNullException(nameof(schemas));
         _processorProvider = processorProvider ?? throw new ArgumentNullException(nameof(processorProvider));
         _serviceProvider = serviceProvider;
+        _dataTypes = dataTypes ?? DataTypeRegistry.CreateDefault();
     }
 
     /// <summary>
@@ -26,7 +29,7 @@ public sealed class Serializer
     public ExecutionPlan GetPlan(SchemaName schemaName)
     {
         return _plans.GetOrAdd(schemaName,
-            name => new Lazy<ExecutionPlan>(() => ExecutionPlan.Create(_schemas, name, _processorProvider))).Value;
+            name => new Lazy<ExecutionPlan>(() => ExecutionPlan.Create(_schemas, name, _processorProvider, _dataTypes))).Value;
     }
 
     /// <summary>

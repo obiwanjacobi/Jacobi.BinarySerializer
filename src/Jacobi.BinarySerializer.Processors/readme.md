@@ -35,7 +35,7 @@ Maps logical values to physical values of the field's data type. Each property m
 
 | Property | Required | Description |
 |----------|----------|-------------|
-| `logical` | no | Data type of the logical values (default `String`). |
+(default `sys.string`; any registered data type)
 
 ### `sys.nullable`
 

@@ -85,6 +85,30 @@ public sealed class ProcessorProperties : IReadOnlyList<SchemaProperty>
             : throw new InvalidOperationException($"Invalid '{FullName(name)}' value '{text}'.");
     }
 
+    /// <summary>
+    /// Gets the value of the property described by <paramref name="descriptor"/>.
+    /// Returns the default when the property is absent and not required; throws when it is required.
+    /// </summary>
+    public T? Get<T>(PropertyDescriptor descriptor) where T : IParsable<T>
+    {
+        if (!descriptor.ClrType.IsAssignableTo(typeof(T)))
+        {
+            throw new InvalidOperationException(
+                $"The '{FullName(descriptor.Name)}' property is of type '{descriptor.ClrType}', not '{typeof(T)}'.");
+        }
+
+        return descriptor.IsRequired || Find(descriptor.Name) is not null
+            ? Get<T>(descriptor.Name)
+            : default;
+    }
+
+    /// <summary>
+    /// Gets the text value of the property described by <paramref name="descriptor"/>.
+    /// Returns null when the property is absent and not required; throws when it is required.
+    /// </summary>
+    public string? Get(PropertyDescriptor descriptor)
+        => descriptor.IsRequired ? Get(descriptor.Name) : GetOrDefault(descriptor.Name);
+
     public T GetEnum<T>(string name, T defaultValue) where T : struct, Enum
     {
         var text = GetOrDefault(name);

@@ -15,11 +15,11 @@ public class SessionSizedGroupTests
         {
             Name = "Body",
             Size = new SchemaNodeRef { Path = "Root.Len" },
-            MemberList = { Field("A", SchemaDataType.Int16), Field("B", SchemaDataType.Int16) },
+            MemberList = { Field("A", "Int16"), Field("B", "Int16") },
         };
 
     private static SchemaGroup Root()
-        => Group("Root", [], Field("Len", SchemaDataType.UInt16), Body());
+        => Group("Root", [], Field("Len", "UInt16"), Body());
 
     [Test]
     public void Write_SizeFieldNotInModel_DerivesSize()
@@ -76,9 +76,9 @@ public class SessionSizedGroupTests
     [Test]
     public void Read_OpenRepeatInWindow_EndsAtWindowEnd()
     {
-        var items = new SchemaRepeat { Name = "Items", MemberList = { Field("Byte", SchemaDataType.UInt8) } };
+        var items = new SchemaRepeat { Name = "Items", MemberList = { Field("Byte", "UInt8") } };
         var body = new SchemaGroup { Name = "Body", Size = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { items } };
-        var plan = Build(Group("Root", [], Field("Len", SchemaDataType.UInt8), body, Field("Tail", SchemaDataType.UInt8)));
+        var plan = Build(Group("Root", [], Field("Len", "UInt8"), body, Field("Tail", "UInt8")));
         var sink = new Sink();
 
         var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 3, 10, 11, 12, 99 }), sink);

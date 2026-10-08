@@ -71,9 +71,9 @@ public class VarIntProcessorTests
     public void RoundTrip_DefaultIsUnsignedLeb128_FieldsKeepTheirBoundaries()
     {
         var root = Group("Root", [],
-            Field("A", SchemaDataType.UInt32, [Ref("varint")]),
-            Field("B", SchemaDataType.UInt8),
-            Field("C", SchemaDataType.UInt16, [Ref("varint")]));
+            Field("A", "UInt32", [Ref("varint")]),
+            Field("B", "UInt8"),
+            Field("C", "UInt16", [Ref("varint")]));
         var values = new Dictionary<string, object?> { ["Root.A"] = 300u, ["Root.B"] = (byte)7, ["Root.C"] = (ushort)5 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -86,8 +86,8 @@ public class VarIntProcessorTests
     public void RoundTrip_SLeb128_NegativeValue()
     {
         var root = Group("Root", [],
-            Field("A", SchemaDataType.Int32, [Ref("varint", ("encoding", "sleb128"))]),
-            Field("B", SchemaDataType.UInt8));
+            Field("A", "Int32", [Ref("varint", ("encoding", "sleb128"))]),
+            Field("B", "UInt8"));
         var values = new Dictionary<string, object?> { ["Root.A"] = -123456, ["Root.B"] = (byte)9 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -99,7 +99,7 @@ public class VarIntProcessorTests
     [Test]
     public void RoundTrip_ZigZag_NegativeValue()
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.Int16, [Ref("varint", ("encoding", "zigzag"))]));
+        var root = Group("Root", [], Field("A", "Int16", [Ref("varint", ("encoding", "zigzag"))]));
         var values = new Dictionary<string, object?> { ["Root.A"] = (short)-2 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -175,8 +175,8 @@ public class VarIntProcessorTests
     public void RoundTrip_VlqAndPrefix_FieldsKeepTheirBoundaries(string encoding, byte[] expected)
     {
         var root = Group("Root", [],
-            Field("A", SchemaDataType.UInt32, [Ref("varint", ("encoding", encoding))]),
-            Field("B", SchemaDataType.UInt8));
+            Field("A", "UInt32", [Ref("varint", ("encoding", encoding))]),
+            Field("B", "UInt8"));
         var values = new Dictionary<string, object?> { ["Root.A"] = 128u, ["Root.B"] = (byte)7 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -189,7 +189,7 @@ public class VarIntProcessorTests
     [TestCase("prefix")]
     public void Write_SignedTypeWithUnsignedEncoding_Throws(string encoding)
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.Int32, [Ref("varint", ("encoding", encoding))]));
+        var root = Group("Root", [], Field("A", "Int32", [Ref("varint", ("encoding", encoding))]));
 
         Assert.Throws<InvalidOperationException>(() =>
             Write(root, new Dictionary<string, object?> { ["Root.A"] = 1 }, out _));
@@ -198,7 +198,7 @@ public class VarIntProcessorTests
     [Test]
     public void Write_SignedTypeWithLeb128_Throws()
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.Int32, [Ref("varint")]));
+        var root = Group("Root", [], Field("A", "Int32", [Ref("varint")]));
 
         Assert.Throws<InvalidOperationException>(() =>
             Write(root, new Dictionary<string, object?> { ["Root.A"] = 1 }, out _));
@@ -207,7 +207,7 @@ public class VarIntProcessorTests
     [Test]
     public void Write_InvalidEncoding_Throws()
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.UInt32, [Ref("varint", ("encoding", "bogus"))]));
+        var root = Group("Root", [], Field("A", "UInt32", [Ref("varint", ("encoding", "bogus"))]));
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
             Write(root, new Dictionary<string, object?> { ["Root.A"] = 1u }, out _));

@@ -47,8 +47,8 @@ public sealed class DefaultFieldProcessor : IFieldProcessor
 
     public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
     {
-        var type = context.Field.Field.DataType;
-        if (!DataTypeCodec.TryEncode(type, field.Value, out var bytes))
+        var type = context.Field.DataType;
+        if (type.Encode is not { } encode || !encode(field.Value, out var bytes))
         {
             throw new InvalidOperationException(
                 $"'{context.Field.Path}': cannot encode value '{field.Value ?? "null"}' as {type}.");
@@ -59,14 +59,14 @@ public sealed class DefaultFieldProcessor : IFieldProcessor
 
     public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
     {
-        var type = context.Field.Field.DataType;
-        if (field.Value is not byte[] bytes || !DataTypeCodec.TryDecode(type, bytes, out var value))
+        var type = context.Field.DataType;
+        if (field.Value is not byte[] bytes || type.Decode is not { } decode || !decode(bytes, out var value))
         {
             throw new InvalidOperationException($"'{context.Field.Path}': cannot decode the encoded value as {type}.");
         }
 
         return FieldReadResult<LogicalField>.Consumed(
-            new(field.Name, DataTypeCodec.ClrType(type) ?? typeof(object), value), bytes.Length * 8);
+            new(field.Name, type.ClrType, value), bytes.Length * 8);
     }
 }
 
@@ -140,7 +140,7 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
             return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), windowBytes, window * 8));
         }
 
-        if (field is not null && DataTypeCodec.FixedSize(field.Field.DataType) is { } size)
+        if (field is not null && field.DataType.FixedSize is { } size)
         {
             if (reader.Remaining < size)
             {

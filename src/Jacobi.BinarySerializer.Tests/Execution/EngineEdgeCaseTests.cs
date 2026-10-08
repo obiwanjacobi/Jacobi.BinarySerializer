@@ -19,7 +19,7 @@ public class EngineEdgeCaseTests
         var field = new SchemaField
         {
             Name = "A",
-            DataType = SchemaDataType.Int32,
+            DataType = "Int32",
             ProcessorsList = [new SchemaProcessorRef { Processor = new SchemaProcessorName($"{Ns}.proc") }]
         };
         var group = new SchemaGroup { Name = "Root" };
@@ -31,8 +31,8 @@ public class EngineEdgeCaseTests
     public void Read_TruncatedVarInt_MidStream_ReturnsNeedMoreData()
     {
         var root = Group("Root", [],
-            Field("A", SchemaDataType.UInt32, [Ref("varint")]),
-            Field("B", SchemaDataType.UInt8));
+            Field("A", "UInt32", [Ref("varint")]),
+            Field("B", "UInt8"));
 
         // both bytes have the continuation bit set: the varint is cut off.
         var result = new ReaderSession(Build(root))
@@ -45,8 +45,8 @@ public class EngineEdgeCaseTests
     public void Read_VarIntCompleteButFollowingFieldMissing_ReturnsNeedMoreData()
     {
         var root = Group("Root", [],
-            Field("A", SchemaDataType.UInt32, [Ref("varint")]),
-            Field("B", SchemaDataType.UInt8));
+            Field("A", "UInt32", [Ref("varint")]),
+            Field("B", "UInt8"));
 
         var result = new ReaderSession(Build(root))
             .Read(new ReadOnlySequence<byte>(new byte[] { 0xAC, 0x02 }), new DictSink());

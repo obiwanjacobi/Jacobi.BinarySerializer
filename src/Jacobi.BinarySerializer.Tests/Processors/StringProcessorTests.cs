@@ -13,8 +13,8 @@ public class StringProcessorTests
     public void RoundTrip_FixedLength_PadsAndTrims()
     {
         var root = Group("Root", [],
-            Field("A", SchemaDataType.String, [Ref("string", ("length", "6"))]),
-            Field("B", SchemaDataType.UInt8));
+            Field("A", "String", [Ref("string", ("length", "6"))]),
+            Field("B", "UInt8"));
         var values = new Dictionary<string, object?> { ["Root.A"] = "abc", ["Root.B"] = (byte)7 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -27,9 +27,9 @@ public class StringProcessorTests
     public void RoundTrip_Terminated_KeepsFieldBoundaries()
     {
         var root = Group("Root", [],
-            Field("A", SchemaDataType.String, [Ref("string", ("terminator", "0"))]),
-            Field("B", SchemaDataType.String, [Ref("string", ("terminator", "0"))]),
-            Field("C", SchemaDataType.UInt8));
+            Field("A", "String", [Ref("string", ("terminator", "0"))]),
+            Field("B", "String", [Ref("string", ("terminator", "0"))]),
+            Field("C", "UInt8"));
         var values = new Dictionary<string, object?> { ["Root.A"] = "hi", ["Root.B"] = "", ["Root.C"] = (byte)9 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -41,7 +41,7 @@ public class StringProcessorTests
     [Test]
     public void RoundTrip_Utf8MultiByte_LengthIsInBytes()
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.String, [Ref("string", ("length", "6"))]));
+        var root = Group("Root", [], Field("A", "String", [Ref("string", ("length", "6"))]));
         var values = new Dictionary<string, object?> { ["Root.A"] = "é€" };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -54,9 +54,9 @@ public class StringProcessorTests
     public void RoundTrip_LongerThanTheReadWindow_GrowsTheWindow()
     {
         var root = Group("Root", [],
-            Field("A", SchemaDataType.String, [Ref("string", ("terminator", "0"))]),
-            Field("B", SchemaDataType.String, [Ref("string", ("length", "40"))]),
-            Field("C", SchemaDataType.UInt8));
+            Field("A", "String", [Ref("string", ("terminator", "0"))]),
+            Field("B", "String", [Ref("string", ("length", "40"))]),
+            Field("C", "UInt8"));
         var values = new Dictionary<string, object?>
         {
             ["Root.A"] = new string('x', 100),
@@ -73,7 +73,7 @@ public class StringProcessorTests
     [Test]
     public void Write_TooLong_Throws()
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.String, [Ref("string", ("length", "2"))]));
+        var root = Group("Root", [], Field("A", "String", [Ref("string", ("length", "2"))]));
 
         Assert.Throws<InvalidOperationException>(() => Write(root, new() { ["Root.A"] = "abc" }, out _));
     }
@@ -81,7 +81,7 @@ public class StringProcessorTests
     [Test]
     public void Write_NoLengthOrTerminator_Throws()
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.String, [Ref("string")]));
+        var root = Group("Root", [], Field("A", "String", [Ref("string")]));
 
         Assert.Throws<InvalidOperationException>(() => Write(root, new() { ["Root.A"] = "abc" }, out _));
     }
@@ -89,7 +89,7 @@ public class StringProcessorTests
     [Test]
     public void Read_TerminatorMissing_NeedsMoreData()
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.String, [Ref("string", ("terminator", "0"))]));
+        var root = Group("Root", [], Field("A", "String", [Ref("string", ("terminator", "0"))]));
 
         var result = new ReaderSession(Build(root)).Read(new ReadOnlySequence<byte>("abc"u8.ToArray()), new DictSink());
 
@@ -99,7 +99,7 @@ public class StringProcessorTests
     [Test]
     public void Read_FixedLengthTruncated_NeedsMoreData()
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.String, [Ref("string", ("length", "5"))]));
+        var root = Group("Root", [], Field("A", "String", [Ref("string", ("length", "5"))]));
 
         var result = new ReaderSession(Build(root)).Read(new ReadOnlySequence<byte>("abc"u8.ToArray()), new DictSink());
 

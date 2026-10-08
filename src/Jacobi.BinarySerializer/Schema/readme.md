@@ -15,7 +15,7 @@ A schema describes the structure of a binary format: which fields exist, in what
 |---------|---------|
 | `name` | Name of the document (namespace for references from other documents). |
 | `includes` | Other documents this one refers to. |
-| `typeDefs` | Reusable group and field types: a data type plus processors. |
+Reusable group and field types: an optional data type (fields only) plus processors. |
 | `processorDefs` | Named processor configurations (a processor key with default properties). |
 | `properties` / `processors` | Document-level defaults. |
 | `members` | The root groups. |
@@ -26,7 +26,7 @@ Every node has a `name`, a `kind` and optional `properties`.
 
 | Kind | Meaning | Notable members |
 |------|---------|-----------------|
-| `field` | One value. | `type` (data type), `value` (constant or reference), `length` (for `Bytes`), `processors` |
+`type` (data type name, e.g. `Int32` or `sys.int32`, resolved in the data type registry; required), `value` (constant or reference), `length` (for `sys.bytes`)
 | `group` | An ordered sequence of members. | `members`, `size`, `processors` |
 | `repeat` | A group that repeats. | `count` (constant or reference); no count means until the end of the data. `valueProcessors` convert a referenced count. |
 | `choice` | A group where exactly one member is used. | `selectedIndex` (constant or reference), `valueProcessors` |

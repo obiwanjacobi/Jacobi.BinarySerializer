@@ -20,7 +20,7 @@ internal sealed class JsonSchema
 internal sealed class JsonSchemaTypeDef : JsonSchemaNode
 {
     public required IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; }
-    public SchemaDataType Type { get; init; } = SchemaDataType.None;
+    public SchemaDataType? Type { get; init; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]

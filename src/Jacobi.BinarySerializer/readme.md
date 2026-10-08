@@ -25,6 +25,10 @@ IValueSink valueSink = ...
 var outputStream = byte[]|Stream|IBinaryWriter;
 var inputStream = byte[]|Stream|SequenceReader<byte>;
 
+// data types: a per-serializer registry (built-in 'sys.*' types by default); register custom types.
+DataTypeRegistry dataTypes = DataTypeRegistry.CreateDefault();
+dataTypes.Register(new DataTypeDescriptor("my.point", typeof(Point), parser));
+
 // available to processors
 IServiceProvider services = ...;
 
@@ -33,6 +37,7 @@ Serializer serializer = new SerializerBuilder()
     .AddSchemas(schemas)
     .AddProcessors(processors) // or .AddServices(services)
     .AddServices(services)
+    .AddDataTypes(dataTypes) // optional
     .Build();
 ExecutionPlan plan = serializer.GetPlan("schemaName"); // cached
 
@@ -78,12 +83,13 @@ var result = serializer.Deserialize(plan, IValueSink|IFieldSink, inputStream, se
 - [ ] **Expected-value stage.** A field `Value` (constant/ref) is compared against the logical value (after the semantic stage). Make the stage explicitly selectable (default logical).
 - [ ] **Suppress constants in the reader.** The sink currently still receives constant-valued fields via `SetField`. Add an option to skip them.
 - [ ] **Bare JSON `value` literals.** `SchemaField.Value` is a string union, so a bare JSON number or boolean (`"value": 42`) is not supported; only strings (e.g. `"0x2A"`).
-- [ ] **Rethink `SchemaDataType`.** Under reconsideration; constant literal parsing (`DataTypeCodec.TryParse`) depends on it.
+- [x] **Generic data types.** `SchemaDataType` is a name-based struct (short names normalize to `sys.<lowercase>`, case-insensitive; optional types are `SchemaDataType?`, no `None`). A per-serializer `DataTypeRegistry` (`IDataTypeRegistry` read-only view for processors via `ProcessorContext.DataTypes`) maps names to `DataTypeDescriptor`s (CLR type, literal parser, optional encode/decode, fixed size, length support). Built-ins (`sys.string`, `int8`..`int64`, `uint8`..`uint64`, `boolean`, `double`, `datetime`, `bytes`, `object`) are prepopulated descriptors (`BuiltInDataTypes`); custom types use the same mechanism. The engine has no fallback: an unregistered type is a plan-build error.
+- [ ] **Data type follow-ups.** Composite/structured data types and a neutral value tree for processor property types; built-in typedefs; replacing a registered descriptor; unit tests for the `Descriptors` namespace; tests for `ProcessorProperties.Get<T>(PropertyDescriptor)`.
 - [ ] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, typedef instantiation.
 - [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage?
 
 - [x] **Repeat until end.** A repeat without a count runs until the end of the input (last node of its group only).
-- [x] **Bytes data type and field `Length`.** `SchemaDataType.Bytes` is a raw `byte[]` (default encoding is a raw copy, no processor needed). `SchemaField.Length` (constant, `ref:` or `pub:`; JSON `length`, XML `length` attribute/element) gives the number of bytes; it is only valid on `Bytes`. Without a length the field takes the rest of the enclosing sized group, so it needs a window and must be the last node (plan-build errors otherwise). The writer derives a field that a length refers to from the `byte[]` length, or checks a declared length. Constants are hex literals (`0x8950`, whitespace allowed).
+**Bytes data type and field `Length`.** `sys.bytes` is a raw
 - [x] **Size on groups.** `size` on a group, repeat or choice bounds its encoded content in bytes (refers to the content, not the size field itself). The reader opens a window (content must end exactly at it; too little input is NeedMoreData; an open repeat stops at the window end). The writer derives the size field by encoding the content first, or checks a declared size against the measured one. Open-ended (count-less) nodes must be last, recursively through choices and plain groups, unless the group is sized.
 - [x] **API: Add `Assembly` overloads**: to `LoadAssembly` in `SchemaSet` and `LoadFromAssembly` in `ProcessorManager`.
 - [X] **API: Allow `IProcessorFactory` through `IServiceProvider`**: Perhaps bypass the `ProcessManager` entirely. Implement a `IProcessorProvider` over `IServiceProvider` (`ProcessorProvider`).

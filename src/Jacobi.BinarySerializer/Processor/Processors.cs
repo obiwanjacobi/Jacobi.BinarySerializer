@@ -112,14 +112,14 @@ public sealed class PropertyDescriptor
     public PropertyDescriptor(string name, Type type)
     {
         Name = name;
-        PropertyType = type;
+        ClrType = type;
         Description = String.Empty;
     }
 
     public PropertyDescriptor(string name, Type type, bool isRequired, bool isReadOnly = false, bool isPublished = false, string? description = null)
     {
         Name = name;
-        PropertyType = type;
+        ClrType = type;
         IsRequired = isRequired;
         IsReadOnly = isReadOnly;
         IsPublished = isPublished;
@@ -127,7 +127,7 @@ public sealed class PropertyDescriptor
     }
 
     public string Name { get; }
-    public Type PropertyType { get; }
+    public Type ClrType { get; }
 
     public bool IsRequired { get; }
     public bool IsReadOnly { get; }

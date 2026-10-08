@@ -30,6 +30,7 @@ public sealed class ReaderSession : SessionState
     public ReaderSession(ExecutionPlan plan, IServiceProvider? services = null)
     {
         _plan = plan ?? throw new ArgumentNullException(nameof(plan));
+        DataTypes = plan.DataTypes;
         _services = services ?? WriterSession.EmptyServiceProvider.Instance;
         InitializeLogging(_services, "Read");
 
@@ -206,7 +207,7 @@ public sealed class ReaderSession : SessionState
     /// </summary>
     private int? BytesLength(FieldInfo field, ref SequenceReader<byte> reader)
     {
-        if (field.Field.DataType != SchemaDataType.Bytes)
+        if (!field.DataType.SupportsLength)
         {
             return null;
         }
@@ -286,11 +287,11 @@ public sealed class ReaderSession : SessionState
         switch (pipeline.FieldProcessors.Count)
         {
             case 0:
-                if (encoded.Value is not byte[] bytes || !DataTypeCodec.TryDecode(field.Field.DataType, bytes, out var value))
+                if (encoded.Value is not byte[] bytes || field.DataType.Decode is not { } decode || !decode(bytes, out var value))
                 {
-                    throw EngineLogger.Fail($"'{field.Path}': cannot decode the bytes as {field.Field.DataType}.");
+                    throw EngineLogger.Fail($"'{field.Path}': cannot decode the bytes as {field.DataType}.");
                 }
-                logical = new LogicalField(encoded.Name, DataTypeCodec.ClrType(field.Field.DataType) ?? typeof(object), value);
+                logical = new LogicalField(encoded.Name, field.DataType.ClrType, value);
                 break;
             default:
                 var provided = encoded.BitWidth;

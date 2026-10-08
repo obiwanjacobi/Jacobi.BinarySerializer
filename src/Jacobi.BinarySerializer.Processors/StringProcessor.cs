@@ -131,9 +131,9 @@ internal sealed class StringProcessor : IFieldProcessor
 
     private static void CheckType(FieldProcessorContext context, string path)
     {
-        if (context.Field.Field.DataType != SchemaDataType.String)
+        if (context.Field.DataType.ClrType != typeof(string))
         {
-            throw new InvalidOperationException($"'{path}': the string processor requires a String field, not {context.Field.Field.DataType}.");
+            throw new InvalidOperationException($"'{path}': the string processor requires a String field, not {context.Field.DataType.Name}.");
         }
     }
 

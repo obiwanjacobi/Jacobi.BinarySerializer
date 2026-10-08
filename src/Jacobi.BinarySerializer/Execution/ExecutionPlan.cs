@@ -1,4 +1,4 @@
-using Jacobi.BinarySerializer.Codecs;
+using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -13,6 +13,11 @@ public sealed class ExecutionPlan
     // schema hierarchy with immutable GroupInfo and FieldInfo objects
     // resolved Processor pipelines for each field and group
     public required GroupInfo Root { get; init; }
+
+    /// <summary>
+    /// The data types the plan was built with.
+    /// </summary>
+    public DataTypeRegistry DataTypes { get; init; } = DataTypeRegistry.CreateDefault();
 
     /// <summary>Finds a node by its path (e.g. 'Root.Header.Length'); null when there is none.</summary>
     public NodeInfo? Find(SchemaPath path)
@@ -60,22 +65,22 @@ public sealed class ExecutionPlan
         return new PlanRange(this, from, fromInstance, to, toInstance);
     }
 
-    public static ExecutionPlan Create(SchemaSet schemas, SchemaName schemaName, IProcessorProvider processorProvider)
+    public static ExecutionPlan Create(SchemaSet schemas, SchemaName schemaName, IProcessorProvider processorProvider, DataTypeRegistry? dataTypes = null)
     {
-        var builder = new ExecutionPlanBuilder(processorProvider);
+        var builder = new ExecutionPlanBuilder(processorProvider, dataTypes);
         var root = schemas.FindRoot(schemaName);
         return builder.Build(root);
     }
 
-    public static ExecutionPlan Create(SchemaGroup root, IProcessorProvider processorProvider)
+    public static ExecutionPlan Create(SchemaGroup root, IProcessorProvider processorProvider, DataTypeRegistry? dataTypes = null)
     {
-        var builder = new ExecutionPlanBuilder(processorProvider);
+        var builder = new ExecutionPlanBuilder(processorProvider, dataTypes);
         return builder.Build(root);
     }
 
-    public static ExecutionPlan Create(SchemaDocument document, SchemaName schemaName, IProcessorProvider processorProvider)
+    public static ExecutionPlan Create(SchemaDocument document, SchemaName schemaName, IProcessorProvider processorProvider, DataTypeRegistry? dataTypes = null)
     {
-        var builder = new ExecutionPlanBuilder(processorProvider);
+        var builder = new ExecutionPlanBuilder(processorProvider, dataTypes);
         var root = ExecutionPlanBuilder.FindRoot(document, schemaName);
         return builder.Build(root);
     }
@@ -83,8 +88,9 @@ public sealed class ExecutionPlan
 
 //-----------------------------------------------------------------------------
 
-internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
+internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider, DataTypeRegistry? dataTypes = null)
 {
+    private readonly DataTypeRegistry _dataTypes = dataTypes ?? DataTypeRegistry.CreateDefault();
 
     public ExecutionPlan Build(SchemaGroup root)
     {
@@ -100,7 +106,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             throw new ExecutionPlanException(root.Name, state.Errors);
         }
 
-        return new ExecutionPlan { Root = rootInfo };
+        return new ExecutionPlan { Root = rootInfo, DataTypes = _dataTypes };
     }
 
     internal static SchemaGroup FindRoot(SchemaDocument document, SchemaName root)
@@ -128,7 +134,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
             _ => state.Error<NodeInfo>(path, $"Unsupported schema node kind '{node.Kind}'.")
         };
 
-    private FieldInfo BuildField(SchemaField field, SchemaPath path, ProcessorPipeline parentPipeline, BuildState state)
+    private FieldInfo? BuildField(SchemaField field, SchemaPath path, ProcessorPipeline parentPipeline, BuildState state)
     {
         var processors = BindProcessors(field.Processors, path, state);
         var fieldPipeline = CreatePipeline(parentPipeline, processors);
@@ -143,35 +149,41 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         return BuildFieldInfo(field, path, fieldPipeline, state);
     }
 
-    private FieldInfo BuildFieldInfo(SchemaField field, SchemaPath path, ProcessorPipeline fieldPipeline, BuildState state)
+    private FieldInfo? BuildFieldInfo(SchemaField field, SchemaPath path, ProcessorPipeline fieldPipeline, BuildState state)
     {
         var length = BindValueSource(field.Length, path, state);
-        if (field.DataType != SchemaDataType.Bytes && length is int or PublishedValueKey)
+        if (!_dataTypes.TryGet(field.DataType, out var dataType))
         {
-            state.Error(path, $"A length is only supported on a {SchemaDataType.Bytes} field, not on {field.DataType}.");
+            state.Error(path, $"The data type '{field.DataType}' is not registered.");
+            return null;
+        }
+        if (!dataType.SupportsLength && length is int or PublishedValueKey)
+        {
+            state.Error(path, $"A length is not supported on a {dataType} field.");
         }
         return new FieldInfo
         {
             Name = field.Name,
             Path = path,
             Field = field,
+            DataType = dataType,
             Pipeline = fieldPipeline,
             Length = length,
-            ConstantValue = BindConstant(field, path, state),
+            ConstantValue = BindConstant(field, dataType, path, state),
             ValueReference = BindValueReference(field, path, state),
         };
     }
 
-    private static object? BindConstant(SchemaField field, SchemaPath path, BuildState state)
+    private static object? BindConstant(SchemaField field, DataTypeDescriptor dataType, SchemaPath path, BuildState state)
     {
         if (field.Value is not string text)
         {
             return null;
         }
 
-        if (!DataTypeCodec.TryParse(field.DataType, text, out var constant))
+        if (!dataType.Parse(text, out var constant))
         {
-            state.Error(path, $"The constant '{text}' is not a valid {field.DataType} value.");
+            state.Error(path, $"The constant '{text}' is not a valid {dataType} value.");
         }
         return constant;
     }
@@ -274,7 +286,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
     {
         switch (node)
         {
-            case FieldInfo { Field.DataType: SchemaDataType.Bytes, HasLength: false } when !inWindow:
+            case FieldInfo { DataType.TakesRestOfWindow: true, HasLength: false } when !inWindow:
                 state.Error(node.Path, "A bytes field without a length takes the rest of the enclosing size window, but no enclosing group has a size.");
                 break;
             case GroupInfo group:
@@ -290,7 +302,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
         => node switch
         {
             GroupInfo { HasSize: true } => false,
-            FieldInfo { Field.DataType: SchemaDataType.Bytes, HasLength: false } => true,
+            FieldInfo { DataType.TakesRestOfWindow: true, HasLength: false } => true,
             RepeatInfo repeat => repeat.UntilEnd,
             ChoiceInfo choice => choice.Members.Any(IsOpenEnded),
             GroupInfo group => group.Members.Count > 0 && IsOpenEnded(group.Members[^1]),
@@ -468,7 +480,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider)
                     field.PublishesValue = true;
                     if (Find(root, from) is GroupInfo { ValueProcessors.Count: > 0 } valueGroup && IsValueKey(valueGroup, target))
                     {
-                        valueGroup.ValueType = field.Field.DataType;
+                        valueGroup.ValueType = field.DataType;
                     }
                     if (Find(root, from) is RepeatInfo { Count: PublishedValueKey countKey } repeat
                         && countKey.Namespace.Length == 0 && countKey.Name == target.Value

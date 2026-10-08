@@ -41,6 +41,7 @@ public sealed class WriterSession : SessionState
     public WriterSession(ExecutionPlan plan, IBufferWriter<byte> output, IServiceProvider? services = null)
     {
         _plan = plan ?? throw new ArgumentNullException(nameof(plan));
+        DataTypes = plan.DataTypes;
         _output = output ?? throw new ArgumentNullException(nameof(output));
         _counter = new CountingBufferWriter(output);
         _target = _counter;
@@ -229,7 +230,7 @@ public sealed class WriterSession : SessionState
     }
 
     private LogicalField DerivedSize(FieldInfo field, long size)
-        => new(field.Name, DataTypeCodec.ClrType(field.Field.DataType) ?? typeof(int), checked((int)size));
+        => new(field.Name, field.DataType.ClrType, checked((int)size));
 
     /// <summary>
     /// The size field precedes the content it measures: probe its encoded width, then redirect the output to a scratch buffer until the group ends.
@@ -348,12 +349,12 @@ public sealed class WriterSession : SessionState
             if (field.CountOf is { } countOf)
             {
                 var count = scope.GetCount(new RepeatContext { Node = countOf, Services = _services, Instance = _instance });
-                logical = new LogicalField(field.Name, DataTypeCodec.ClrType(field.Field.DataType) ?? typeof(int), count);
+                logical = new LogicalField(field.Name, field.DataType.ClrType, count);
             }
             else if (field.HasExpectedValue)
             {
                 var expected = ResolveExpected(field, _instance);
-                logical = new LogicalField(field.Name, DataTypeCodec.ClrType(field.Field.DataType) ?? typeof(object), expected);
+                logical = new LogicalField(field.Name, field.DataType.ClrType, expected);
             }
             else if (field.LengthOf is { } lengthOf)
             {
@@ -363,7 +364,7 @@ public sealed class WriterSession : SessionState
                 {
                     throw EngineLogger.Fail($"'{field.Path}': cannot derive the length, the value model has no bytes value for '{lengthOf.Path}'.");
                 }
-                logical = new LogicalField(field.Name, DataTypeCodec.ClrType(field.Field.DataType) ?? typeof(int), derivedBytes.Length);
+                logical = new LogicalField(field.Name, field.DataType.ClrType, derivedBytes.Length);
             }
             else if (field.SizeOf is not null)
             {
@@ -402,10 +403,10 @@ public sealed class WriterSession : SessionState
         switch (pipeline.FieldProcessors.Count)
         {
             case 0:
-                if (!DataTypeCodec.TryEncode(field.Field.DataType, logical.Value, out var bytes))
+                if (field.DataType.Encode is not { } encode || !encode(logical.Value, out var bytes))
                 {
                     throw EngineLogger.Fail(
-                        $"'{field.Path}': cannot encode value '{logical.Value ?? "null"}' as {field.Field.DataType}.");
+                        $"'{field.Path}': cannot encode value '{logical.Value ?? "null"}' as {field.DataType}.");
                 }
                 encoded = new EncodedField(logical.Name, typeof(byte[]), bytes, bytes.Length * 8);
                 break;

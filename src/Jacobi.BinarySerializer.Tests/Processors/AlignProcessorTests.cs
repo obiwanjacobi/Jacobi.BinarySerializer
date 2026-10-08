@@ -9,8 +9,8 @@ public class AlignProcessorTests
     public void RoundTrip_AsHead_PadsFieldsAndGroupEnd()
     {
         var root = Group("Root", [Ref("align", ("bytes", "4"))],
-            Field("A", SchemaDataType.UInt8),
-            Field("B", SchemaDataType.UInt16));
+            Field("A", "UInt8"),
+            Field("B", "UInt16"));
         var values = new Dictionary<string, object?> { ["Root.A"] = (byte)1, ["Root.B"] = (ushort)0x1234 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -24,8 +24,8 @@ public class AlignProcessorTests
     public void RoundTrip_AlreadyAligned_AddsNoPadding()
     {
         var root = Group("Root", [Ref("align", ("bytes", "2"))],
-            Field("A", SchemaDataType.UInt16),
-            Field("B", SchemaDataType.UInt16));
+            Field("A", "UInt16"),
+            Field("B", "UInt16"));
         var values = new Dictionary<string, object?> { ["Root.A"] = (ushort)0x0102, ["Root.B"] = (ushort)0x0304 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -38,9 +38,9 @@ public class AlignProcessorTests
     public void RoundTrip_ChainedAfterBytePacker_AlignsTheReorderedBytes()
     {
         var root = Group("Root", [Ref("bytepacker", ("byteorder", "big")), Ref("align", ("bytes", "2"))],
-            Field("A", SchemaDataType.UInt8),
-            Field("B", SchemaDataType.UInt16),
-            Field("C", SchemaDataType.UInt8));
+            Field("A", "UInt8"),
+            Field("B", "UInt16"),
+            Field("C", "UInt8"));
         var values = new Dictionary<string, object?>
         {
             ["Root.A"] = (byte)1,
@@ -59,8 +59,8 @@ public class AlignProcessorTests
     public void RoundTrip_GroupRelative_AlignsToTheStartOfTheOwningGroup()
     {
         var root = Group("Root", [],
-            Field("P", SchemaDataType.UInt8),
-            Group("G", [Ref("align", ("bytes", "4"))], Field("X", SchemaDataType.UInt8)));
+            Field("P", "UInt8"),
+            Group("G", [Ref("align", ("bytes", "4"))], Field("X", "UInt8")));
         var values = new Dictionary<string, object?> { ["Root.P"] = (byte)7, ["Root.G.X"] = (byte)9 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -74,8 +74,8 @@ public class AlignProcessorTests
     public void RoundTrip_RootRelative_AlignsToTheStartOfTheMessage()
     {
         var root = Group("Root", [],
-            Field("P", SchemaDataType.UInt8),
-            Group("G", [Ref("align", ("bytes", "4"), ("relative", "root"))], Field("X", SchemaDataType.UInt8)));
+            Field("P", "UInt8"),
+            Group("G", [Ref("align", ("bytes", "4"), ("relative", "root"))], Field("X", "UInt8")));
         var values = new Dictionary<string, object?> { ["Root.P"] = (byte)7, ["Root.G.X"] = (byte)9 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -89,8 +89,8 @@ public class AlignProcessorTests
     public void Read_MissingPadding_NeedsMoreData()
     {
         var root = Group("Root", [Ref("align", ("bytes", "4"))],
-            Field("A", SchemaDataType.UInt8),
-            Field("B", SchemaDataType.UInt8));
+            Field("A", "UInt8"),
+            Field("B", "UInt8"));
         var plan = Build(root);
 
         var result = new Jacobi.BinarySerializer.Execution.ReaderSession(plan)
@@ -102,7 +102,7 @@ public class AlignProcessorTests
     [Test]
     public void Write_MissingBytesProperty_Throws()
     {
-        var root = Group("Root", [Ref("align")], Field("A", SchemaDataType.UInt8));
+        var root = Group("Root", [Ref("align")], Field("A", "UInt8"));
 
         Assert.That(() => Write(root, new() { ["Root.A"] = (byte)1 }, out _),
             Throws.InstanceOf<InvalidOperationException>());
@@ -113,7 +113,7 @@ public class AlignProcessorTests
     [TestCase("many")]
     public void Write_InvalidBytes_Throws(string bytes)
     {
-        var root = Group("Root", [Ref("align", ("bytes", bytes))], Field("A", SchemaDataType.UInt8));
+        var root = Group("Root", [Ref("align", ("bytes", bytes))], Field("A", "UInt8"));
 
         Assert.That(() => Write(root, new() { ["Root.A"] = (byte)1 }, out _),
             Throws.InstanceOf<InvalidOperationException>());
@@ -122,7 +122,7 @@ public class AlignProcessorTests
     [Test]
     public void Write_InvalidRelative_Throws()
     {
-        var root = Group("Root", [Ref("align", ("bytes", "4"), ("relative", "sideways"))], Field("A", SchemaDataType.UInt8));
+        var root = Group("Root", [Ref("align", ("bytes", "4"), ("relative", "sideways"))], Field("A", "UInt8"));
 
         Assert.That(() => Write(root, new() { ["Root.A"] = (byte)1 }, out _),
             Throws.InstanceOf<InvalidOperationException>());

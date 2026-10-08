@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using Jacobi.BinarySerializer.Codecs;
+using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,11 @@ public closed class SessionState
     private ILoggerFactory _loggerFactory = NullLoggerFactory.Instance;
     private string _direction = String.Empty;
     private readonly Dictionary<ProcessorBinding, ILogger> _processorLoggers = [];
+
+    /// <summary>
+    /// The data types of the plan being executed (set by the session).
+    /// </summary>
+    internal DataTypeRegistry DataTypes { get; set; } = DataTypeRegistry.CreateDefault();
 
     /// <summary>
     /// The logger of the engine itself (category 'Jacobi.BinarySerializer.Engine').
@@ -162,7 +168,8 @@ public closed class SessionState
     internal object? ResolveExpected(FieldInfo field, InstancePath current)
     {
         var expected = field.ValueReference is { } key ? ResolvePublished(key, field.Path, current) : field.ConstantValue;
-        if (expected is null || DataTypeCodec.ClrType(field.Field.DataType) is not { } clrType || clrType.IsInstanceOfType(expected))
+        var clrType = field.DataType.ClrType;
+        if (expected is null || clrType.IsInstanceOfType(expected))
         {
             return expected;
         }
@@ -173,7 +180,7 @@ public closed class SessionState
         }
         catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
         {
-            throw EngineLogger.Fail($"'{field.Path}': the value '{expected}' cannot be converted to {field.Field.DataType}.", ex);
+            throw EngineLogger.Fail($"'{field.Path}': the value '{expected}' cannot be converted to {field.DataType}.", ex);
         }
     }
 

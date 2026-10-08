@@ -9,19 +9,19 @@ namespace Jacobi.BinarySerializer.Tests.Execution;
 /// <summary>Writes a value model with a WriterSession and reads it back with a ReaderSession over the same plan.</summary>
 public class SessionRoundTripTests
 {
-    [TestCase(SchemaDataType.Int8, (sbyte)-5)]
-    [TestCase(SchemaDataType.UInt8, (byte)200)]
-    [TestCase(SchemaDataType.Int16, (short)-1234)]
-    [TestCase(SchemaDataType.UInt16, (ushort)65000)]
-    [TestCase(SchemaDataType.Int32, -123456)]
-    [TestCase(SchemaDataType.UInt32, 4000000000u)]
-    [TestCase(SchemaDataType.Int64, long.MinValue)]
-    [TestCase(SchemaDataType.UInt64, ulong.MaxValue)]
-    [TestCase(SchemaDataType.Double, 3.14159d)]
-    [TestCase(SchemaDataType.Boolean, true)]
-    public void RoundTrip_FixedWidthTypes_PreserveValueAndClrType(SchemaDataType type, object value)
+    [TestCase("Int8", (sbyte)-5)]
+    [TestCase("UInt8", (byte)200)]
+    [TestCase("Int16", (short)-1234)]
+    [TestCase("UInt16", (ushort)65000)]
+    [TestCase("Int32", -123456)]
+    [TestCase("UInt32", 4000000000u)]
+    [TestCase("Int64", long.MinValue)]
+    [TestCase("UInt64", ulong.MaxValue)]
+    [TestCase("Double", 3.14159d)]
+    [TestCase("Boolean", true)]
+    public void RoundTrip_FixedWidthTypes_PreserveValueAndClrType(string type, object value)
     {
-        var root = Group("Root", [], Field("A", type));
+        var root = Group("Root", [], Field("A", new SchemaDataType(type)));
 
         var sink = RoundTrip(root, new() { ["Root.A"] = value });
 
@@ -34,7 +34,7 @@ public class SessionRoundTripTests
     {
         var root = Group("Root", [],
             Field("A"),
-            Group("G", [], Field("B", SchemaDataType.UInt8), Group("H", [], Field("C", SchemaDataType.Int16))),
+            Group("G", [], Field("B", "UInt8"), Group("H", [], Field("C", "Int16"))),
             Field("D"));
         var values = new Dictionary<string, object?>
         {

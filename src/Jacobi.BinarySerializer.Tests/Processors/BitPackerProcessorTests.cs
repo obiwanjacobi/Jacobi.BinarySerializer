@@ -8,9 +8,9 @@ public class BitPackerProcessorTests
 {
     private static SchemaGroup CreateRoot(string? bitOrder = null)
         => Group("Root", [bitOrder is null ? Ref("bitpacker") : Ref("bitpacker", ("bitorder", bitOrder))],
-            Field("A", SchemaDataType.UInt8, null, ("bits", "3")),
-            Field("B", SchemaDataType.UInt8, null, ("bits", "5")),
-            Field("C", SchemaDataType.UInt16, null, ("bits", "13")));
+            Field("A", "UInt8", null, ("bits", "3")),
+            Field("B", "UInt8", null, ("bits", "5")),
+            Field("C", "UInt16", null, ("bits", "13")));
 
     private static Dictionary<string, object?> CreateValues()
         => new() { ["Root.A"] = (byte)5, ["Root.B"] = (byte)17, ["Root.C"] = (ushort)0x1234 };
@@ -38,9 +38,9 @@ public class BitPackerProcessorTests
     public void RoundTrip_SignedValuesAreSignExtended(string bitOrder)
     {
         var root = Group("Root", [Ref("bitpacker", ("bitorder", bitOrder))],
-            Field("A", SchemaDataType.Int8, null, ("bits", "4")),
-            Field("B", SchemaDataType.Int16, null, ("bits", "12")),
-            Field("C", SchemaDataType.Boolean, null, ("bits", "1")));
+            Field("A", "Int8", null, ("bits", "4")),
+            Field("B", "Int16", null, ("bits", "12")),
+            Field("C", "Boolean", null, ("bits", "1")));
         var values = new Dictionary<string, object?> { ["Root.A"] = (sbyte)-3, ["Root.B"] = (short)-1000, ["Root.C"] = true };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -53,8 +53,8 @@ public class BitPackerProcessorTests
     public void RoundTrip_EachGroupStartsOnAByteBoundary()
     {
         var root = Group("Root", [],
-            Group("First", [Ref("bitpacker")], Field("A", SchemaDataType.UInt8, null, ("bits", "3"))),
-            Group("Second", [Ref("bitpacker")], Field("B", SchemaDataType.UInt8, null, ("bits", "3"))));
+            Group("First", [Ref("bitpacker")], Field("A", "UInt8", null, ("bits", "3"))),
+            Group("Second", [Ref("bitpacker")], Field("B", "UInt8", null, ("bits", "3"))));
         var values = new Dictionary<string, object?> { ["Root.First.A"] = (byte)7, ["Root.Second.B"] = (byte)5 };
 
         var (bytes, read) = RoundTrip(root, values);

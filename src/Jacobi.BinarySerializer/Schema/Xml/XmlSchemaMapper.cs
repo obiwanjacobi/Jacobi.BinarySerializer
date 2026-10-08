@@ -147,7 +147,7 @@ internal static class XmlSchemaMapper
         {
             Name = xmlField.Name,
             ProcessorsList = xmlField.Processors.Select(ToSchemaProcessorRef).ToList(),
-            DataType = xmlField.Type,
+            DataType = new SchemaDataType(xmlField.Type ?? throw new InvalidOperationException($"The field '{xmlField.Name}' has no type.")),
             Value = ToSchemaValueOrText(xmlField.Value, xmlField.ValueRef),
             Length = ToSchemaValue(xmlField.Length, xmlField.LengthRef),
             PropertyList = MergeProperties(
@@ -165,7 +165,7 @@ internal static class XmlSchemaMapper
             return new SchemaTypeDef
             {
                 Name = fieldNode.Name,
-                DataType = fieldNode.Type,
+                DataType = fieldNode.Type is { } typeName ? new SchemaDataType(typeName) : null,
                 Processors = fieldNode.Processors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(
                     fieldNode.Properties,
@@ -180,7 +180,7 @@ internal static class XmlSchemaMapper
             return new SchemaTypeDef
             {
                 Name = repeatNode.Name,
-                DataType = SchemaDataType.None,
+                DataType = null,
                 Processors = repeatNode.Processors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(
                     repeatNode.Properties,
@@ -195,7 +195,7 @@ internal static class XmlSchemaMapper
             return new SchemaTypeDef
             {
                 Name = choiceNode.Name,
-                DataType = SchemaDataType.None,
+                DataType = null,
                 Processors = choiceNode.Processors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(
                     choiceNode.Properties,
@@ -210,7 +210,7 @@ internal static class XmlSchemaMapper
             return new SchemaTypeDef
             {
                 Name = groupNode.Name,
-                DataType = SchemaDataType.None,
+                DataType = null,
                 Processors = groupNode.Processors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(
                     groupNode.Properties,
@@ -348,7 +348,7 @@ internal static class XmlSchemaMapper
             {
                 Name = field.Name,
                 Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Type = field.DataType,
+                Type = field.DataType.FullName,
                 Value = ToConstantText(field.Value),
                 ValueRef = ToXmlValueRef(field.Value),
                 Length = ToConstantText(field.Length),
@@ -394,12 +394,12 @@ internal static class XmlSchemaMapper
 
     private static XmlSchemaNode FromSchemaTypeDef(SchemaTypeDef typeDef)
     {
-        if (typeDef.DataType != SchemaDataType.None)
+        if (typeDef.DataType is { } typeDefType)
         {
             return new XmlSchemaField
             {
                 Name = typeDef.Name,
-                Type = typeDef.DataType,
+                Type = typeDefType.FullName,
                 Processors = typeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = typeDef.Properties.Select(FromSchemaProperty).ToList()
             };

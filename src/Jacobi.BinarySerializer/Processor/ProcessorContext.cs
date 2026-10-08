@@ -1,4 +1,5 @@
-﻿using Jacobi.BinarySerializer.Execution;
+﻿using Jacobi.BinarySerializer.Descriptors;
+using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Schema;
 using Microsoft.Extensions.Logging;
 
@@ -42,6 +43,11 @@ public closed class ProcessorContext
         => new(properties ?? [], Current is null ? null : Current.Processor.Key);
 
     public required IServiceProvider Services { get; init; }
+
+    /// <summary>
+    /// The data types known to the serializer (to resolve a data type name to its descriptor).
+    /// </summary>
+    public IDataTypeRegistry DataTypes => _state.DataTypes;
 
     /// <summary>
     /// Logger for the current processor (category identifies the processor); no-op when the host configured no logging.
@@ -98,7 +104,7 @@ public sealed class ValueProcessorContext : ProcessorContext
     public GroupInfo? Group { get; internal set; }
 
     /// <summary>The data type of the value being processed (null when unknown).</summary>
-    public SchemaDataType? DataType => Field is not null ? Field.Field.DataType : Group?.ValueType;
+    public DataTypeDescriptor? DataType => Field is not null ? Field.DataType : Group?.ValueType;
 }
 
 public sealed class FieldProcessorContext : ProcessorContext

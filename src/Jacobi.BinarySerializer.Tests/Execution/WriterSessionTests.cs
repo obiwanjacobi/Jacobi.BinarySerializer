@@ -12,7 +12,7 @@ public class WriterSessionTests
     [Test]
     public void Write_FixedWidthFields_InOrder()
     {
-        var root = Group("Root", [], Field("A"), Group("G", [], Field("B", SchemaDataType.UInt8)));
+        var root = Group("Root", [], Field("A"), Group("G", [], Field("B", "UInt8")));
 
         var (result, bytes, _) = Run(root, new() { ["Root.A"] = 1, ["Root.G.B"] = (byte)7 });
 
@@ -43,7 +43,7 @@ public class WriterSessionTests
     [Test]
     public void Write_ValueDoesNotFit_Throws()
     {
-        var root = Group("Root", [], Field("A", SchemaDataType.UInt8));
+        var root = Group("Root", [], Field("A", "UInt8"));
 
         var ex = Assert.Throws<InvalidOperationException>(() => Run(root, new() { ["Root.A"] = 300 }));
 

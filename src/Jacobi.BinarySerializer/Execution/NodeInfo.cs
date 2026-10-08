@@ -1,3 +1,4 @@
+using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -21,7 +22,10 @@ public sealed class FieldInfo : NodeInfo
     // schema field
     public required SchemaField Field { get; init; }
 
-    /// <summary>True when another node refers to this field's value by schema path; the session publishes it.</summary>
+    /// <summary>The descriptor of the logical data type of the field, resolved from the registry.</summary>
+    public required DataTypeDescriptor DataType { get; init; }
+
+    /// <summary>True when another node
     public bool PublishesValue { get; internal set; }
 
     /// <summary>
@@ -35,7 +39,7 @@ public sealed class FieldInfo : NodeInfo
     public GroupInfo? SizeOf { get; internal set; }
 
     /// <summary>
-    /// The length in bytes of a <see cref="SchemaDataType.Bytes"/> field (unset when the field has no length: it takes the rest of the enclosing size window).
+    /// The length in bytes of a <c>sys.bytes</c> field (unset when the field has no length: it takes the rest of the enclosing size window).
     /// </summary>
     public ValueSource<int> Length { get; init; }
 
@@ -71,7 +75,7 @@ public class GroupInfo : NodeInfo
     public IReadOnlyList<ProcessorBinding> ValueProcessors { get; init; } = [];
 
     /// <summary>The data type of the field the count/index refers to (null for constants and published values).</summary>
-    public SchemaDataType? ValueType { get; internal set; }
+    public DataTypeDescriptor? ValueType { get; internal set; }
 
     /// <summary>
     /// The size in bytes of the encoded content of the group (unset when the group has no size).

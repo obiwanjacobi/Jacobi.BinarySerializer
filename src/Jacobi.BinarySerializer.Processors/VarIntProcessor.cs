@@ -1,7 +1,7 @@
 using System.Buffers;
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Processor;
-using Jacobi.BinarySerializer.Schema;
+using Jacobi.BinarySerializer.Descriptors;
 
 namespace Jacobi.BinarySerializer.Processors;
 
@@ -41,7 +41,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
     private static FieldWriteResult<EncodedField> WriteCore(LogicalField field, FieldProcessorContext context)
     {
         var encoding = GetEncoding(context);
-        var type = context.Field.Field.DataType;
+        var type = context.Field.DataType;
         var path = context.Field.Path;
 
         byte[] bytes;
@@ -68,7 +68,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
     private static FieldReadResult<LogicalField> ReadCore(EncodedField field, FieldProcessorContext context)
     {
         var encoding = GetEncoding(context);
-        var type = context.Field.Field.DataType;
+        var type = context.Field.DataType;
         var path = context.Field.Path;
 
         if (field.Value is not byte[] bytes)
@@ -115,7 +115,7 @@ internal sealed class VarIntProcessor : IFieldProcessor
 
         context.Logger.VarIntDecoded(path, encoding.ToString(), bytes.Length);
         return FieldReadResult<LogicalField>.Consumed(
-            new(field.Name, DataTypeCodec.ClrType(type) ?? typeof(object), result), length * 8);
+            new(field.Name, type.ClrType, result), length * 8);
     }
 
     private static FieldReadResult<LogicalField> Incomplete(byte[] bytes, VarIntEncoding encoding, string path)
@@ -143,17 +143,17 @@ internal sealed class VarIntProcessor : IFieldProcessor
         };
     }
 
-    private static bool IsSignedType(SchemaDataType type)
-        => type is SchemaDataType.Int8 or SchemaDataType.Int16 or SchemaDataType.Int32 or SchemaDataType.Int64;
+    private static bool IsSignedType(DataTypeDescriptor type)
+        => type.ClrType == typeof(sbyte) || type.ClrType == typeof(short) || type.ClrType == typeof(int) || type.ClrType == typeof(long);
 
-    private static bool IsUnsignedType(SchemaDataType type)
-        => type is SchemaDataType.UInt8 or SchemaDataType.UInt16 or SchemaDataType.UInt32 or SchemaDataType.UInt64;
+    private static bool IsUnsignedType(DataTypeDescriptor type)
+        => type.ClrType == typeof(byte) || type.ClrType == typeof(ushort) || type.ClrType == typeof(uint) || type.ClrType == typeof(ulong);
 
-    private static ulong ToUnsigned(object? value, SchemaDataType type, string path)
+    private static ulong ToUnsigned(object? value, DataTypeDescriptor type, string path)
     {
         if (!IsUnsignedType(type))
         {
-            throw new InvalidOperationException($"'{path}': 'leb128' encodes unsigned integers; use 'sleb128' or 'zigzag' for {type}.");
+            throw new InvalidOperationException($"'{path}': 'leb128' encodes unsigned integers; use 'sleb128' or 'zigzag' for {type.Name}.");
         }
 
         try
@@ -162,15 +162,15 @@ internal sealed class VarIntProcessor : IFieldProcessor
         }
         catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException)
         {
-            throw new InvalidOperationException($"'{path}': cannot encode '{value ?? "null"}' as {type}.", ex);
+            throw new InvalidOperationException($"'{path}': cannot encode '{value ?? "null"}' as {type.Name}.", ex);
         }
     }
 
-    private static long ToSigned(object? value, SchemaDataType type, string path)
+    private static long ToSigned(object? value, DataTypeDescriptor type, string path)
     {
         if (!IsSignedType(type))
         {
-            throw new InvalidOperationException($"'{path}': 'sleb128' and 'zigzag' encode signed integers; use 'leb128' for {type}.");
+            throw new InvalidOperationException($"'{path}': 'sleb128' and 'zigzag' encode signed integers; use 'leb128' for {type.Name}.");
         }
 
         try
@@ -179,64 +179,50 @@ internal sealed class VarIntProcessor : IFieldProcessor
         }
         catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException)
         {
-            throw new InvalidOperationException($"'{path}': cannot encode '{value ?? "null"}' as {type}.", ex);
+            throw new InvalidOperationException($"'{path}': cannot encode '{value ?? "null"}' as {type.Name}.", ex);
         }
     }
 
-    private static object FromUnsigned(ulong value, SchemaDataType type, string path, ref bool ok)
+    private static object FromUnsigned(ulong value, DataTypeDescriptor type, string path, ref bool ok)
     {
         if (!IsUnsignedType(type))
         {
-            throw new InvalidOperationException($"'{path}': 'leb128' decodes unsigned integers; use 'sleb128' or 'zigzag' for {type}.");
+            throw new InvalidOperationException($"'{path}': 'leb128' decodes unsigned integers; use 'sleb128' or 'zigzag' for {type.Name}.");
         }
 
-        var max = type switch
-        {
-            SchemaDataType.UInt8 => (ulong)Byte.MaxValue,
-            SchemaDataType.UInt16 => UInt16.MaxValue,
-            SchemaDataType.UInt32 => UInt32.MaxValue,
-            _ => UInt64.MaxValue
-        };
+        var max = type.FixedSize is { } size and < 8 ? (1UL << (size * 8)) - 1 : UInt64.MaxValue;
         if (value > max)
         {
             ok = false;
         }
 
-        return type switch
-        {
-            SchemaDataType.UInt8 => (byte)value,
-            SchemaDataType.UInt16 => (ushort)value,
-            SchemaDataType.UInt32 => (uint)value,
-            _ => value
-        };
+        var clr = type.ClrType;
+        return clr == typeof(byte) ? (byte)value
+            : clr == typeof(ushort) ? (ushort)value
+            : clr == typeof(uint) ? (uint)value
+            : value;
     }
 
-    private static object FromSigned(long value, SchemaDataType type, string path, ref bool ok)
+    private static object FromSigned(long value, DataTypeDescriptor type, string path, ref bool ok)
     {
         if (!IsSignedType(type))
         {
-            throw new InvalidOperationException($"'{path}': 'sleb128' and 'zigzag' decode signed integers; use 'leb128' for {type}.");
+            throw new InvalidOperationException($"'{path}': 'sleb128' and 'zigzag' decode signed integers; use 'leb128' for {type.Name}.");
         }
 
-        var (min, max) = type switch
-        {
-            SchemaDataType.Int8 => ((long)SByte.MinValue, (long)SByte.MaxValue),
-            SchemaDataType.Int16 => (Int16.MinValue, Int16.MaxValue),
-            SchemaDataType.Int32 => (Int32.MinValue, Int32.MaxValue),
-            _ => (Int64.MinValue, Int64.MaxValue)
-        };
+        var bits = type.FixedSize is { } size and < 8 ? size * 8 : 64;
+        var max = bits == 64 ? Int64.MaxValue : (1L << (bits - 1)) - 1;
+        var min = bits == 64 ? Int64.MinValue : -(1L << (bits - 1));
         if (value < min || value > max)
         {
             ok = false;
         }
 
-        return type switch
-        {
-            SchemaDataType.Int8 => (sbyte)value,
-            SchemaDataType.Int16 => (short)value,
-            SchemaDataType.Int32 => (int)value,
-            _ => value
-        };
+        var clr = type.ClrType;
+        return clr == typeof(sbyte) ? (sbyte)value
+            : clr == typeof(short) ? (short)value
+            : clr == typeof(int) ? (int)value
+            : value;
     }
 
     public ProcessorKey Key => new("sys.varint");

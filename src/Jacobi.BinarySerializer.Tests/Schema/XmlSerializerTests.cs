@@ -133,8 +133,8 @@ public class XmlSerializerTests
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "deltaProcessor" && p.Processor.ToString() == "sys.scale" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
         Assert.That(document.TypeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == SchemaDataType.Int32));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType == SchemaDataType.None));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == "Int32"));
+        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType is null));
 
         var rootGroup = document.Roots.Single();
         var rootField = rootGroup.Members.OfType<SchemaField>().Single();
@@ -321,7 +321,7 @@ public class XmlSerializerTests
         var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
         var fields = roundTripped.Groups.Single(g => g.Name == "Root").Members.OfType<SchemaField>().ToList();
 
-        Assert.That(fields[1].DataType, Is.EqualTo(SchemaDataType.Bytes));
+        Assert.That(fields[1].DataType, Is.EqualTo(new SchemaDataType("Bytes")));
         Assert.That(fields[1].Length is SchemaNodeRef { Path: "Root.Len" }, Is.True);
         Assert.That(fields[2].Length is 2, Is.True);
         Assert.That(fields[2].Value is "0x8950", Is.True);
