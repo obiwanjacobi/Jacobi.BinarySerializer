@@ -34,6 +34,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="todo.md">
+      <PackagePath>\</PackagePath>
+      <Pack>True</Pack>
+    </None>
     <None Update="readme.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>

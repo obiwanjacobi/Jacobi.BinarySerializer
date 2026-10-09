@@ -214,10 +214,8 @@ public enum SchemaNodeKind
     Field,
     /// <summary>A group of fields.</summary>
     Group,
-    /// <summary>A repeated field or group.</summary>
+    /// <summary>A group of repeated fields and/or groups.</summary>
     Repeat,
     /// <summary>A choice between multiple fields or groups.</summary>
     Choice,
 }
-
-

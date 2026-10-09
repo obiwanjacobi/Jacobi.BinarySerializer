@@ -339,7 +339,11 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
                 $"Processor '{processorRef.Processor}' does not designate a processor (unresolved reference or missing namespace).");
         }
 
-        var processor = processorProvider.CreateProcessor(key);
+        if (!processorProvider.TryCreateProcessor(key, out var processor))
+        {
+            return state.Error<ProcessorBinding>(path, $"Unknown processor '{key}'.");
+        }
+
         var implementsStage = processor.Stage switch
         {
             PipelineStage.Semantic => processor is IValueProcessor,

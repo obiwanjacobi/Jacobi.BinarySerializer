@@ -178,6 +178,31 @@ public class ExecutionPlanBuilderTests
     }
 
     [Test]
+    public void Build_UnknownProcessorId_ReportsErrorWithPath()
+    {
+        var root = CreateGroup("Root");
+        root.MemberList.Add(CreateField("A", Ref("missing")));
+        root.MemberList.Add(CreateField("B", Ref("bad")));
+
+        var ex = Assert.Throws<ExecutionPlanException>(() => CreateBuilder().Build(root));
+
+        Assert.That(ex!.Errors, Has.Count.EqualTo(2));
+        Assert.That(ex.Errors[0], Does.Contain("Root.A").And.Contain("Unknown processor"));
+    }
+
+    [Test]
+    public void Build_UnknownProcessorNamespace_ReportsErrorWithPath()
+    {
+        var root = CreateGroup("Root");
+        root.MemberList.Add(CreateField("A", new SchemaProcessorRef { Processor = new SchemaProcessorName("nons.proc") }));
+
+        var ex = Assert.Throws<ExecutionPlanException>(() => CreateBuilder().Build(root));
+
+        Assert.That(ex!.Errors, Has.Count.EqualTo(1));
+        Assert.That(ex.Errors[0], Does.Contain("Root.A").And.Contain("Unknown processor"));
+    }
+
+    [Test]
     public void Build_MultipleErrors_AreAllReported()
     {
         var root = CreateGroup("Root");
