@@ -9,12 +9,6 @@
   - [ ] report unknown property names (typos) and value constraints (ranges) at plan build.
   - [ ] allow value references (`ref:`/`pub:`) in complex property values (the engine currently only resolves them for simple string values).
 - [ ] **Data type follow-ups.** Composite/structured data types and a neutral value tree for processor property types; enum data types for the remaining string-valued properties (align `relative`, varint `encoding`); built-in typedefs; replacing a registered descriptor; unit tests for the `Descriptors` namespace.
-- [ ] **String follow-ups.** 
-  - [ ] `byteLength` as `ref:`/`pub:` (processor property values are constants only, see complex property values), 
-  - [ ] publishing the detected length
-  - [ ] a byteLength prefix (see above)
-  - [ ] multi-byte terminators for UTF-16/32 (nice to have?)
-  - [ ] reporting property errors at plan build instead of at read time. A field processor that needs more data than the open-width window (10 bytes) is retried by the reader with a doubled window while more input is available.
 - [ ] **String: use the field-level `ByteLength`.** 
   - [x] Done for constant lengths: `sys:string` uses `FieldData.ByteLength` (in bytes, same as `Bytes`) and the string data type supports a length; the processor property `byteLength` still works as a fallback (both together is an error). 
   - [ ] tests for `ref:`/`pub:` field lengths on strings, deriving a length field from a string value on write (`ByteLengthOf` only handles `byte[]`), and deciding whether to drop the `byteLength` property. Characters-based lengths are not supported (the encoded width depends on the encoding).
@@ -36,6 +30,10 @@
 - [ ] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, typedef instantiation.
 - [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage?
 
+- [x] **String follow-ups.** 
+  - [x] `byteLength` as `ref:`/`pub:` (processor property values are constants only, see complex property values), 
+  - [x] publishing the detected length
+  - [x] a byteLength prefix. Would that not simply be passing a field ref to the byteLength property?
 - [x] **Publish namespace (`pubns`).** An optional property on the Schema type (not an engine-interpreted processor property) to set the namespace a processor publishes its values under, so published values do not collide.
 - [x] **SchemaField Dummy** to allow filler/dummy/don't-care fields in the schema. The engine currently requires a field to have a data type and a value model property. Or have literal fields (with a constant value) not trigger logical model events and have a serializer setting to turn that off?
 - [x] **Mark a SchemaField as 'hidden'** Such a field will be processed as defined but not appear in the logical model(s) (IValueSource/IValueSink, IFieldSource/IFieldSink). This is useful for fields that are required for the binary format but not relevant to the logical model (e.g. a CRC or a reserved field).
@@ -91,6 +89,9 @@
 - [ ] **Repeat stream processors.** Stream processors on a repeat group should run once per repeat (around all items), not per item. The cursor already has that point (the repeat's EnterGroup/ExitGroup); builds on the non-root stream processor item below.
 - [ ] **Typed-object API.** Where interfacing is done through client-defined POCOs, not by implementing interfaces.
 - [ ] **EndOfData probe: layout side effects.** The writer ends a count-less repeat for a flat source by probing the first field of the next item (`SourceResult.EndOfData`) before the item is entered; the probe only covers a direct first field (not a first field inside a nested repeat or choice). Layout processors may have side-effects if the item/group were entered before the probe; revisit if that shows up.
+- [ ] **String follow-ups.** 
+  - [ ] multi-byte terminators for UTF-16/32
+  - [ ] reporting property errors at plan build instead of at read time. A field processor that needs more data than the open-width window (10 bytes) is retried by the reader with a doubled window while more input is available.
 
 ## Not Doing These
 

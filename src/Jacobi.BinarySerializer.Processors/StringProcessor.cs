@@ -18,6 +18,7 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
     private static readonly PropertyDescriptor ByteLengthProperty = new("byteLength", "sys.int32", false, description: "A fixed length in bytes; shorter strings are padded. Exclusive with 'terminator'.");
     private static readonly PropertyDescriptor TerminatorProperty = new("terminator", "sys.uint8", false, description: "The byte value (0-255) that ends the string. Exclusive with 'byteLength'.");
     private static readonly PropertyDescriptor PaddingProperty = new("padding", "sys.uint8", false, description: "The byte value (0-255) that pads a fixed length; 0 by default. Trailing padding is trimmed on read.");
+    private static readonly PropertyDescriptor LengthProperty = new(PublishedLength, "sys.int32", false, isReadOnly: true, isPublished: true, description: "Published: the length of the string in chars.");
 
     public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
     {
@@ -190,5 +191,5 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
     public ProcessorKey Key => new("sys.string");
     public string Name => "String Processor";
     public PipelineStage Stage => PipelineStage.Representation;
-    public IReadOnlyList<PropertyDescriptor> Properties => [EncodingProperty, ByteLengthProperty, TerminatorProperty, PaddingProperty];
+    public IReadOnlyList<PropertyDescriptor> Properties => [EncodingProperty, ByteLengthProperty, TerminatorProperty, PaddingProperty, LengthProperty];
 }

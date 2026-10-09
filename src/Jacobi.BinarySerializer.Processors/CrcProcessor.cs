@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Globalization;
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Descriptors;
@@ -31,6 +31,7 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     private static readonly PropertyDescriptor RefInProperty = new("refin", "sys.boolean", false, description: "Override: reflect input bytes.");
     private static readonly PropertyDescriptor RefOutProperty = new("refout", "sys.boolean", false, description: "Override: reflect the output.");
     private static readonly PropertyDescriptor XorOutProperty = new("xorout", "sys.string", false, description: "Override: final XOR value.");
+    private static readonly PropertyDescriptor ValueProperty = new(PublishedCrc, "sys.uint64", false, isReadOnly: true, isPublished: true, description: "Published: the calculated CRC value.");
 
     private sealed class CrcState
     {
@@ -42,7 +43,7 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     public PipelineStage Stage => PipelineStage.Layout;
     public IReadOnlyList<PropertyDescriptor> Properties =>
     [
-        AlgorithmProperty, ByteOrderProperty, WidthProperty, PolyProperty, InitProperty, RefInProperty, RefOutProperty, XorOutProperty,
+        AlgorithmProperty, ByteOrderProperty, WidthProperty, PolyProperty, InitProperty, RefInProperty, RefOutProperty, XorOutProperty, ValueProperty,
     ];
 
     public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
