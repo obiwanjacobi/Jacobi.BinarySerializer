@@ -21,8 +21,9 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
             return logicalValue;
         }
 
-        var (logicalType, physicalType, entries) = GetMap(context);
-        var logical = Normalize(logicalValue.Value, logicalType, context);
+        var map = GetMap(context);
+        var logical = Normalize(logicalValue.Value, map.LogicalType, context);
+        var entries = map.Entries;
         var index = entries.FindIndex(e => Equals(e.Logical, logical));
         if (index < 0)
         {
@@ -34,7 +35,7 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
             throw context.Logger.Fail($"Value '{logicalValue.Value}' is the default of the map and has no physical value to write.");
         }
 
-        return new(logicalValue.Name, physicalType.ClrType, entry.Physical);
+        return new(logicalValue.Name, map.PhysicalType.ClrType, entry.Physical);
     }
 
     public LogicalField Read(LogicalField logicalValue, ValueProcessorContext context)
@@ -44,8 +45,9 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
             return logicalValue;
         }
 
-        var (logicalType, physicalType, entries) = GetMap(context);
-        var physical = Normalize(logicalValue.Value, physicalType, context);
+        var map = GetMap(context);
+        var physical = Normalize(logicalValue.Value, map.PhysicalType, context);
+        var entries = map.Entries;
         var index = entries.FindIndex(e => e.Physical is not null && Equals(e.Physical, physical));
         if (index < 0)
         {
@@ -57,10 +59,26 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
         }
         var entry = entries[index];
 
-        return new(logicalValue.Name, logicalType.ClrType, entry.Logical);
+        return new(logicalValue.Name, map.LogicalType.ClrType, entry.Logical);
     }
 
-    private static (DataTypeDescriptor Logical, DataTypeDescriptor Physical, List<(object Logical, object? Physical)> Entries) GetMap(ValueProcessorContext context)
+    private sealed class MapState
+    {
+        public DataTypeDescriptor LogicalType { get; set; } = null!;
+        public DataTypeDescriptor PhysicalType { get; set; } = null!;
+        public List<(object Logical, object? Physical)> Entries { get; } = [];
+    }
+
+    private static MapState GetMap(ValueProcessorContext context)
+    {
+        if (!context.GetOrCreateState<MapState>(StateScope.Binding, out var map))
+        {
+            ParseMap(map, context);
+        }
+        return map;
+    }
+
+    private static void ParseMap(MapState map, ValueProcessorContext context)
     {
         var physicalType = context.DataType
             ?? throw context.Logger.Fail("The map processor requires a field (or a reference to a field) to know the physical type.");
@@ -102,7 +120,9 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
             throw context.Logger.Fail("The map processor requires at least one mapping.");
         }
 
-        return (logicalType, physicalType, entries);
+        map.LogicalType = logicalType;
+        map.PhysicalType = physicalType;
+        map.Entries.AddRange(entries);
     }
 
     private static object Normalize(object value, DataTypeDescriptor type, ValueProcessorContext context)

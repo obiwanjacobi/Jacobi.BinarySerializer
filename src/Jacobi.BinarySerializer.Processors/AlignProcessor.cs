@@ -17,9 +17,8 @@ namespace Jacobi.BinarySerializer.Processors;
 internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
     ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
 {
-    private static readonly PropertyDescriptor BytesProperty = new("bytes", "sys.int32", true, description: "The alignment in bytes.");
     public static readonly SchemaName RelativeDataType = "sys.alignrelativeto";
-
+    private static readonly PropertyDescriptor BytesProperty = new("bytes", "sys.int32", true, description: "The alignment in bytes.");
     private static readonly PropertyDescriptor RelativeProperty = new("relative", RelativeDataType, false, description: "'group' (default) or 'root': what the position is relative to.");
 
     public override IEnumerable<DataTypeDescriptor> DataTypes => [DataTypeDescriptor.ForEnum<AlignRelativeTo>(RelativeDataType)];

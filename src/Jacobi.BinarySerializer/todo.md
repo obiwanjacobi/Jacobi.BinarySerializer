@@ -18,7 +18,8 @@
   - [ ] size on a root and overlapping size regions; the reader checks the window only at group exit/open-repeat end (a field crossing the window is caught at exit).
 - [ ] **ReaderSession: consolidate group stacks.** `_groupStarts` (layout group start, pushed in `BeginLayout`, popped in `EndLayout`, never for repeats) and `_windows` (size window end, pushed at group entry, popped at group exit, repeats included) are popped at different moments, so one stack needs a record per group (`Start`, `End?`, `HasLayout`) pushed at EnterGroup and popped at ExitGroup, with `GroupPosition` reading the nearest layout record. Same for the writer's `_sizeStarts`.
   - [ ] Add: window end/remaining to the groupData.
-- [ ] **Map processor follow-ups.** `sys:map` maps only scalar types (the `logical` property selects the logical type) and reparses its properties on every call. Use state in context to cache the parsed map.
+- [ ] **Map processor follow-ups.** `sys:map` maps only scalar types (the `logical` property selects the logical type) 
+  - [x] reparses its properties on every call. Use state in context to cache the parsed map.
 - [ ] **Bare JSON `value` literals.** `SchemaField.Value` is a string union, so a bare JSON number or boolean (`"value": 42`) is not supported; only strings (e.g. `"0x2A"`).
 - [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage?
 
