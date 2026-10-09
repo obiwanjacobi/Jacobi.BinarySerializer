@@ -258,7 +258,9 @@ public sealed class WriterSession : SessionState
         WriteResult result;
         try
         {
-            result = WriteField(field, scope, DerivedSize(field, 0));
+            var probeResult = WriteResult.Success;
+            WithoutPublishing(() => probeResult = WriteField(field, scope, DerivedSize(field, 0)));
+            result = probeResult;
         }
         finally
         {
@@ -284,20 +286,47 @@ public sealed class WriterSession : SessionState
         _counter = deferred.SavedCounter;
         _target = deferred.SavedTarget;
 
-        var before = _counter.Written;
-        var result = WriteField(deferred.Field, deferred.Scope, DerivedSize(deferred.Field, size));
+        var sizeBuffer = new ArrayBufferWriter<byte>();
+        var outerCounter = _counter;
+        var outerTarget = _target;
+        _counter = new CountingBufferWriter(sizeBuffer, outerCounter.Written);
+        _target = _counter;
+        WriteResult result;
+        try
+        {
+            result = WriteField(deferred.Field, deferred.Scope, DerivedSize(deferred.Field, size));
+        }
+        finally
+        {
+            _counter = outerCounter;
+            _target = outerTarget;
+        }
         if (result != WriteResult.Success)
         {
             return result;
         }
-        if (_counter.Written - before != deferred.Width)
+        if (sizeBuffer.WrittenCount != deferred.Width && HasLayoutInside(deferred.Group))
         {
-            // TODO: support variable-width derived size fields (e.g. varint).
-            throw EngineLogger.Fail($"'{deferred.Field.Path}': the derived size field changed its encoded width.");
+            throw EngineLogger.Fail(
+                $"'{deferred.Field.Path}': the derived size field is {sizeBuffer.WrittenCount} bytes but {deferred.Width} were assumed, " +
+                "and the group contains layout processors whose result depends on that width.");
         }
 
+        _target.Write(sizeBuffer.WrittenSpan);
         _target.Write(deferred.Scratch.WrittenSpan);
         return WriteResult.Success;
+    }
+
+    private static bool HasLayoutInside(GroupInfo group)
+    {
+        foreach (var member in group.Members)
+        {
+            if (member.Pipeline.LayoutProcessors.Count > 0 || (member is GroupInfo child && HasLayoutInside(child)))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void CheckItemCount(RepeatInfo repeat, IValueSource scope, int count)

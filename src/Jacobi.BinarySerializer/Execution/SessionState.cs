@@ -64,6 +64,26 @@ public closed class SessionState
     /// </summary>
     public void Publish(PublishedValueKey key, object? value) => _published[key] = value;
 
+    /// <summary>
+    /// Runs the action and discards every value it published (used for trial encodes).
+    /// </summary>
+    internal void WithoutPublishing(Action action)
+    {
+        var snapshot = new Dictionary<PublishedValueKey, object?>(_published);
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _published.Clear();
+            foreach (var pair in snapshot)
+            {
+                _published[pair.Key] = pair.Value;
+            }
+        }
+    }
+
     /// <summary>Publishes a public value by namespace and name ('pubns.name').</summary>
     public void Publish(string ns, string name, object? value) => Publish(new PublishedValueKey(ns, name), value);
 
