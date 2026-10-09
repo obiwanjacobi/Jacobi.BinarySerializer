@@ -75,6 +75,25 @@ public class BitSlicerProcessorTests
     }
 
     [Test]
+    public void RoundTrip_FieldByteLength_UsedWithoutProperty()
+    {
+        var field = Field("A", "UInt16", [Ref("bitslicer")]);
+        var root = Group("Root", [], new Jacobi.BinarySerializer.Schema.SchemaField
+        {
+            Name = field.Name,
+            DataType = field.DataType,
+            ByteLength = 2,
+            ProcessorsList = field.ProcessorsList,
+        });
+        var values = new Dictionary<string, object?> { ["Root.A"] = (ushort)0x2000 };
+
+        var (bytes, read) = RoundTrip(root, values);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0x00, 0x40 }));
+        Assert.That(read, Is.EqualTo(values));
+    }
+
+    [Test]
     public void Write_ValueTooLarge_Throws()
     {
         Assert.Throws<InvalidOperationException>(() =>

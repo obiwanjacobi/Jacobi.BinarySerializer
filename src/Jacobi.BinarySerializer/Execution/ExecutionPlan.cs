@@ -161,6 +161,10 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         {
             state.Error(path, $"A length is not supported on a {dataType} field.");
         }
+        if (length is int constantLength && dataType.FixedSize is { } fixedSize && fixedSize != constantLength && fieldPipeline.FieldProcessors.Count == 0)
+        {
+            state.Error(path, $"The length {constantLength} does not match the {fixedSize} bytes of a {dataType} field; a field processor is needed to represent it.");
+        }
         return new FieldInfo
         {
             Name = field.Name,

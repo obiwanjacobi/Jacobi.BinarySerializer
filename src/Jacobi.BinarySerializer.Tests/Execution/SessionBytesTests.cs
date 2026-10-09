@@ -76,9 +76,25 @@ public class SessionBytesTests
     }
 
     [Test]
-    public void Build_LengthOnOtherType_ReportsError()
+    public void Build_LengthDifferentFromFixedSizeWithoutProcessor_ReportsError()
     {
         var field = new SchemaField { Name = "Number", DataType = "UInt8", ByteLength = 2 };
+
+        Assert.That(() => Build(Group("Root", [], field)), Throws.TypeOf<ExecutionPlanException>());
+    }
+
+    [Test]
+    public void Build_LengthEqualToFixedSize_Succeeds()
+    {
+        var field = new SchemaField { Name = "Number", DataType = "UInt16", ByteLength = 2 };
+
+        Assert.That(() => Build(Group("Root", [], field)), Throws.Nothing);
+    }
+
+    [Test]
+    public void Build_LengthOnBoolean_ReportsError()
+    {
+        var field = new SchemaField { Name = "Flag", DataType = "Boolean", ByteLength = 1 };
 
         Assert.That(() => Build(Group("Root", [], field)), Throws.TypeOf<ExecutionPlanException>());
     }

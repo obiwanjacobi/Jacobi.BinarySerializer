@@ -108,6 +108,7 @@ internal static class BuiltInDataTypes
         => new(Name(name), typeof(T), parse)
         {
             FixedSize = size,
+            SupportsLength = typeof(T) != typeof(bool),
             Encode = (object? value, out byte[] bytes) =>
             {
                 bytes = [];
