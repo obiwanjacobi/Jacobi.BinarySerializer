@@ -9,7 +9,7 @@ internal sealed class EnumProcessor : ProcessorBase, IValueProcessor
 
     public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context)
     {
-        var map = new EnumForwardMap(context.Properties.ShortNames());
+        var map = GetForwardMap(context);
         if (!map.Contains(logicalValue.Value?.ToString() ?? String.Empty))
         {
             throw context.Logger.Fail($"Value '{logicalValue.Value}' is not a valid enumeration option.");
@@ -25,7 +25,7 @@ internal sealed class EnumProcessor : ProcessorBase, IValueProcessor
     {
         if (Int32.TryParse(logicalValue.Value?.ToString(), out var intValue))
         {
-            var map = new EnumReverseMap(context.Properties.ShortNames());
+            var map = GetReverseMap(context);
             if (!map.Contains(intValue))
             {
                 throw context.Logger.Fail($"Value '{intValue}' ({logicalValue.Value}) is not a valid enumeration value.");
@@ -45,6 +45,26 @@ internal sealed class EnumProcessor : ProcessorBase, IValueProcessor
     public PipelineStage Stage => PipelineStage.Semantic;
 
     public IReadOnlyList<PropertyDescriptor> Properties => [];
+
+    private EnumForwardMap GetForwardMap(ValueProcessorContext context)
+    {
+        var state = context.GetOrCreateState<EnumMapState>();
+        state.ForwardMap ??= new EnumForwardMap(context.Properties.ShortNames());
+        return state.ForwardMap;
+    }
+
+    private EnumReverseMap GetReverseMap(ValueProcessorContext context)
+    {
+        var state = context.GetOrCreateState<EnumMapState>();
+        state.ReverseMap ??= new EnumReverseMap(context.Properties.ShortNames());
+        return state.ReverseMap;
+    }
+
+    private sealed class EnumMapState
+    {
+        public EnumForwardMap? ForwardMap { get; set; }
+        public EnumReverseMap? ReverseMap { get; set; }
+    }
 
     private sealed class EnumForwardMap : ILookup<string, int>
     {
