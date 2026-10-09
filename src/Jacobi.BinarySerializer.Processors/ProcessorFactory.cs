@@ -15,6 +15,7 @@ public sealed class ProcessorFactory : IProcessorFactory
         // Field Processors
         { "sys.varint", new VarIntProcessor() },
         { "sys.string", new StringProcessor() },
+        { "sys.bits", new BitFieldProcessor() },
         // Layout Processors
         { "sys.bitpacker", new BitPackerProcessor() },
         { "sys.bytepacker", new BytePackerProcessor() },

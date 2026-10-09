@@ -8,6 +8,7 @@ The built-in processors of namespace `sys`. Property names are short names as us
 | `sys.enum` | Semantic | field, repeat/choice (`valueProcessors`) | Maps enum names to integers. |
 | `sys.map` | Semantic | field, repeat/choice (`valueProcessors`) | Maps logical values to physical values. |
 | `sys.nullable` | Semantic | field | Not implemented yet. |
+| `sys.bits` | Representation | field | Extracts a range of bits from a fixed-size integer field. |
 | `sys.varint` | Representation | field | Variable-length integers. |
 | `sys.string` | Representation | field | Strings with a fixed length or a terminator. |
 | `sys.bytepacker` | Layout | group (fields inherit) | Whole bytes in a byte order. |
