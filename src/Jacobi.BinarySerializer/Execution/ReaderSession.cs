@@ -159,7 +159,9 @@ public sealed class ReaderSession : SessionState
                     {
                         var fieldNode = (FieldInfo)step.Node!;
                         EngineLogger.ReadingField(fieldNode.Path.ToString(), _instance.ToString());
-                        var result = ReadField(fieldNode, step.Scope!, ref reader);
+                        var result = fieldNode.ByteOffset is { } byteOffset
+                            ? ReadVirtualField(fieldNode, byteOffset, step.Scope!, ref reader)
+                            : ReadField(fieldNode, step.Scope!, ref reader);
                         if (result != ReadResult.Success)
                         {
                             EngineLogger.ReadStopped(fieldNode.Path.ToString(), result);
@@ -239,6 +241,45 @@ public sealed class ReaderSession : SessionState
         return field.DataType.TakesRestOfWindow
             ? checked((int)(_windows.Peek().End - reader.Consumed))
             : null;
+    }
+
+    /// <summary>
+    /// Reads a field at a byte offset from the current position and restores the position afterwards. The field is not given to the model.
+    /// </summary>
+    private ReadResult ReadVirtualField(FieldInfo field, int byteOffset, IValueSink scope, ref SequenceReader<byte> reader)
+    {
+        var start = reader.Consumed;
+        var target = start + byteOffset;
+        if (target < 0)
+        {
+            throw EngineLogger.Fail($"'{field.Path}': the byte offset {byteOffset} lies before the start of the input.");
+        }
+        if (target > reader.Consumed + reader.Remaining)
+        {
+            return ReadResult.NeedMoreData;
+        }
+
+        if (byteOffset >= 0)
+        {
+            reader.Advance(byteOffset);
+        }
+        else
+        {
+            reader.Rewind(-byteOffset);
+        }
+
+        var result = ReadField(field, scope, ref reader);
+
+        var delta = reader.Consumed - start;
+        if (delta > 0)
+        {
+            reader.Rewind(delta);
+        }
+        else if (delta < 0)
+        {
+            reader.Advance(-delta);
+        }
+        return result;
     }
 
     private ReadResult ReadField(FieldInfo field, IValueSink scope, ref SequenceReader<byte> reader)

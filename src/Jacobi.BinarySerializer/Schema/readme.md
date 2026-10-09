@@ -26,7 +26,7 @@ Every node has a `name`, a `kind` and optional `properties`.
 
 | Kind | Meaning | Notable members |
 |------|---------|-----------------|
-| `field` | A single value. | `type` (data type name, e.g. `Int32` or `sys.int32`, resolved in the data type registry; required), `value` (constant or reference; the logical value), `byteLength` (physical length in bytes, for types that support it such as `sys.bytes` and `sys.string`), `processors` |
+makes the field virtual - read at the offset with the position restored; the model sees the value on read and must provide it on write, no bytes are written; its value can be referenced), `processors` |
 | `group` | An ordered sequence of members. | `members`, `byteSize` (physical size in bytes of the encoded content), `processors` |
 | `repeat` | A group that repeats. | `count` (constant or reference); no count means until the end of the data. `valueProcessors` convert a referenced count. |
 | `choice` | A group where exactly one member is used. | `selectedIndex` (constant or reference), `valueProcessors` |

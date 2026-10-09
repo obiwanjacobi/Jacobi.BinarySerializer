@@ -45,6 +45,13 @@ public sealed class SchemaField : SchemaNode
     /// The writer derives a referenced length field from the encoded byte count of the model value, not from its logical length (e.g. characters).
     /// </summary>
     public SchemaValueOrRef<int> ByteLength { get; init; }
+
+    /// <summary>
+    /// Optional signed offset in physical bytes, relative to the current read position, where the field is read from.
+    /// A field with an offset is virtual: it is read at the offset and the position is restored afterwards; when writing no bytes are written.
+    /// The model sees the value on read and must provide it on write (it is published for references).
+    /// </summary>
+    public int? ByteOffset { get; init; }
 }
 
 public class SchemaGroup : SchemaNode

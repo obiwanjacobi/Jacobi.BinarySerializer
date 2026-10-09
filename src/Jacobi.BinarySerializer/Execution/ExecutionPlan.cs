@@ -169,6 +169,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             DataType = dataType,
             Pipeline = fieldPipeline,
             ByteLength = length,
+            ByteOffset = field.ByteOffset,
             ConstantValue = BindConstant(field, dataType, path, state),
             ValueReference = BindValueReference(field, path, state),
         };

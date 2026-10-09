@@ -445,6 +445,12 @@ public sealed class WriterSession : SessionState
             Publish(PublishedValueKey.ForPath(field.Path, _instance), logical.Value);
         }
 
+        if (field.ByteOffset is not null)
+        {
+            // virtual field: the value is known to the model and published, but no bytes are written.
+            return WriteResult.Success;
+        }
+
         EncodedField encoded;
         var fieldLength = field.HasByteLength ? Resolve(field.ByteLength, field.Path, _instance) : (int?)null;
         _fieldContext.FieldData.ByteLength = fieldLength;

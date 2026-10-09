@@ -473,6 +473,7 @@ public sealed class SchemaSet
                 DataType = typeDef.DataType ?? throw new InvalidOperationException($"The typedef '{typeDef.Name}' has no data type and cannot be applied to the field '{node.Name}'."),
                 Value = fieldNode.Value,
                 ByteLength = fieldNode.ByteLength,
+                ByteOffset = fieldNode.ByteOffset,
                 PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(typeDef.Processors, fieldNode.Processors),
             };

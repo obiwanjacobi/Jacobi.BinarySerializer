@@ -83,6 +83,7 @@ internal static class JsonSchemaMapper
             DataType = jsonField.Type,
             Value = ToSchemaValueOrRef(jsonField.Value),
             ByteLength = ToSchemaValueOrRef(jsonField.ByteLength),
+            ByteOffset = jsonField.ByteOffset,
             PropertyList = MergeProperties(jsonField.Properties, jsonField.AdditionalData)
         };
     }
@@ -207,6 +208,7 @@ internal static class JsonSchemaMapper
                 Type = field.DataType,
                 Value = FromSchemaValueOrRef(field.Value),
                 ByteLength = FromSchemaValueOrRef(field.ByteLength),
+                ByteOffset = field.ByteOffset,
                 Properties = field.Properties.Select(FromSchemaProperty).ToList()
             },
             SchemaGroup group => CreateJsonGroupNode(group),

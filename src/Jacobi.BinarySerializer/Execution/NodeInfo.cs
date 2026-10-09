@@ -25,7 +25,7 @@ public sealed class FieldInfo : NodeInfo
     /// <summary>The descriptor of the logical data type of the field, resolved from the registry.</summary>
     public required DataTypeDescriptor DataType { get; init; }
 
-    /// <summary>True when another node
+    /// <summary>True when another node refers to this field's value by schema path; the session publishes it.</summary>
     public bool PublishesValue { get; internal set; }
 
     /// <summary>
@@ -45,6 +45,12 @@ public sealed class FieldInfo : NodeInfo
     public ValueSource<int> ByteLength { get; init; }
 
     public bool HasByteLength => ByteLength is int or PublishedValueKey;
+
+    /// <summary>
+    /// Signed offset in physical bytes from the current read position where the field is read.
+    /// A field with an offset is virtual: read at the offset with the position restored afterwards; when writing the model must provide the value, but no bytes are written.
+    /// </summary>
+    public int? ByteOffset { get; init; }
 
     /// <summary>
     /// The sibling field whose length (in encoded bytes) refers to this field. When the model holds no value for the field, the writer derives it from the byte length of that field's value (currently only <c>byte[]</c>).

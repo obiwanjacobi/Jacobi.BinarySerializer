@@ -43,6 +43,7 @@ internal sealed class JsonSchemaField : JsonSchemaNode
     public required SchemaDataType Type { get; init; }
     public JsonSchemaValueOrRef<string> Value { get; init; }
     public JsonSchemaValueOrRef<int> ByteLength { get; init; }
+    public int? ByteOffset { get; init; }
 }
 
 internal class JsonSchemaGroup : JsonSchemaNode

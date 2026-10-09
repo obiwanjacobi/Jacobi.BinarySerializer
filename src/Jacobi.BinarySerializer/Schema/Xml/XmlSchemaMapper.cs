@@ -61,6 +61,7 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaField.ValueRef),
         nameof(XmlSchemaField.ByteLength),
         nameof(XmlSchemaField.ByteLengthRef),
+        nameof(XmlSchemaField.ByteOffset),
         nameof(XmlSchemaField.Properties)
     };
 
@@ -151,6 +152,7 @@ internal static class XmlSchemaMapper
             DataType = new SchemaDataType(xmlField.Type ?? throw new InvalidOperationException($"The field '{xmlField.Name}' has no type.")),
             Value = ToSchemaValueOrText(xmlField.Value, xmlField.ValueRef),
             ByteLength = ToSchemaValue(xmlField.ByteLength, xmlField.ByteLengthRef),
+            ByteOffset = xmlField.ByteOffset is { } offsetText ? Int32.Parse(offsetText, System.Globalization.CultureInfo.InvariantCulture) : null,
             PropertyList = MergeProperties(
                 xmlField.Properties,
                 xmlField.AdditionalAttributes,
@@ -355,6 +357,7 @@ internal static class XmlSchemaMapper
                 ValueRef = ToXmlValueRef(field.Value),
                 ByteLength = ToConstantText(field.ByteLength),
                 ByteLengthRef = ToXmlValueRef(field.ByteLength),
+                ByteOffset = field.ByteOffset?.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 Properties = field.Properties.Select(FromSchemaProperty).ToList()
             };
         }

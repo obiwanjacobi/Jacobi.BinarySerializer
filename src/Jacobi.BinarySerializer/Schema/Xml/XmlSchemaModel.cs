@@ -83,6 +83,10 @@ public sealed class XmlSchemaField : XmlSchemaNode
 
     [XmlElement("byteLength")]
     public XmlSchemaValueRef? ByteLengthRef { get; set; }
+
+    /// <summary>A signed offset in bytes (attribute) relative to the current position where the field is read from (virtual field).</summary>
+    [XmlAttribute("byteOffset")]
+    public string? ByteOffset { get; set; }
 }
 
 public class XmlSchemaGroup : XmlSchemaNode
