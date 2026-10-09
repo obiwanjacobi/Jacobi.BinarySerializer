@@ -88,6 +88,68 @@ public class SessionSizedGroupTests
         Assert.That(sink.Values["Root.Tail"], Is.EqualTo((byte)99));
     }
 
+    [Test]
+    public void Read_SizedRepeatWithoutCount_EndsAtWindowEnd()
+    {
+        var items = new SchemaRepeat { Name = "Items", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Field("Byte", "UInt8") } };
+        var plan = Build(Group("Root", [], Field("Len", "UInt8"), items, Field("Tail", "UInt8")));
+        var sink = new Sink();
+
+        var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 3, 10, 11, 12, 99 }), sink);
+
+        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That(sink.Calls, Is.EqualTo(5));
+        Assert.That(sink.Values["Root.Tail"], Is.EqualTo((byte)99));
+    }
+
+    [Test]
+    public void Read_SizedRepeatWithoutCount_ZeroSize_ReadsNoItems()
+    {
+        var items = new SchemaRepeat { Name = "Items", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Field("Byte", "UInt8") } };
+        var plan = Build(Group("Root", [], Field("Len", "UInt8"), items, Field("Tail", "UInt8")));
+        var sink = new Sink();
+
+        var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 0, 99 }), sink);
+
+        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That(sink.Calls, Is.EqualTo(2));
+        Assert.That(sink.Values["Root.Tail"], Is.EqualTo((byte)99));
+    }
+
+    [Test]
+    public void Write_SizedRepeatWithoutCount_DerivesSize()
+    {
+        var items = new SchemaRepeat { Name = "Items", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Field("Byte", "UInt8") } };
+        var plan = Build(Group("Root", [], Field("Len", "UInt8"), items, Field("Tail", "UInt8")));
+        var output = new ArrayBufferWriter<byte>();
+
+        var result = new WriterSession(plan, output).Write(new ItemsSource(3));
+
+        Assert.That(result, Is.EqualTo(WriteResult.Success));
+        Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 3, 1, 2, 3, 99 }));
+    }
+
+    private sealed class ItemsSource(int items) : IFieldSource
+    {
+        public SourceResult GetField(FieldContext context)
+        {
+            if (context.Path.ToString() == "Root.Tail")
+            {
+                return SourceResult.Provided(new LogicalField("Tail", typeof(byte), (byte)99));
+            }
+            if (context.Path.ToString() == "Root.Items.Byte")
+            {
+                var index = context.Instance.ToString().Trim('[', ']').Split('[', ']').Where(s => s.Length > 0).Select(Int32.Parse).Last();
+                if (index >= items)
+                {
+                    return SourceResult.EndOfData();
+                }
+                return SourceResult.Provided(new LogicalField("Byte", typeof(byte), (byte)(index + 1)));
+            }
+            return SourceResult.NoValue();
+        }
+    }
+
     private sealed class Source(Dictionary<string, object?> values) : IFieldSource
     {
         public SourceResult GetField(FieldContext context) => TryGetField(context, out var found) ? SourceResult.Provided(found) : SourceResult.NoValue();

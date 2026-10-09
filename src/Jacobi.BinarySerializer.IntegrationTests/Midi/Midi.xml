@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Standard MIDI File (SMF) - the IDEAL schema.
+  Legend:
+    [OK]      available now
+    [MISSING] not available yet (see the notes at the bottom)
+-->
 <schema name="Midi">
   <members>
     <group name="Midi">
@@ -15,17 +21,235 @@
             <field name="Division" type="UInt16" />
           </members>
         </group>
+
         <repeat name="Track">
           <count ref="Midi.Header.TrackCount" />
           <members>
             <field name="Type" type="String" byteLength="4" value="MTrk" />
+            <!-- [OK] the writer derives Length from the encoded Events -->
             <field name="Length" type="UInt32" />
-            <field name="Events" type="Bytes">
-              <byteLength ref="Midi.Track[].Length" />
-            </field>
+
+            <!-- [OK] a repeat without count, limited by its byteSize window: repeats until the window is exhausted -->
+            <repeat name="Events">
+              <byteSize ref="Midi.Track[].Length" />
+              <members>
+                <!-- [OK] variable-length quantity -->
+                <field name="DeltaTime" type="UInt32">
+                  <processors>
+                    <processor processor="sys.varint" encoding="vlq" />
+                  </processors>
+                </field>
+
+                <!-- [OK] virtual field: peeks at the status byte (byteOffset=0 = the next byte to read); consumes nothing -->
+                <!-- [MISSING] on write the model must supply this value too (it is not derived from the chosen alternative) -->
+                <field name="StatusPeek" type="UInt8" byteOffset="0" />
+
+                <choice name="Event">
+                  <!-- [OK] high nibble of the status byte (sys.bits) mapped to the alternative index (sys.map) -->
+                  <selectedIndex ref="Midi.Track[].Events[].StatusPeek" />
+                  <valueProcessors>
+                    <processor processor="sys.bits" bitoffset="4" bitlength="4" />
+                    <processor processor="sys.map" logical="Int32">
+                      <properties>
+                        <property name="0" value="8" />   <!-- NoteOff -->
+                        <property name="1" value="9" />   <!-- NoteOn -->
+                        <property name="2" value="10" />  <!-- PolyKeyPressure -->
+                        <property name="3" value="11" />  <!-- ControlChange -->
+                        <property name="4" value="12" />  <!-- ProgramChange -->
+                        <property name="5" value="13" />  <!-- ChannelPressure -->
+                        <property name="6" value="14" />  <!-- PitchBend -->
+                        <property name="7" value="15" />  <!-- System (meta / sysex) -->
+                        <!-- [MISSING] Running status: a first byte below 0x80 is data; the status of the previous event applies
+                             and no status byte is present. Needs state across repeat items (last published status) and a
+                             status that is not consumed. A nil-valued (default) map entry would select it:
+                             <property name="8" nil="true" /> -->
+                      </properties>
+                    </processor>
+                  </valueProcessors>
+                  <members>
+                    <group name="NoteOff">
+                      <members>
+                        <!-- [OK] 4+4 bits in one byte, most significant first -->
+                        <group name="Status">
+                          <processors>
+                            <processor processor="sys.bitpacker" bitorder="big" />
+                          </processors>
+                          <members>
+                            <field name="Kind" type="UInt8" bits="4" />
+                            <field name="Channel" type="UInt8" bits="4" />
+                          </members>
+                        </group>
+                        <field name="Note" type="UInt8" />
+                        <field name="Velocity" type="UInt8" />
+                      </members>
+                    </group>
+                    <group name="NoteOn">
+                      <members>
+                        <group name="Status">
+                          <processors>
+                            <processor processor="sys.bitpacker" bitorder="big" />
+                          </processors>
+                          <members>
+                            <field name="Kind" type="UInt8" bits="4" />
+                            <field name="Channel" type="UInt8" bits="4" />
+                          </members>
+                        </group>
+                        <field name="Note" type="UInt8" />
+                        <field name="Velocity" type="UInt8" />
+                      </members>
+                    </group>
+                    <group name="PolyKeyPressure">
+                      <members>
+                        <group name="Status">
+                          <processors>
+                            <processor processor="sys.bitpacker" bitorder="big" />
+                          </processors>
+                          <members>
+                            <field name="Kind" type="UInt8" bits="4" />
+                            <field name="Channel" type="UInt8" bits="4" />
+                          </members>
+                        </group>
+                        <field name="Note" type="UInt8" />
+                        <field name="Pressure" type="UInt8" />
+                      </members>
+                    </group>
+                    <group name="ControlChange">
+                      <members>
+                        <group name="Status">
+                          <processors>
+                            <processor processor="sys.bitpacker" bitorder="big" />
+                          </processors>
+                          <members>
+                            <field name="Kind" type="UInt8" bits="4" />
+                            <field name="Channel" type="UInt8" bits="4" />
+                          </members>
+                        </group>
+                        <field name="Controller" type="UInt8" />
+                        <field name="Value" type="UInt8" />
+                      </members>
+                    </group>
+                    <group name="ProgramChange">
+                      <members>
+                        <group name="Status">
+                          <processors>
+                            <processor processor="sys.bitpacker" bitorder="big" />
+                          </processors>
+                          <members>
+                            <field name="Kind" type="UInt8" bits="4" />
+                            <field name="Channel" type="UInt8" bits="4" />
+                          </members>
+                        </group>
+                        <field name="Program" type="UInt8" />
+                      </members>
+                    </group>
+                    <group name="ChannelPressure">
+                      <members>
+                        <group name="Status">
+                          <processors>
+                            <processor processor="sys.bitpacker" bitorder="big" />
+                          </processors>
+                          <members>
+                            <field name="Kind" type="UInt8" bits="4" />
+                            <field name="Channel" type="UInt8" bits="4" />
+                          </members>
+                        </group>
+                        <field name="Pressure" type="UInt8" />
+                      </members>
+                    </group>
+                    <group name="PitchBend">
+                      <members>
+                        <group name="Status">
+                          <processors>
+                            <processor processor="sys.bitpacker" bitorder="big" />
+                          </processors>
+                          <members>
+                            <field name="Kind" type="UInt8" bits="4" />
+                            <field name="Channel" type="UInt8" bits="4" />
+                          </members>
+                        </group>
+                        <!-- 14 bit value: two 7-bit halves, least significant first -->
+                        <field name="Value" type="UInt16">
+                          <processors>
+                            <processor processor="sys.bitslicer" bytelength="2" bits="7" byteorder="little" />
+                          </processors>
+                        </field>
+                      </members>
+                    </group>
+
+                    <!-- System messages: 0xFF meta, 0xF0 sysex, 0xF7 sysex escape -->
+                    <choice name="System">
+                      <!-- [OK] same peek, now the whole byte is mapped -->
+                      <selectedIndex ref="Midi.Track[].Events[].StatusPeek" />
+                      <valueProcessors>
+                        <processor processor="sys.map" logical="Int32">
+                          <properties>
+                            <property name="0" value="255" /> <!-- Meta -->
+                            <property name="1" value="240" /> <!-- SysEx -->
+                            <property name="2" value="247" /> <!-- SysEx escape -->
+                          </properties>
+                        </processor>
+                      </valueProcessors>
+                      <members>
+                        <group name="Meta">
+                          <members>
+                            <field name="Status" type="UInt8" value="255" />
+                            <field name="MetaType" type="UInt8" />
+                            <field name="Length" type="UInt32">
+                              <processors>
+                                <processor processor="sys.varint" encoding="vlq" />
+                              </processors>
+                            </field>
+                            <!-- [OK] byteLength refers to the (processed) varint value -->
+                            <field name="Data" type="Bytes">
+                              <byteLength ref="Midi.Track[].Events[].Event.System.Meta.Length" />
+                            </field>
+                          </members>
+                        </group>
+                        <group name="SysEx">
+                          <members>
+                            <field name="Status" type="UInt8" value="240" />
+                            <field name="Length" type="UInt32">
+                              <processors>
+                                <processor processor="sys.varint" encoding="vlq" />
+                              </processors>
+                            </field>
+                            <field name="Data" type="Bytes">
+                              <byteLength ref="Midi.Track[].Events[].Event.System.SysEx.Length" />
+                            </field>
+                          </members>
+                        </group>
+                        <group name="SysExEscape">
+                          <members>
+                            <field name="Status" type="UInt8" value="247" />
+                            <field name="Length" type="UInt32">
+                              <processors>
+                                <processor processor="sys.varint" encoding="vlq" />
+                              </processors>
+                            </field>
+                            <field name="Data" type="Bytes">
+                              <byteLength ref="Midi.Track[].Events[].Event.System.SysExEscape.Length" />
+                            </field>
+                          </members>
+                        </group>
+                      </members>
+                    </choice>
+                  </members>
+                </choice>
+              </members>
+            </repeat>
           </members>
         </repeat>
       </members>
     </group>
   </members>
 </schema>
+<!--
+  NOT AVAILABLE YET (summary):
+  1. Running status (see the map comment in Event): state across repeat items + a status that is not consumed.
+  2. StatusPeek must be supplied by the model on write (virtual fields are not derived); ideally the engine derives it
+     from the chosen alternative's Status.
+  3. Combining two 7-bit bytes into one value (pitch bend, Division bit 15 / SMPTE) - an overlay/combine processor.
+  4. The Status group is repeated per alternative: no reuse of a group definition (typeDefs may cover this - check).
+  5. Data bytes (0x00-0x7F) as a first byte currently throw 'not mapped' (that is running status).
+  6. The unverified parts: the nested choice index (7) and the full-path refs (Event.System.Meta.Length) are not yet tested.
+-->

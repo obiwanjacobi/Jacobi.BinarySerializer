@@ -12,10 +12,11 @@ public sealed class ProcessorFactory : IProcessorFactory
         { "sys.enum", new EnumProcessor() },
         { "sys.scale", new ScaleProcessor() },
         { "sys.map", new MapProcessor() },
+        { "sys.bits", new BitsProcessor() },
         // Field Processors
         { "sys.varint", new VarIntProcessor() },
         { "sys.string", new StringProcessor() },
-        { "sys.bits", new BitFieldProcessor() },
+        { "sys.bitslicer", new BitSlicerProcessor() },
         // Layout Processors
         { "sys.bitpacker", new BitPackerProcessor() },
         { "sys.bytepacker", new BytePackerProcessor() },

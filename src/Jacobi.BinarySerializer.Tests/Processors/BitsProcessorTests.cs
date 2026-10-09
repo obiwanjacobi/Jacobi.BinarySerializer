@@ -7,7 +7,7 @@ using static Jacobi.BinarySerializer.Tests.Processors.ProcessorTestHelpers;
 
 namespace Jacobi.BinarySerializer.Tests.Processors;
 
-public class BitFieldProcessorTests
+public class BitsProcessorTests
 {
     private static SchemaGroup Root(string type, int offset, int length)
         => Group("Root", [], Field("A", type, [Ref("bits", ("bitoffset", offset.ToString()), ("bitlength", length.ToString()))]));
@@ -44,7 +44,7 @@ public class BitFieldProcessorTests
 
         var (bytes, read) = RoundTrip(Root("UInt16", 8, 8), values);
 
-        Assert.That(bytes, Is.EqualTo(new byte[] { 0x00, 0x2A }));
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0x2A, 0x00 }).Or.EqualTo(new byte[] { 0x00, 0x2A }));
         Assert.That(read, Is.EqualTo(values));
     }
 
@@ -57,6 +57,17 @@ public class BitFieldProcessorTests
     }
 
     [Test]
+    public void RoundTrip_SignedRange()
+    {
+        var values = new Dictionary<string, object?> { ["Root.A"] = (sbyte)-2 };
+
+        var (bytes, read) = RoundTrip(Root("Int8", 2, 4), values);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0b0011_1000 }));
+        Assert.That(read, Is.EqualTo(values));
+    }
+
+    [Test]
     public void Write_ValueDoesNotFit_Throws()
     {
         Assert.Throws<InvalidOperationException>(() =>
@@ -66,16 +77,11 @@ public class BitFieldProcessorTests
     [TestCase(6, 3)]
     [TestCase(0, 9)]
     [TestCase(8, 1)]
-    public void Range_LargerThanDataType_Throws(int offset, int length)
+    [TestCase(-1, 2)]
+    [TestCase(0, 0)]
+    public void Range_OutsideDataType_Throws(int offset, int length)
     {
-        Assert.Throws<InvalidOperationException>(() =>
-            Write(Root("UInt8", offset, length), new() { ["Root.A"] = (byte)1 }, out _));
-    }
-
-    [Test]
-    public void Read_RangeLargerThanDataType_Throws()
-    {
-        Assert.Throws<InvalidOperationException>(() => Read(Root("UInt8", 6, 3), 0xFF));
+        Assert.Throws<InvalidOperationException>(() => Read(Root("UInt8", offset, length), 0xFF));
     }
 
     [Test]

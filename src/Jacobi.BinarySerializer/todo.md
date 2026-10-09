@@ -1,5 +1,6 @@
 # TODOs
 
+- [ ] **TypeDef for Groups include members** Should the typedef for groups also include members? And how do these members merge with the members of the group that references the typedef?
 - [ ] **Freeze `SchemaSet` and `ProcessorProvider` once handed to a `Serializer`.** Cached `ExecutionPlan`s go stale if a schema is loaded/recompiled or a processor is registered after `SerializerBuilder.Build()`. Fix: add an `IsFrozen`/`Freeze()` to `SchemaSet` (after `Compile`) and to the processor provider (`ProcessorManager`), call it in `Build()`, and throw `InvalidOperationException` on later modification. Add tests.
   For `SchemaSet` use a builder pattern: `SchemaSetBuilder` loads then `Build()` (Compile) returns a frozen `SchemaSet`.
 - [ ] **Write API documentation for the public API** including some examples. Describe what services are supported and expected.
