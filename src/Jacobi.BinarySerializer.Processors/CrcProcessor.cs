@@ -18,6 +18,9 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
 {
     public static readonly SchemaName AlgorithmDataType = "sys.crcalgorithm";
 
+    /// <summary>The name under which the calculated CRC value (ulong) is published, in the namespace 'sys.crc' by default.</summary>
+    public const string PublishedCrc = "value";
+
     public override IEnumerable<DataTypeDescriptor> DataTypes => [DataTypeDescriptor.ForEnum<CrcAlgorithm>(AlgorithmDataType)];
 
     private static readonly PropertyDescriptor AlgorithmProperty = new("algorithm", AlgorithmDataType, false, description: "CRC preset name, default 'crc32'.");
@@ -71,6 +74,7 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     {
         var codec = GetCodec(context);
         var crc = codec.Finish(context.GetOrCreateState<CrcState>().Crc);
+        context.Publish(PublishedCrc, crc);
         var length = codec.ByteLength;
         EndianCodec.Write(crc, writer.GetSpan(length).Slice(0, length), GetEndianness(context));
         writer.Advance(length);
@@ -97,6 +101,7 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
             state = codec.Update(state, segment.Span);
         }
         var actual = codec.Finish(state);
+        context.Publish(PublishedCrc, actual);
 
         var size = codec.ByteLength;
         if (reader.Remaining < size)

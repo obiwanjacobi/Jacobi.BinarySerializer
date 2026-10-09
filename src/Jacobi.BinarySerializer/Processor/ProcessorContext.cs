@@ -83,12 +83,15 @@ public closed class ProcessorContext
         return exists;
     }
 
-    // publish dynamic values for processors to use, e.g. a data-length value read from the message header.
-    // TODO: consume dynamic values published by other processors.
     /// <summary>
-    /// Publishes a value under <paramref name="ns"/>, unless the schema set a 'pubns' on the processor: that namespace is used instead.
+    /// Publishes a value under <paramref name="name"/>. 
+    /// The namespace is the full name of the current processor (e.g. 'sys.crc'),
+    /// unless the schema set a 'pubns' on the processor: that namespace is used instead.
     /// </summary>
-    public void Publish(string ns, string key, object? value) => _state.Publish(Current?.PublishNamespace ?? ns, key, value);
+    public void Publish(string name, object? value)
+        => _state.Publish(Current.PublishNamespace ?? Current.Processor.Key.ToString(), name, value);
+
+    // TODO: consume dynamic values published by other processors.
 }
 
 public sealed class ValueProcessorContext : ProcessorContext

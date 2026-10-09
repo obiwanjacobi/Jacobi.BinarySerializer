@@ -23,7 +23,6 @@
   - [ ] size value processors; a variable-width (varint) derived size field (the width must not change after the content is known); a size field that comes after its group is not derived; 
   - [ ] bit-level layouts/positions inside the deferred region; the probe encode of the size field runs twice (publishes the placeholder); 
   - [ ] size on a root and overlapping size regions; the reader checks the window only at group exit/open-repeat end (a field crossing the window is caught at exit).
-- [x] **Publish namespace (`pubns`).** An optional property on the Schema type (not an engine-interpreted processor property) to set the namespace a processor publishes its values under, so published values do not collide.
 - [ ] **ReaderSession: consolidate group stacks.** `_groupStarts` (layout group start, pushed in `BeginLayout`, popped in `EndLayout`, never for repeats) and `_windows` (size window end, pushed at group entry, popped at group exit, repeats included) are popped at different moments, so one stack needs a record per group (`Start`, `End?`, `HasLayout`) pushed at EnterGroup and popped at ExitGroup, with `GroupPosition` reading the nearest layout record. Same for the writer's `_sizeStarts`.
   - [ ] Add: window end/remaining to the groupData.
 - [ ] **CRC follow-ups.** 
@@ -37,6 +36,7 @@
 - [ ] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, typedef instantiation.
 - [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage?
 
+- [x] **Publish namespace (`pubns`).** An optional property on the Schema type (not an engine-interpreted processor property) to set the namespace a processor publishes its values under, so published values do not collide.
 - [x] **SchemaField Dummy** to allow filler/dummy/don't-care fields in the schema. The engine currently requires a field to have a data type and a value model property. Or have literal fields (with a constant value) not trigger logical model events and have a serializer setting to turn that off?
 - [x] **Mark a SchemaField as 'hidden'** Such a field will be processed as defined but not appear in the logical model(s) (IValueSource/IValueSink, IFieldSource/IFieldSink). This is useful for fields that are required for the binary format but not relevant to the logical model (e.g. a CRC or a reserved field).
 - [x] **Unknown processors throw from the builder.** `ExecutionPlanBuilder.Bind` throws for an unknown processor namespace or id instead of adding an error to `ExecutionPlanException`, so a schema with several problems reports only the first. Fix: use `TryCreateProcessor` and report it with the node path.

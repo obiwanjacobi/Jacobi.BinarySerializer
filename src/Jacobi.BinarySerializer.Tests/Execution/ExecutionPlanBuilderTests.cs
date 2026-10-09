@@ -107,6 +107,18 @@ public class ExecutionPlanBuilderTests
     }
 
     [Test]
+    public void Build_ProcessorPublishNamespace_IsPassedToBinding()
+    {
+        var processorRef = new SchemaProcessorRef { Processor = new SchemaProcessorName($"{Ns}.layout"), PublishNamespace = "hdr" };
+        var root = CreateGroup("Root", processorRef);
+
+        var plan = CreateBuilder().Build(root);
+
+        var bindings = plan.Root.Pipeline.LayoutProcessors;
+        Assert.That(bindings[0].PublishNamespace, Is.EqualTo("hdr"));
+    }
+
+    [Test]
     public void Build_Repeat_WithConstantCount_CreatesRepeatInfo()
     {
         var repeat = new SchemaRepeat { Name = "Items", Count = 3 };

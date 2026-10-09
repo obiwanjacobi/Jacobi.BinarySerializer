@@ -163,7 +163,7 @@ public sealed class SchemaProcessorRef : SchemaProcessor
 
     /// <summary>
     /// Optional namespace ('pubns') the processor publishes its values under, so published values do not collide.
-    /// Not a processor property; it is interpreted by the engine. Null: the processor uses its own default namespace.
+    /// Not a processor property; it is interpreted by the engine. Null: the processor uses its own key as namespace.
     /// </summary>
     public string? PublishNamespace { get; init; }
 

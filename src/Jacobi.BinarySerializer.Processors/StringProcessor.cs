@@ -11,6 +11,9 @@ namespace Jacobi.BinarySerializer.Processors;
 /// </summary>
 internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
 {
+    /// <summary>The name under which the string length (number of chars, int) is published, in the namespace 'sys.string' by default.</summary>
+    public const string PublishedLength = "length";
+
     private static readonly PropertyDescriptor EncodingProperty = new("encoding", "sys.string", false, description: "The text encoding name; 'utf-8' by default.");
     private static readonly PropertyDescriptor ByteLengthProperty = new("byteLength", "sys.int32", false, description: "A fixed length in bytes; shorter strings are padded. Exclusive with 'terminator'.");
     private static readonly PropertyDescriptor TerminatorProperty = new("terminator", "sys.uint8", false, description: "The byte value (0-255) that ends the string. Exclusive with 'byteLength'.");
@@ -51,6 +54,7 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
             throw new InvalidOperationException($"'{path}': the string processor expects a string, not '{field.Value ?? "null"}'.");
         }
 
+        context.Publish(PublishedLength, text.Length);
         var bytes = options.Encoding.GetBytes(text);
         if (options.Length is { } length)
         {
@@ -125,6 +129,7 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
             throw new InvalidOperationException($"'{path}': the bytes are not valid {options.Encoding.WebName} text.", ex);
         }
 
+        context.Publish(PublishedLength, text.Length);
         return FieldReadResult<LogicalField>.Consumed(new(field.Name, typeof(string), text), consumed * 8);
     }
 
