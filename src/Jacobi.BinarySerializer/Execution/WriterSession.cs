@@ -18,6 +18,7 @@ public sealed class WriterSession : SessionState
     private readonly ExecutionPlan _plan;
     private readonly IBufferWriter<byte> _output;
     private readonly IServiceProvider _services;
+    private readonly bool _valueFieldsUseModel;
     private InstancePath _instance;
 
     private readonly ValueProcessorContext _valueContext;
@@ -39,9 +40,13 @@ public sealed class WriterSession : SessionState
         ArrayBufferWriter<byte> Scratch, long Width);
     private readonly List<ArrayBufferWriter<byte>> _chainBuffers = [];
 
-    public WriterSession(ExecutionPlan plan, IBufferWriter<byte> output, IServiceProvider? services = null)
+    /// <summary>
+    /// <paramref name="valueFieldsUseModel"/>: also ask the source for fields that have a value (constant or ref). Default off.
+    /// </summary>
+    public WriterSession(ExecutionPlan plan, IBufferWriter<byte> output, IServiceProvider? services = null, bool valueFieldsUseModel = false)
     {
         _plan = plan ?? throw new ArgumentNullException(nameof(plan));
+        _valueFieldsUseModel = valueFieldsUseModel;
         DataTypes = plan.DataTypes;
         _output = output ?? throw new ArgumentNullException(nameof(output));
         _counter = new CountingBufferWriter(output);
@@ -347,6 +352,10 @@ public sealed class WriterSession : SessionState
         if (forced is not null)
         {
             logical = forced;
+        }
+        else if (!_valueFieldsUseModel && field.HasExpectedValue && field.CountOf is null)
+        {
+            logical = new LogicalField(field.Name, field.DataType.ClrType, ResolveExpected(field, _instance));
         }
         else if ((sourced = scope.GetField(new FieldContext { Node = field, Services = _services, Instance = _instance })).Status != SourceStatus.Value)
         {

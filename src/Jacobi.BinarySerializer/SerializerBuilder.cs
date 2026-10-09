@@ -14,6 +14,7 @@ public sealed class SerializerBuilder
     private IProcessorProvider? _processorProvider;
     private IServiceProvider? _serviceProvider;
     private DataTypeRegistry? _dataTypes;
+    private bool _valueFieldsUseModel;
     private bool _built;
 
     public SerializerBuilder AddSchemas(SchemaSet schemas)
@@ -44,6 +45,17 @@ public sealed class SerializerBuilder
         return this;
     }
 
+    /// <summary>
+    /// Fields that have a value (constant or ref) are by default not passed to the value model (source/sink).
+    /// Set to true to make them trigger model calls again. Default is false.
+    /// </summary>
+    public SerializerBuilder UseModelForValueFields(bool enabled = true)
+    {
+        ThrowIfBuilt();
+        _valueFieldsUseModel = enabled;
+        return this;
+    }
+
     public Serializer Build()
     {
         ThrowIfBuilt();
@@ -60,7 +72,7 @@ public sealed class SerializerBuilder
         {
             dataTypes.Register(dataType);
         }
-        return new Serializer(_schemas, processorProvider, _serviceProvider, dataTypes);
+        return new Serializer(_schemas, processorProvider, _serviceProvider, dataTypes, _valueFieldsUseModel);
     }
 
     private void ThrowIfBuilt()

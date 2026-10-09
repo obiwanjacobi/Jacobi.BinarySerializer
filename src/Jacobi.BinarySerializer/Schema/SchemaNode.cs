@@ -35,6 +35,7 @@ public sealed class SchemaField : SchemaNode
     /// Optional constant (a literal parsed by <see cref="DataType"/>) or a reference to another value that this field must have.
     /// The writer supplies the value when the model holds none; the reader fails when the value read differs.
     /// The value compared is the logical value (after the semantic processors).
+    /// The logical source/sink models are only called when the serializer was built with <see cref="SerializerBuilder.UseModelForValueFields"/> enabled; otherwise the value is only used for comparison.
     /// </summary>
     public SchemaValueOrRef<string> Value { get; init; }
 

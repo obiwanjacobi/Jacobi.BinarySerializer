@@ -18,6 +18,7 @@ public sealed class ReaderSession : SessionState
 {
     private readonly ExecutionPlan _plan;
     private readonly IServiceProvider _services;
+    private readonly bool _valueFieldsUseModel;
     private InstancePath _instance;
     private readonly Stack<long> _groupStarts = new();
     private readonly Stack<int> _choiceIndexes = new();
@@ -28,9 +29,13 @@ public sealed class ReaderSession : SessionState
     private readonly LayoutProcessorContext _layoutContext;
     private readonly StreamProcessorContext _streamContext;
 
-    public ReaderSession(ExecutionPlan plan, IServiceProvider? services = null)
+    /// <summary>
+    /// <paramref name="valueFieldsUseModel"/>: also report fields that have a value (constant or ref) to the sink. Default off.
+    /// </summary>
+    public ReaderSession(ExecutionPlan plan, IServiceProvider? services = null, bool valueFieldsUseModel = false)
     {
         _plan = plan ?? throw new ArgumentNullException(nameof(plan));
+        _valueFieldsUseModel = valueFieldsUseModel;
         DataTypes = plan.DataTypes;
         _services = services ?? WriterSession.EmptyServiceProvider.Instance;
         InitializeLogging(_services, "Read");
@@ -349,7 +354,10 @@ public sealed class ReaderSession : SessionState
             Publish(PublishedValueKey.ForPath(field.Path, _instance), logical.Value);
         }
 
-        scope.SetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, logical);
+        if (_valueFieldsUseModel || !field.HasExpectedValue)
+        {
+            scope.SetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, logical);
+        }
         return ReadResult.Success;
     }
 
