@@ -67,6 +67,20 @@ public sealed class CrcCodec
             throw new ArgumentOutOfRangeException(nameof(parameters), "CRC width must be 1 to 64 bits.");
         }
 
+        var mask = parameters.Width == 64 ? ulong.MaxValue : (1UL << parameters.Width) - 1;
+        if (parameters.Poly == 0 || (parameters.Poly & ~mask) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(parameters), $"CRC poly must be non-zero and fit in {parameters.Width} bits.");
+        }
+        if ((parameters.Init & ~mask) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(parameters), $"CRC init must fit in {parameters.Width} bits.");
+        }
+        if ((parameters.XorOut & ~mask) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(parameters), $"CRC xorout must fit in {parameters.Width} bits.");
+        }
+
         Parameters = parameters;
         _mask = parameters.Width == 64 ? ulong.MaxValue : (1UL << parameters.Width) - 1;
         if (parameters.Width >= 8)

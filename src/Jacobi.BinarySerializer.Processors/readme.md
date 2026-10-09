@@ -100,7 +100,17 @@ Appends a CRC over all bytes of the group when writing and validates it when rea
 |----------|----------|-------------|
 | `algorithm` | no | A `CrcCodec` preset name (default `crc32`). |
 | `byteorder` | no | Byte order of the CRC: `big` (default) or `little`. |
-| `width`, `poly`, `init`, `refin`, `refout`, `xorout` | no | Overrides of the preset; numbers may be hex (`0x`). |
+| `width` | no | Override: number of bits of the CRC (1-64), e.g. 32 for CRC-32. Also sets how many bytes are stored. |
+| `poly` | no | Override: the generator polynomial in normal (non-reflected) notation, without the implicit top bit, e.g. `0x04C11DB7` for CRC-32. |
+| `init` | no | Override: the initial value of the CRC register before the first byte is processed. |
+| `refin` | no | Override: `true` processes each input byte least-significant bit first (reflected input). |
+| `refout` | no | Override: `true` bit-reverses the register before the final xor (reflected output). |
+| `xorout` | no | Override: value xor-ed into the register as the last step to get the CRC. |
+| `value` | read-only | The calculated CRC value (`ulong`). |
+
+The parameters follow the Rocksoft model, as used by the reveng CRC catalog. `algorithm` selects a preset that sets all of them; the override properties replace single parameters of that preset (or of `crc32`, when no `algorithm` is given). Numbers may be hex (`0x`).
+
+The calculated CRC is published as `value` (`ulong`, read-only) under the namespace `sys.crc`, or under the `pubns` of the processor entry.
 
 ## Stream processors
 

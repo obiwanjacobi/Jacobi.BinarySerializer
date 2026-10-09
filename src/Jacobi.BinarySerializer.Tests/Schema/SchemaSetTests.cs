@@ -69,6 +69,27 @@ public class SchemaSetTests
     }
 
     [Test]
+    public void Compile_TypeDefInstantiation_KeepsTheFieldValue()
+    {
+        var schemaSet = new SchemaSet();
+        var typeDef = new SchemaTypeDef { Name = "CommonField", DataType = "Int32", Processors = [] };
+        var rootGroup = CreateGroup("Root");
+        AddChild(rootGroup, new SchemaField
+        {
+            Name = "Value",
+            DataType = "UInt8",
+            Value = "0x2A",
+            TypeDef = new SchemaName("CommonField"),
+            ProcessorsList = []
+        });
+        schemaSet.AddDocument(CreateDocument("Main", roots: [rootGroup], typeDefs: [typeDef]));
+
+        schemaSet.Compile();
+
+        Assert.That(rootGroup.Members.OfType<SchemaField>().Single().Value is "0x2A", Is.True);
+    }
+
+    [Test]
     public void Compile_WithMissingDependency_ThrowsInvalidOperationException()
     {
         var schemaSet = new SchemaSet();

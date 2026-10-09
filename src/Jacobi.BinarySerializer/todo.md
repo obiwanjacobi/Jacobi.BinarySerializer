@@ -9,9 +9,6 @@
   - [ ] report unknown property names (typos) and value constraints (ranges) at plan build.
   - [ ] allow value references (`ref:`/`pub:`) in complex property values (the engine currently only resolves them for simple string values).
 - [ ] **Data type follow-ups.** Composite/structured data types and a neutral value tree for processor property types; enum data types for the remaining string-valued properties (align `relative`, varint `encoding`); built-in typedefs; replacing a registered descriptor; unit tests for the `Descriptors` namespace.
-- [ ] **String: use the field-level `ByteLength`.** 
-  - [x] Done for constant lengths: `sys:string` uses `FieldData.ByteLength` (in bytes, same as `Bytes`) and the string data type supports a length; the processor property `byteLength` still works as a fallback (both together is an error). 
-  - [ ] tests for `ref:`/`pub:` field lengths on strings, deriving a length field from a string value on write (`ByteLengthOf` only handles `byte[]`), and deciding whether to drop the `byteLength` property. Characters-based lengths are not supported (the encoded width depends on the encoding).
 - [ ] **Size on groups: follow-ups.** 
   - [x] `byteSize` (constant or `ref:`/`pub:`) on any group/repeat/choice is done (see below). 
   - [ ] size value processors; a variable-width (varint) derived size field (the width must not change after the content is known); a size field that comes after its group is not derived; 
@@ -19,17 +16,19 @@
   - [ ] size on a root and overlapping size regions; the reader checks the window only at group exit/open-repeat end (a field crossing the window is caught at exit).
 - [ ] **ReaderSession: consolidate group stacks.** `_groupStarts` (layout group start, pushed in `BeginLayout`, popped in `EndLayout`, never for repeats) and `_windows` (size window end, pushed at group entry, popped at group exit, repeats included) are popped at different moments, so one stack needs a record per group (`Start`, `End?`, `HasLayout`) pushed at EnterGroup and popped at ExitGroup, with `GroupPosition` reading the nearest layout record. Same for the writer's `_sizeStarts`.
   - [ ] Add: window end/remaining to the groupData.
-- [ ] **CRC follow-ups.** 
-  - [ ] Missing processor-level tests (corrupt CRC, truncated input, bad properties, other algorithms); 
-  - [ ] a read error is thrown (no NeedMoreData) because `EndRead` has no result; 
-  - [ ] the CRC covers the whole group only (no sub-range or exclusion); 
-  - [ ] no `refin`/`refout` validation of custom parameters beyond the width.
 - [ ] **Map processor follow-ups.** `sys:map` maps only scalar types (the `logical` property selects the logical type) and reparses its properties on every call. Use state in context to cache the parsed map.
-- [ ] **Expected-value stage.** A field `Value` (constant/ref) is compared against the logical value (after the semantic stage). Make the stage explicitly selectable (default logical).
 - [ ] **Bare JSON `value` literals.** `SchemaField.Value` is a string union, so a bare JSON number or boolean (`"value": 42`) is not supported; only strings (e.g. `"0x2A"`).
-- [ ] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, typedef instantiation.
 - [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage?
 
+---
+
+- [x] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, typedef instantiation.
+- [x] **CRC follow-ups.** 
+  - [x] Missing processor-level tests (corrupt CRC, truncated input, bad properties, other algorithms); 
+  - [x] no `poly`/`init` and `xorout` validation of custom parameters beyond the width.
+- [x] **String: use the field-level `ByteLength`.** 
+  - [x] Done for constant lengths: `sys:string` uses `FieldData.ByteLength` (in bytes, same as `Bytes`) and the string data type supports a length; the processor property `byteLength` still works as a fallback (both together is an error). 
+  - [x] tests for `ref:`/`pub:` field lengths on strings, deriving a length field from a string value on write (`ByteLengthOf` only handles `byte[]`), and deciding whether to drop the `byteLength` property. Characters-based lengths are not supported (the encoded width depends on the encoding).
 - [x] **String follow-ups.** 
   - [x] `byteLength` as `ref:`/`pub:` (processor property values are constants only, see complex property values), 
   - [x] publishing the detected length
@@ -92,9 +91,13 @@
 - [ ] **String follow-ups.** 
   - [ ] multi-byte terminators for UTF-16/32
   - [ ] reporting property errors at plan build instead of at read time. A field processor that needs more data than the open-width window (10 bytes) is retried by the reader with a doubled window while more input is available.
+- [ ] **CRC follow-ups.** require engine changes:
+  - [ ] a read error is thrown (no NeedMoreData) because `EndRead` has no result
+  - [ ] the CRC covers the whole group only (no sub-range or exclusion) (nive to have/not doing)
 
 ## Not Doing These
 
 - [-] **API: Allow `Stream` and `byte[]` for both input and output.** The engine currently requires `IBinaryWriter` and `SequenceReader<byte>`. Do we create adapters, or add `Stream` overloads to the engine and the processors?
 - [-] **(De)Serialize overloads for all variations** Plan|Range, `IValueSource`|`IFieldSource`, `Stream`|`byte[]`|`IBinaryWriter` and `IValueSink`|`IFieldSink`, `Stream`|`byte[]`|`SequenceReader<byte>`.
 - [-] **Bytes follow-ups.** Length value processors; a length field that comes after its bytes field is not derived; `Bytes` is not supported by bit/byte-level layouts or field processors that assume fixed widths; no streaming/chunked access for large blobs (the model gets one `byte[]` per field); a flat model needs an explicit `byte[]` value.
+- [ ] **Expected-value stage.** A field `Value` (constant/ref) is compared against the logical value (after the semantic stage). Make the stage explicitly selectable (default logical).
