@@ -50,6 +50,35 @@ public class JsonSerializerTests
     }
 
     [Test]
+    public void Deserialize_ProcessorPubNs_IsNotAProcessorProperty()
+    {
+        var json = @"
+        {
+            ""name"": ""TestSchema"",
+            ""members"": [
+                {
+                    ""name"": ""RootGroup"",
+                    ""kind"": ""group"",
+                    ""processors"": [
+                        { ""processor"": ""root"", ""pubns"": ""hdr"", ""extra"": ""x"" }
+                    ],
+                    ""members"": []
+                }
+            ],
+            ""properties"": []
+        }";
+
+        var document = JsonSerializer.Deserialize(json);
+        var processor = document.Groups.Single().Processors.Single();
+
+        Assert.That(processor.PublishNamespace, Is.EqualTo("hdr"));
+        Assert.That(processor.Properties.Select(p => p.Name), Is.EquivalentTo(new[] { "extra" }));
+
+        var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
+        Assert.That(roundTripped.Groups.Single().Processors.Single().PublishNamespace, Is.EqualTo("hdr"));
+    }
+
+    [Test]
     public void Deserialize_UnknownNodeFields_AreAddedToProperties()
     {
         var json = @"

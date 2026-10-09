@@ -132,6 +132,9 @@ public sealed class XmlSchemaProcessorRef
     [XmlAttribute("processor")]
     public string Processor { get; set; } = string.Empty;
 
+    [XmlAttribute("pubns")]
+    public string? PubNs { get; set; }
+
     [XmlArray("properties")]
     [XmlArrayItem("property")]
     public List<XmlSchemaProperty> Properties { get; set; } = [];

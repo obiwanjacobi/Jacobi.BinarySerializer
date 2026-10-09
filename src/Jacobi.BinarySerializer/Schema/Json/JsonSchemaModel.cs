@@ -91,6 +91,10 @@ internal sealed class JsonSchemaProcessorDef
 internal sealed class JsonSchemaProcessorRef
 {
     public required string Processor { get; init; }
+
+    [JsonPropertyName("pubns")]
+    public string? PubNs { get; init; }
+
     public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
 
     [JsonExtensionData]

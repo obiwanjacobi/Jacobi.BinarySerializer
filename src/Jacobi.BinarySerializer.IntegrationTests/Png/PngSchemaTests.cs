@@ -39,7 +39,7 @@ public class PngSchemaTests
         var bytes = PngBuilder.Grayscale8(2, 2);
         var sink = new Sink();
 
-        var result = new Execution.ReaderSession(plan).Read(new System.Buffers.ReadOnlySequence<byte>(bytes), sink);
+        var result = new Execution.ReaderSession(plan, valueFieldsUseModel: true).Read(new System.Buffers.ReadOnlySequence<byte>(bytes), sink);
 
         Assert.That(result, Is.EqualTo(ReadResult.Success), $"read {sink.Seen.Count}: {string.Join(", ", sink.Seen)}; bytes {bytes.Length}");
         Assert.That(sink.Types, Is.EqualTo(new[] { "IHDR", "IDAT", "IEND" }));

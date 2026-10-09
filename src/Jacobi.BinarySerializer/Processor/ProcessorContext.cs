@@ -85,7 +85,10 @@ public closed class ProcessorContext
 
     // publish dynamic values for processors to use, e.g. a data-length value read from the message header.
     // TODO: consume dynamic values published by other processors.
-    public void Publish(string ns, string key, object? value) => _state.Publish(ns, key, value);
+    /// <summary>
+    /// Publishes a value under <paramref name="ns"/>, unless the schema set a 'pubns' on the processor: that namespace is used instead.
+    /// </summary>
+    public void Publish(string ns, string key, object? value) => _state.Publish(Current?.PublishNamespace ?? ns, key, value);
 }
 
 public sealed class ValueProcessorContext : ProcessorContext

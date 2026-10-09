@@ -113,6 +113,7 @@ internal static class JsonSchemaMapper
         return new SchemaProcessorRef
         {
             Processor = new SchemaProcessorName(processor.Processor),
+            PublishNamespace = processor.PubNs,
             PropertyList = MergeProperties(processor.Properties, processor.AdditionalData)
         };
     }
@@ -354,6 +355,7 @@ internal static class JsonSchemaMapper
         return new JsonSchemaProcessorRef
         {
             Processor = processorRef.Processor.ToString(),
+            PubNs = processorRef.PublishNamespace,
             Properties = processorRef.Properties.Select(FromSchemaProperty).ToList()
         };
     }

@@ -23,7 +23,7 @@
   - [ ] size value processors; a variable-width (varint) derived size field (the width must not change after the content is known); a size field that comes after its group is not derived; 
   - [ ] bit-level layouts/positions inside the deferred region; the probe encode of the size field runs twice (publishes the placeholder); 
   - [ ] size on a root and overlapping size regions; the reader checks the window only at group exit/open-repeat end (a field crossing the window is caught at exit).
-- [ ] **Publish namespace (`pubns`).** An optional property on the Schema type (not an engine-interpreted processor property) to set the namespace a processor publishes its values under, so published values do not collide.
+- [x] **Publish namespace (`pubns`).** An optional property on the Schema type (not an engine-interpreted processor property) to set the namespace a processor publishes its values under, so published values do not collide.
 - [ ] **ReaderSession: consolidate group stacks.** `_groupStarts` (layout group start, pushed in `BeginLayout`, popped in `EndLayout`, never for repeats) and `_windows` (size window end, pushed at group entry, popped at group exit, repeats included) are popped at different moments, so one stack needs a record per group (`Start`, `End?`, `HasLayout`) pushed at EnterGroup and popped at ExitGroup, with `GroupPosition` reading the nearest layout record. Same for the writer's `_sizeStarts`.
   - [ ] Add: window end/remaining to the groupData.
 - [ ] **CRC follow-ups.** 

@@ -74,6 +74,7 @@ internal static class XmlSchemaMapper
     private static readonly HashSet<string> ProcessorRefKnownNames = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(XmlSchemaProcessorRef.Processor),
+        nameof(XmlSchemaProcessorRef.PubNs),
         nameof(XmlSchemaProcessorRef.Properties)
     };
 
@@ -332,6 +333,7 @@ internal static class XmlSchemaMapper
         return new SchemaProcessorRef
         {
             Processor = new SchemaProcessorName(processor.Processor),
+            PublishNamespace = processor.PubNs,
             PropertyList = MergeProperties(
                 processor.Properties,
                 processor.AdditionalAttributes,
@@ -446,6 +448,7 @@ internal static class XmlSchemaMapper
         return new XmlSchemaProcessorRef
         {
             Processor = processor.Processor.ToString(),
+            PubNs = processor.PublishNamespace,
             Properties = processor.Properties.Select(FromSchemaProperty).ToList()
         };
     }

@@ -47,6 +47,30 @@ public class XmlSerializerTests
     }
 
     [Test]
+    public void Deserialize_ProcessorPubNs_IsNotAProcessorProperty()
+    {
+        var xml = """
+            <schema name="TestSchema">
+              <members>
+                <group name="RootGroup">
+                  <processors>
+                    <processor processor="root" pubns="hdr" extra="x" />
+                  </processors>
+                  <members />
+                </group>
+              </members>
+              <properties />
+            </schema>
+            """;
+
+        var document = new SchemaSet().LoadFromXml(xml);
+        var processor = document.Groups.Single().Processors.Single();
+
+        Assert.That(processor.PublishNamespace, Is.EqualTo("hdr"));
+        Assert.That(processor.Properties.Select(p => p.Name), Is.EquivalentTo(new[] { "extra" }));
+    }
+
+    [Test]
     public void Deserialize_UnknownNodeFields_AreAddedToProperties()
     {
         var xml = """

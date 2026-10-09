@@ -360,7 +360,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         }
 
         ValidateProperties(processor, processorRef.EffectiveProperties, path, state);
-        return new(processor, processorRef.EffectiveProperties);
+        return new(processor, processorRef.EffectiveProperties, processorRef.PublishNamespace);
     }
 
     private void ValidateProperties(IProcessor processor, IReadOnlyList<SchemaProperty> properties, string path, BuildState state)

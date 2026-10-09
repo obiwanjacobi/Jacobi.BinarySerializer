@@ -56,10 +56,15 @@ public sealed class ProcessorPipeline
     public static bool IsInheritOnly(IReadOnlyCollection<ProcessorBinding> processors) => processors.Count == 0;
 }
 
-public sealed class ProcessorBinding(IProcessor processor, IReadOnlyList<SchemaProperty> properties)
+public sealed class ProcessorBinding(IProcessor processor, IReadOnlyList<SchemaProperty> properties, string? publishNamespace = null)
 {
     public IProcessor Processor { get; } = processor;
     public IReadOnlyList<SchemaProperty> Properties { get; } = properties;
+
+    /// <summary>
+    /// The namespace ('pubns') from the schema that overrides the namespace the processor publishes under (null: no override).
+    /// </summary>
+    public string? PublishNamespace { get; } = publishNamespace;
 
     /// <summary>
     /// The logger category for this processor (plan-time data; the logger itself is per session).

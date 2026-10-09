@@ -161,6 +161,12 @@ public sealed class SchemaProcessorRef : SchemaProcessor
 {
     public required SchemaProcessorName Processor { get; init; }
 
+    /// <summary>
+    /// Optional namespace ('pubns') the processor publishes its values under, so published values do not collide.
+    /// Not a processor property; it is interpreted by the engine. Null: the processor uses its own default namespace.
+    /// </summary>
+    public string? PublishNamespace { get; init; }
+
     /// <summary>Filled when a reference is resolved (compiled).</summary>
     public SchemaProcessorDef? Definition { get; internal set; }
 
