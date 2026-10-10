@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/obiwanjacobi/Jacobi.BinarySerializer/schema/schema.schema.json",
+  "title": "Jacobi.BinarySerializer schema document",
+  "type": "object",
+  "required": [ "name" ],
+  "properties": {
+    "name": { "type": "string" },
+    "includes": { "type": "array", "items": { "$ref": "#/$defs/documentRef" } },
+    "typeDefs": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+    "processorDefs": { "type": "array", "items": { "$ref": "#/$defs/processorDef" } },
+    "properties": { "type": "array", "items": { "$ref": "#/$defs/property" } },
+    "processors": { "type": "array", "items": { "$ref": "#/$defs/processor" } },
+    "members": { "type": "array", "items": { "$ref": "#/$defs/node" } }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "valueOrRef": {
+      "description": "A constant or a reference to a schema node value (ref) or a published value (pub).",
+      "oneOf": [
+        { "type": [ "string", "number", "boolean" ] },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "ref": { "type": "string" },
+            "pub": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "property": {
+      "type": "object",
+      "required": [ "name" ],
+      "properties": {
+        "name": { "type": "string" },
+        "value": {}
+      }
+    },
+    "documentRef": {
+      "type": "object",
+      "required": [ "schema" ],
+      "properties": {
+        "schema": { "type": "string" },
+        "path": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "processorDef": {
+      "description": "A named processor configuration, used as 'ref:name' (or 'ref:document.name').",
+      "type": "object",
+      "required": [ "name", "processor" ],
+      "properties": {
+        "name": { "type": "string" },
+        "processor": { "type": "string" },
+        "properties": { "type": "array", "items": { "$ref": "#/$defs/property" } }
+      },
+      "additionalProperties": true
+    },
+    "processor": {
+      "description": "A processor key ('namespace.id') or 'ref:name'. Other keys are processor properties.",
+      "type": "object",
+      "required": [ "processor" ],
+      "properties": {
+        "processor": { "type": "string" },
+        "pubns": { "type": "string" },
+        "properties": { "type": "array", "items": { "$ref": "#/$defs/property" } }
+      },
+      "additionalProperties": true
+    },
+    "processors": { "type": "array", "items": { "$ref": "#/$defs/processor" } },
+    "nodeBase": {
+      "type": "object",
+      "required": [ "name", "kind" ],
+      "properties": {
+        "name": { "type": "string" },
+        "kind": { "enum": [ "field", "group", "repeat", "choice" ] },
+        "properties": { "type": "array", "items": { "$ref": "#/$defs/property" } }
+      }
+    },
+    "node": {
+      "oneOf": [
+        { "$ref": "#/$defs/field" },
+        { "$ref": "#/$defs/group" },
+        { "$ref": "#/$defs/repeat" },
+        { "$ref": "#/$defs/choice" }
+      ]
+    },
+    "field": {
+      "allOf": [ { "$ref": "#/$defs/nodeBase" } ],
+      "properties": {
+        "kind": { "const": "field" },
+        "name": true,
+        "properties": true,
+        "type": { "type": "string" },
+        "value": { "$ref": "#/$defs/valueOrRef" },
+        "byteLength": { "$ref": "#/$defs/valueOrRef" },
+        "byteOffset": { "type": "integer" },
+        "processors": { "$ref": "#/$defs/processors" }
+      },
+      "unevaluatedProperties": true
+    },
+    "group": {
+      "allOf": [ { "$ref": "#/$defs/nodeBase" } ],
+      "properties": {
+        "kind": { "const": "group" },
+        "name": true,
+        "properties": true,
+        "members": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "byteSize": { "$ref": "#/$defs/valueOrRef" },
+        "processors": { "$ref": "#/$defs/processors" }
+      },
+      "unevaluatedProperties": true
+    },
+    "repeat": {
+      "allOf": [ { "$ref": "#/$defs/nodeBase" } ],
+      "properties": {
+        "kind": { "const": "repeat" },
+        "name": true,
+        "properties": true,
+        "members": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "byteSize": { "$ref": "#/$defs/valueOrRef" },
+        "processors": { "$ref": "#/$defs/processors" },
+        "count": { "$ref": "#/$defs/valueOrRef" },
+        "valueProcessors": { "$ref": "#/$defs/processors" }
+      },
+      "unevaluatedProperties": true
+    },
+    "choice": {
+      "allOf": [ { "$ref": "#/$defs/nodeBase" } ],
+      "properties": {
+        "kind": { "const": "choice" },
+        "name": true,
+        "properties": true,
+        "members": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "byteSize": { "$ref": "#/$defs/valueOrRef" },
+        "processors": { "$ref": "#/$defs/processors" },
+        "selectedIndex": { "$ref": "#/$defs/valueOrRef" },
+        "valueProcessors": { "$ref": "#/$defs/processors" }
+      },
+      "unevaluatedProperties": true
+    }
+  }
+}

@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+
+  <xs:element name="schema">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="includes" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="include" type="documentRef" minOccurs="0" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="typeDefs" type="nodeList" minOccurs="0" />
+        <xs:element name="processorDefs" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="processor" type="processorDef" minOccurs="0" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="properties" type="propertyList" minOccurs="0" />
+        <xs:element name="processors" type="processorList" minOccurs="0" />
+        <xs:element name="members" type="nodeList" minOccurs="0" />
+      </xs:sequence>
+      <xs:attribute name="name" type="xs:string" use="required" />
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="documentRef">
+    <xs:attribute name="schema" type="xs:string" use="required" />
+    <xs:attribute name="path" type="xs:string" />
+  </xs:complexType>
+
+  <xs:complexType name="property" mixed="true">
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="type" type="xs:string" />
+    <xs:attribute name="value" type="xs:string" />
+    <xs:attribute name="nil" type="xs:boolean" default="false" />
+  </xs:complexType>
+
+  <xs:complexType name="propertyList">
+    <xs:sequence>
+      <xs:element name="property" type="property" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="processor">
+    <xs:sequence>
+      <xs:element name="properties" type="propertyList" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="processor" type="xs:string" use="required" />
+    <xs:attribute name="pubns" type="xs:string" />
+    <xs:anyAttribute processContents="skip" />
+  </xs:complexType>
+
+  <xs:complexType name="processorDef">
+    <xs:sequence>
+      <xs:element name="properties" type="propertyList" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="processor" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="skip" />
+  </xs:complexType>
+
+  <xs:complexType name="processorList">
+    <xs:sequence>
+      <xs:element name="processor" type="processor" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="valueRef">
+    <xs:attribute name="ref" type="xs:string" />
+    <xs:attribute name="pub" type="xs:string" />
+  </xs:complexType>
+
+  <xs:complexType name="nodeList">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="field" type="field" />
+      <xs:element name="group" type="group" />
+      <xs:element name="repeat" type="repeat" />
+      <xs:element name="choice" type="choice" />
+    </xs:choice>
+  </xs:complexType>
+
+  <xs:complexType name="field">
+    <xs:sequence>
+      <xs:element name="properties" type="propertyList" minOccurs="0" />
+      <xs:element name="processor" type="processor" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="value" type="valueRef" minOccurs="0" />
+      <xs:element name="byteLength" type="valueRef" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="type" type="xs:string" />
+    <xs:attribute name="value" type="xs:string" />
+    <xs:attribute name="byteLength" type="xs:string" />
+    <xs:attribute name="byteOffset" type="xs:integer" />
+    <xs:anyAttribute processContents="skip" />
+  </xs:complexType>
+
+  <xs:complexType name="group">
+    <xs:sequence>
+      <xs:element name="properties" type="propertyList" minOccurs="0" />
+      <xs:element name="processors" type="processorList" minOccurs="0" />
+      <xs:element name="byteSize" type="valueRef" minOccurs="0" />
+      <xs:element name="members" type="nodeList" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="byteSize" type="xs:string" />
+    <xs:anyAttribute processContents="skip" />
+  </xs:complexType>
+
+  <xs:complexType name="repeat">
+    <xs:sequence>
+      <xs:element name="properties" type="propertyList" minOccurs="0" />
+      <xs:element name="processors" type="processorList" minOccurs="0" />
+      <xs:element name="byteSize" type="valueRef" minOccurs="0" />
+      <xs:element name="count" type="valueRef" minOccurs="0" />
+      <xs:element name="valueProcessors" type="processorList" minOccurs="0" />
+      <xs:element name="members" type="nodeList" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="byteSize" type="xs:string" />
+    <xs:attribute name="count" type="xs:string" />
+    <xs:anyAttribute processContents="skip" />
+  </xs:complexType>
+
+  <xs:complexType name="choice">
+    <xs:sequence>
+      <xs:element name="properties" type="propertyList" minOccurs="0" />
+      <xs:element name="processors" type="processorList" minOccurs="0" />
+      <xs:element name="byteSize" type="valueRef" minOccurs="0" />
+      <xs:element name="selectedIndex" type="valueRef" minOccurs="0" />
+      <xs:element name="valueProcessors" type="processorList" minOccurs="0" />
+      <xs:element name="members" type="nodeList" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="byteSize" type="xs:string" />
+    <xs:attribute name="selectedIndex" type="xs:string" />
+    <xs:anyAttribute processContents="skip" />
+  </xs:complexType>
+
+</xs:schema>
