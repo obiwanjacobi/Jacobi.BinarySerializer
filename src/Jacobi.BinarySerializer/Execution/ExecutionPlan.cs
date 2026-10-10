@@ -67,6 +67,8 @@ public sealed class ExecutionPlan
 
     public static ExecutionPlan Create(SchemaSet schemas, SchemaName schemaName, IProcessorProvider processorProvider, DataTypeRegistry? dataTypes = null)
     {
+        dataTypes ??= DataTypeRegistry.CreateDefault();
+        dataTypes.RegisterDataTypeDefs(schemas.Documents);
         var builder = new ExecutionPlanBuilder(processorProvider, dataTypes);
         var root = schemas.FindRoot(schemaName);
         return builder.Build(root);

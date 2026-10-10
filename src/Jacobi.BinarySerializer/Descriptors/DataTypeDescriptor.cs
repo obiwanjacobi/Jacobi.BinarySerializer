@@ -55,6 +55,24 @@ public sealed class DataTypeDescriptor
     public bool HasDefaultRepresentation => Encode is not null && Decode is not null;
 
     /// <summary>
+    /// Facet: the smallest allowed logical value (inclusive), or null when unrestricted.
+    /// Processors fall back to this when they have no property of their own.
+    /// </summary>
+    public decimal? Min { get; init; }
+
+    /// <summary>Facet: the largest allowed logical value (inclusive), or null when unrestricted.</summary>
+    public decimal? Max { get; init; }
+
+    /// <summary>Facet: the physical value is divided by this to get the logical value, or null when not scaled.</summary>
+    public decimal? Scale { get; init; }
+
+    /// <summary>Facet: offset added to the (scaled) physical value to get the logical value, or null when not shifted.</summary>
+    public decimal? Shift { get; init; }
+
+    /// <summary>Facet: the allowed physical values mapped to their names, or null when unrestricted.</summary>
+    public IReadOnlyDictionary<long, string>? Options { get; init; }
+
+    /// <summary>
     /// Creates a descriptor for an enum: the schema literal is the member name, case-insensitive and ignoring '-' and '_'
     /// (so 'crc32-bzip2' matches the member Crc32Bzip2).
     /// </summary>
@@ -70,6 +88,25 @@ public sealed class DataTypeDescriptor
             }
             return false;
         });
+
+    /// <summary>
+    /// Creates a descriptor based on this one: it inherits the CLR type, parse, encode/decode and size.
+    /// Facets of the definition override the inherited ones.
+    /// </summary>
+    public DataTypeDescriptor Derive(SchemaName name, SchemaDataTypeDef definition)
+        => new(name, ClrType, Parse)
+        {
+            Encode = Encode,
+            Decode = Decode,
+            FixedSize = FixedSize,
+            SupportsLength = SupportsLength,
+            TakesRestOfWindow = TakesRestOfWindow,
+            Min = definition.Min ?? Min,
+            Max = definition.Max ?? Max,
+            Scale = definition.Scale ?? Scale,
+            Shift = definition.Shift ?? Shift,
+            Options = definition.Options ?? Options,
+        };
 
     public override string ToString() => Name.FullName;
 }

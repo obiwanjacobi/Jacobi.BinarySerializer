@@ -187,7 +187,7 @@ public class InstanceReferenceTests
                     <repeat name="Items">
                       <count ref="Root.Lens[].Len" />
                       <members>
-                        <field name="Item" type="Int32" />
+                        <field name="Item" datatype="Int32" />
                       </members>
                     </repeat>
                   </members>

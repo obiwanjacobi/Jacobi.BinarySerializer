@@ -69,6 +69,33 @@ public class SchemaSetTests
     }
 
     [Test]
+    public void Compile_FieldWithDataTypeDef_QualifiesDataTypeAndMergesProcessors()
+    {
+        var schemaSet = new SchemaSet();
+        var dataTypeDef = new SchemaDataTypeDef
+        {
+            Name = "Celsius",
+            BasedOn = "Int32",
+            Scale = 100m,
+            Processors = [new SchemaProcessorRef { Processor = new SchemaProcessorName("sys.scale") }]
+        };
+        var rootGroup = CreateGroup("Root");
+        AddChild(rootGroup, new SchemaField
+        {
+            Name = "Temp",
+            DataType = "Celsius",
+            ProcessorsList = []
+        });
+
+        schemaSet.AddDocument(CreateDocument("Main", roots: [rootGroup], dataTypeDefs: [dataTypeDef]));
+        schemaSet.Compile();
+
+        var field = rootGroup.Members.OfType<SchemaField>().Single();
+        Assert.That(field.DataType.FullName, Is.EqualTo("Main.Celsius").IgnoreCase);
+        Assert.That(field.Processors, Has.Count.EqualTo(1));
+    }
+
+    [Test]
     public void Compile_TypeDefInstantiation_KeepsTheFieldValue()
     {
         var schemaSet = new SchemaSet();
@@ -252,6 +279,7 @@ public class SchemaSetTests
         string name,
         IReadOnlyList<SchemaNode>? roots = null,
         IReadOnlyList<SchemaTypeDef>? typeDefs = null,
+        IReadOnlyList<SchemaDataTypeDef>? dataTypeDefs = null,
         IReadOnlyList<SchemaProcessorDef>? processorDefs = null,
         IReadOnlyList<SchemaDocumentRef>? includes = null)
     {
@@ -264,6 +292,7 @@ public class SchemaSetTests
             Fields = rootList.SelectMany(GetFields).ToList(),
             MemberList = roots?.ToList() ?? [],
             TypeDefs = typeDefs ?? [],
+            DataTypeDefs = dataTypeDefs ?? [],
             ProcessorDefs = processorDefs ?? [],
             Includes = includes ?? []
         };

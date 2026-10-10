@@ -27,7 +27,7 @@
         {
           "name": "Signature",
           "kind": "field",
-          "type": "Bytes",
+          "datatype": "Bytes",
           "byteLength": 8,
           "value": "0x89504E470D0A1A0A"
         },
@@ -38,7 +38,7 @@
             {
               "name": "Length",
               "kind": "field",
-              "type": "UInt32"
+              "datatype": "UInt32"
             },
             {
               "name": "Body",
@@ -51,7 +51,7 @@
                 {
                   "name": "Type",
                   "kind": "field",
-                  "type": "String",
+                  "datatype": "String",
                   "processors": [
                     {
                       "name": "sys.string",
@@ -74,49 +74,49 @@
                         {
                           "name": "Width",
                           "kind": "field",
-                          "type": "UInt32"
+                          "datatype": "UInt32"
                         },
                         {
                           "name": "Height",
                           "kind": "field",
-                          "type": "UInt32"
+                          "datatype": "UInt32"
                         },
                         {
                           "name": "BitDepth",
                           "kind": "field",
-                          "type": "UInt8"
+                          "datatype": "UInt8"
                         },
                         {
                           "name": "ColorType",
                           "kind": "field",
-                          "type": "UInt8"
+                          "datatype": "UInt8"
                         },
                         {
                           "name": "Compression",
                           "kind": "field",
-                          "type": "UInt8"
+                          "datatype": "UInt8"
                         },
                         {
                           "name": "Filter",
                           "kind": "field",
-                          "type": "UInt8"
+                          "datatype": "UInt8"
                         },
                         {
                           "name": "Interlace",
                           "kind": "field",
-                          "type": "UInt8"
+                          "datatype": "UInt8"
                         }
                       ]
                     },
                     {
                       "name": "Palette",
                       "kind": "field",
-                      "type": "Bytes"
+                      "datatype": "Bytes"
                     },
                     {
                       "name": "ImageData",
                       "kind": "field",
-                      "type": "Bytes"
+                      "datatype": "Bytes"
                     },
                     {
                       "name": "End",
@@ -126,7 +126,7 @@
                     {
                       "name": "Unknown",
                       "kind": "field",
-                      "type": "Bytes"
+                      "datatype": "Bytes"
                     }
                   ]
                 }

@@ -4,7 +4,7 @@ namespace Jacobi.BinarySerializer.Processors;
 
 internal sealed class ScaleProcessor : ProcessorBase, IValueProcessor
 {
-    private static readonly PropertyDescriptor ScaleProperty = new("scale", "sys.decimal", true);
+    private static readonly PropertyDescriptor ScaleProperty = new("scale", "sys.decimal", false);
 
     // logical value = raw value / scale
     public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context)
@@ -38,7 +38,9 @@ internal sealed class ScaleProcessor : ProcessorBase, IValueProcessor
 
     private static decimal GetScale(ValueProcessorContext context)
     {
-        var scale = context.Properties.Get<decimal>(ScaleProperty);
+        var scale = context.Properties.TryGet<decimal>(ScaleProperty, out var own)
+            ? own
+            : context.DataType?.Scale ?? throw context.Logger.Fail("The 'scale' property is required (or the data type must define a scale).");
         if (scale == 0)
         {
             throw context.Logger.Fail($"Invalid scale value '{scale}'.");

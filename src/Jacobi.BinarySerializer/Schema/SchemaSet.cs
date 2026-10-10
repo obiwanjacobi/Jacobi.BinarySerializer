@@ -189,6 +189,14 @@ public sealed class SchemaSet
             }
         }
 
+        foreach (var dataTypeDef in document.DataTypeDefs)
+        {
+            foreach (var processor in dataTypeDef.Processors)
+            {
+                ExpandPropertyNames(processor);
+            }
+        }
+
         foreach (var processor in document.ProcessorDefs)
         {
             ExpandPropertyNames(processor);
@@ -274,6 +282,15 @@ public sealed class SchemaSet
             }
         }
 
+        foreach (var dataTypeDef in document.DataTypeDefs)
+        {
+            AddDataTypeDependency(dataTypeDef.BasedOn, document.Name, dependencies);
+            foreach (var processor in dataTypeDef.Processors)
+            {
+                AddSchemaDependency(processor, document.Name, dependencies);
+            }
+        }
+
         foreach (var root in document.Roots)
         {
             CollectNodeDependencies(root.MemberList, document.Name, dependencies);
@@ -290,6 +307,7 @@ public sealed class SchemaSet
 
             if (node is SchemaField field)
             {
+                AddDataTypeDependency(field.DataType, documentName, dependencies);
                 foreach (var processor in field.Processors)
                 {
                     AddSchemaDependency(processor, documentName, dependencies);
@@ -305,6 +323,17 @@ public sealed class SchemaSet
 
                 CollectNodeDependencies(group.MemberList, documentName, dependencies);
             }
+        }
+    }
+
+    private static void AddDataTypeDependency(SchemaDataType dataType, string documentName, HashSet<string> dependencies)
+    {
+        var ns = dataType.Name.Namespace;
+        if (!String.IsNullOrEmpty(ns) &&
+            !String.Equals(ns, "sys", StringComparison.OrdinalIgnoreCase) &&
+            !String.Equals(ns, documentName, StringComparison.OrdinalIgnoreCase))
+        {
+            dependencies.Add(ns);
         }
     }
 
@@ -353,6 +382,17 @@ public sealed class SchemaSet
         foreach (var typeDef in document.TypeDefs)
         {
             foreach (var processor in typeDef.Processors)
+            {
+                if (!TryResolveProcessorRef(document, processor))
+                {
+                    allResolved = false;
+                }
+            }
+        }
+
+        foreach (var dataTypeDef in document.DataTypeDefs)
+        {
+            foreach (var processor in dataTypeDef.Processors)
             {
                 if (!TryResolveProcessorRef(document, processor))
                 {
@@ -452,7 +492,84 @@ public sealed class SchemaSet
         schemaNodes.Clear();
         schemaNodes.AddRange(resolvedNodes);
 
+        for (var i = 0; i < schemaNodes.Count; i++)
+        {
+            if (schemaNodes[i] is SchemaField dataTypeField &&
+                TryFindDataTypeDef(document, dataTypeField.DataType, out var defDocument, out var dataTypeDef))
+            {
+                schemaNodes[i] = InstantiateDataType(dataTypeField, defDocument, dataTypeDef);
+            }
+        }
+
         return allResolved;
+    }
+
+    private bool TryFindDataTypeDef(SchemaDocument document, SchemaDataType dataType, [NotNullWhen(true)] out SchemaDocument? defDocument, [NotNullWhen(true)] out SchemaDataTypeDef? dataTypeDef)
+    {
+        var name = dataType.Name;
+        var ns = name.Namespace;
+        defDocument = null;
+        dataTypeDef = null;
+
+        if (String.Equals(ns, "sys", StringComparison.OrdinalIgnoreCase))
+        {
+            defDocument = document;
+        }
+        else if (!String.IsNullOrEmpty(ns))
+        {
+            defDocument = _documents.GetValueOrDefault(ns);
+        }
+
+        dataTypeDef = defDocument?.DataTypeDefs.FirstOrDefault(d => String.Equals(d.Name, name.Name, StringComparison.OrdinalIgnoreCase));
+        if (dataTypeDef is null)
+        {
+            defDocument = null;
+            return false;
+        }
+        return true;
+    }
+
+    private SchemaField InstantiateDataType(SchemaField field, SchemaDocument defDocument, SchemaDataTypeDef dataTypeDef)
+    {
+        var chain = new List<SchemaDataTypeDef>();
+        var current = dataTypeDef;
+        var currentDocument = defDocument;
+        while (current is not null)
+        {
+            if (chain.Contains(current))
+            {
+                throw new InvalidOperationException($"Circular data type definition '{current.Name}'.");
+            }
+            chain.Add(current);
+
+            if (!TryFindDataTypeDef(currentDocument, current.BasedOn, out var baseDocument, out var baseDef) ||
+                ReferenceEquals(baseDef, current))
+            {
+                break;
+            }
+            current = baseDef;
+            currentDocument = baseDocument;
+        }
+
+        IReadOnlyList<SchemaProcessorRef> processors = [];
+        var properties = new List<SchemaProperty>();
+        for (var i = chain.Count - 1; i >= 0; i--)
+        {
+            processors = MergeProcessors(processors, chain[i].Processors);
+            properties = MergeProperties(properties, chain[i].PropertyList);
+        }
+
+        return new SchemaField
+        {
+            Name = field.Name,
+            TypeDef = field.TypeDef,
+            DataType = new SchemaDataType($"{defDocument.Name}{SchemaName.Separator}{dataTypeDef.Name}"),
+            Value = field.Value,
+            ByteLength = field.ByteLength,
+            ByteOffset = field.ByteOffset,
+            PropertyList = MergeProperties(properties, field.Properties),
+            ProcessorsList = MergeProcessors(processors, field.Processors),
+        };
     }
 
     private static IEnumerable<SchemaProcessorRef> ValueProcessorsOf(SchemaNode node)

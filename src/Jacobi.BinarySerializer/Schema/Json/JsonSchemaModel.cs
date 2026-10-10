@@ -8,6 +8,7 @@ internal sealed class JsonSchema
     public required string Name { get; init; }
     public IReadOnlyList<JsonSchemaNode> Members { get; init; } = [];
     public IReadOnlyList<JsonSchemaTypeDef> TypeDefs { get; init; } = [];
+    public IReadOnlyList<JsonSchemaDataTypeDef> DataTypeDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaProcessorDef> ProcessorDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaDocumentRef> Includes { get; init; } = [];
     public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
@@ -17,10 +18,28 @@ internal sealed class JsonSchema
     public IDictionary<string, JsonElement>? AdditionalData { get; init; }
 }
 
+internal sealed class JsonSchemaDataTypeDef
+{
+    public required string Name { get; init; }
+    [JsonPropertyName("basedOn")]
+    public required SchemaDataType BasedOn { get; init; }
+    public decimal? Min { get; init; }
+    public decimal? Max { get; init; }
+    public decimal? Scale { get; init; }
+    public decimal? Shift { get; init; }
+    public IDictionary<string, string>? Options { get; init; }
+    public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
+    public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
+
+    [JsonExtensionData]
+    public IDictionary<string, JsonElement>? AdditionalData { get; init; }
+}
+
 internal sealed class JsonSchemaTypeDef : JsonSchemaNode
 {
     public required IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; }
-    public SchemaDataType? Type { get; init; }
+    [JsonPropertyName("datatype")]
+    public SchemaDataType? DataType { get; init; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
@@ -31,6 +50,13 @@ internal sealed class JsonSchemaTypeDef : JsonSchemaNode
 internal abstract class JsonSchemaNode
 {
     public required string Name { get; init; }
+
+    /// <summary>
+    /// Optional reference to a typeDef that defines the type and processors of the node.
+    /// </summary>
+    [JsonPropertyName("typeDef")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TypeDef { get; init; }
     public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
 
     [JsonExtensionData]
@@ -40,7 +66,8 @@ internal abstract class JsonSchemaNode
 internal sealed class JsonSchemaField : JsonSchemaNode
 {
     public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
-    public required SchemaDataType Type { get; init; }
+    [JsonPropertyName("datatype")]
+    public required SchemaDataType DataType { get; init; }
     public JsonSchemaValueOrRef<string> Value { get; init; }
     public JsonSchemaValueOrRef<int> ByteLength { get; init; }
     public int? ByteOffset { get; init; }

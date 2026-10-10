@@ -14,6 +14,7 @@ internal static class JsonSchemaMapper
             Name = jsonSchema.Name,
             MemberList = members,
             TypeDefs = jsonSchema.TypeDefs.Select(ToSchemaTypeDef).ToList(),
+            DataTypeDefs = jsonSchema.DataTypeDefs.Select(ToSchemaDataTypeDef).ToList(),
             ProcessorDefs = jsonSchema.ProcessorDefs.Select(ToSchemaProcessorDef).ToList(),
             Includes = jsonSchema.Includes.Select(include => new SchemaDocumentRef
             {
@@ -44,6 +45,7 @@ internal static class JsonSchemaMapper
             Name = schema.Name,
             Members = schema.Members.Select(FromSchemaNode).ToList(),
             TypeDefs = schema.TypeDefs.Select(FromSchemaTypeDef).ToList(),
+            DataTypeDefs = schema.DataTypeDefs.Select(FromSchemaDataTypeDef).ToList(),
             ProcessorDefs = schema.ProcessorDefs.Select(FromSchemaProcessorDef).ToList(),
             Includes = schema.Includes.Select(include => new JsonSchemaDocumentRef
             {
@@ -79,8 +81,9 @@ internal static class JsonSchemaMapper
         return new SchemaField
         {
             Name = jsonField.Name,
+            TypeDef = ToTypeDefName(jsonField.TypeDef),
             ProcessorsList = jsonField.Processors.Select(ToSchemaProcessorRef).ToList(),
-            DataType = jsonField.Type,
+            DataType = jsonField.DataType,
             Value = ToSchemaValueOrRef(jsonField.Value),
             ByteLength = ToSchemaValueOrRef(jsonField.ByteLength),
             ByteOffset = jsonField.ByteOffset,
@@ -88,14 +91,55 @@ internal static class JsonSchemaMapper
         };
     }
 
+    private static SchemaName? ToTypeDefName(string? typeDef)
+    {
+        if (String.IsNullOrWhiteSpace(typeDef))
+        {
+            return null;
+        }
+        return new SchemaName(typeDef);
+    }
+
     private static SchemaTypeDef ToSchemaTypeDef(JsonSchemaTypeDef jsonTypeDef)
     {
         return new SchemaTypeDef
         {
             Name = jsonTypeDef.Name,
-            DataType = jsonTypeDef.Type,
+            DataType = jsonTypeDef.DataType,
             Processors = jsonTypeDef.Processors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(jsonTypeDef.Properties, jsonTypeDef.AdditionalData)
+        };
+    }
+
+    private static SchemaDataTypeDef ToSchemaDataTypeDef(JsonSchemaDataTypeDef jsonDef)
+    {
+        return new SchemaDataTypeDef
+        {
+            Name = jsonDef.Name,
+            BasedOn = jsonDef.BasedOn,
+            Min = jsonDef.Min,
+            Max = jsonDef.Max,
+            Scale = jsonDef.Scale,
+            Shift = jsonDef.Shift,
+            Options = jsonDef.Options?.ToDictionary(o => Int64.Parse(o.Key, CultureInfo.InvariantCulture), o => o.Value),
+            Processors = jsonDef.Processors.Select(ToSchemaProcessorRef).ToList(),
+            PropertyList = MergeProperties(jsonDef.Properties, jsonDef.AdditionalData)
+        };
+    }
+
+    private static JsonSchemaDataTypeDef FromSchemaDataTypeDef(SchemaDataTypeDef def)
+    {
+        return new JsonSchemaDataTypeDef
+        {
+            Name = def.Name,
+            BasedOn = def.BasedOn,
+            Min = def.Min,
+            Max = def.Max,
+            Scale = def.Scale,
+            Shift = def.Shift,
+            Options = def.Options?.ToDictionary(o => o.Key.ToString(CultureInfo.InvariantCulture), o => o.Value),
+            Processors = def.Processors.Select(FromSchemaProcessorRef).ToList(),
+            Properties = def.Properties.Select(FromSchemaProperty).ToList()
         };
     }
 
@@ -129,6 +173,7 @@ internal static class JsonSchemaMapper
             group = new SchemaRepeat
             {
                 Name = repeat.Name,
+                TypeDef = ToTypeDefName(repeat.TypeDef),
                 ProcessorsList = repeat.Processors.Select(ToSchemaProcessorRef).ToList(),
                 MemberList = members,
                 Count = ToSchemaValueOrRef(repeat.Count),
@@ -142,6 +187,7 @@ internal static class JsonSchemaMapper
             group = new SchemaChoice
             {
                 Name = choice.Name,
+                TypeDef = ToTypeDefName(choice.TypeDef),
                 ProcessorsList = choice.Processors.Select(ToSchemaProcessorRef).ToList(),
                 MemberList = members,
                 SelectedIndex = ToSchemaValueOrRef(choice.SelectedIndex),
@@ -155,6 +201,7 @@ internal static class JsonSchemaMapper
             group = new SchemaRepeat
             {
                 Name = jsonGroup.Name,
+                TypeDef = ToTypeDefName(jsonGroup.TypeDef),
                 ProcessorsList = jsonGroup.Processors.Select(ToSchemaProcessorRef).ToList(),
                 MemberList = members,
                 Count = 1,
@@ -204,8 +251,9 @@ internal static class JsonSchemaMapper
             SchemaField field => new JsonSchemaField
             {
                 Name = field.Name,
+                TypeDef = field.TypeDef?.ToString(),
                 Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Type = field.DataType,
+                DataType = field.DataType,
                 Value = FromSchemaValueOrRef(field.Value),
                 ByteLength = FromSchemaValueOrRef(field.ByteLength),
                 ByteOffset = field.ByteOffset,
@@ -221,7 +269,7 @@ internal static class JsonSchemaMapper
         return new JsonSchemaTypeDef
         {
             Name = typeDef.Name,
-            Type = typeDef.DataType,
+            DataType = typeDef.DataType,
             Processors = typeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
             Properties = typeDef.Properties.Select(FromSchemaProperty).ToList()
         };
@@ -234,6 +282,7 @@ internal static class JsonSchemaMapper
             return new JsonSchemaRepeat
             {
                 Name = repeat.Name,
+                TypeDef = repeat.TypeDef?.ToString(),
                 Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Members = repeat.Members.Select(FromSchemaNode).ToList(),
                 Count = FromSchemaValueOrRef(repeat.Count),
@@ -248,6 +297,7 @@ internal static class JsonSchemaMapper
             return new JsonSchemaChoice
             {
                 Name = choice.Name,
+                TypeDef = choice.TypeDef?.ToString(),
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Members = choice.Members.Select(FromSchemaNode).ToList(),
                 SelectedIndex = FromSchemaValueOrRef(choice.SelectedIndex),

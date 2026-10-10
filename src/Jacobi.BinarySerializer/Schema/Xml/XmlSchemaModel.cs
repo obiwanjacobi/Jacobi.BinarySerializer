@@ -17,11 +17,12 @@ public sealed class XmlSchema
     public List<XmlSchemaNode> Members { get; set; } = [];
 
     [XmlArray("typeDefs")]
-    [XmlArrayItem("field", typeof(XmlSchemaField))]
-    [XmlArrayItem("group", typeof(XmlSchemaGroup))]
-    [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
-    [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
-    public List<XmlSchemaNode> TypeDefs { get; set; } = [];
+    [XmlArrayItem("typeDef")]
+    public List<XmlSchemaTypeDef> TypeDefs { get; set; } = [];
+
+    [XmlArray("dataTypeDefs")]
+    [XmlArrayItem("dataTypeDef")]
+    public List<XmlSchemaDataTypeDef> DataTypeDefs { get; set; } = [];
 
     [XmlArray("processors")]
     [XmlArrayItem("processor")]
@@ -46,10 +47,93 @@ public sealed class XmlSchema
     public XmlElement[]? AdditionalElements { get; set; }
 }
 
+/// <summary>
+/// A data type defined in the schema: a base data type with facets and processors.
+/// </summary>
+public sealed class XmlSchemaDataTypeDef
+{
+    [XmlAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [XmlAttribute("basedOn")]
+    public string BasedOn { get; set; } = string.Empty;
+
+    [XmlAttribute("min")]
+    public string? Min { get; set; }
+
+    [XmlAttribute("max")]
+    public string? Max { get; set; }
+
+    [XmlAttribute("scale")]
+    public string? Scale { get; set; }
+
+    [XmlAttribute("shift")]
+    public string? Shift { get; set; }
+
+    [XmlArray("options")]
+    [XmlArrayItem("option")]
+    public List<XmlSchemaOption>? Options { get; set; }
+
+    [XmlArray("processors")]
+    [XmlArrayItem("processor")]
+    public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
+
+    [XmlArray("properties")]
+    [XmlArrayItem("property")]
+    public List<XmlSchemaProperty> Properties { get; set; } = [];
+
+    [XmlAnyAttribute]
+    public XmlAttribute[]? AdditionalAttributes { get; set; }
+
+    [XmlAnyElement]
+    public XmlElement[]? AdditionalElements { get; set; }
+}
+
+public sealed class XmlSchemaOption
+{
+    [XmlAttribute("value")]
+    public string Value { get; set; } = string.Empty;
+
+    [XmlAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// A reusable type: an optional data type plus processors.
+/// </summary>
+public sealed class XmlSchemaTypeDef
+{
+    [XmlAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [XmlAttribute("datatype")]
+    public string? DataType { get; set; }
+
+    [XmlArray("processors")]
+    [XmlArrayItem("processor")]
+    public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
+
+    [XmlArray("properties")]
+    [XmlArrayItem("property")]
+    public List<XmlSchemaProperty> Properties { get; set; } = [];
+
+    [XmlAnyAttribute]
+    public XmlAttribute[]? AdditionalAttributes { get; set; }
+
+    [XmlAnyElement]
+    public XmlElement[]? AdditionalElements { get; set; }
+}
+
 public abstract class XmlSchemaNode
 {
     [XmlAttribute("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional reference to a typeDef that defines the type and processors of the node.
+    /// </summary>
+    [XmlAttribute("typeDef")]
+    public string? TypeDef { get; set; }
 
     [XmlArray("properties")]
     [XmlArrayItem("property")]
@@ -67,8 +151,8 @@ public sealed class XmlSchemaField : XmlSchemaNode
     [XmlElement("processor")]
     public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
 
-    [XmlAttribute("type")]
-    public string? Type { get; set; }
+    [XmlAttribute("datatype")]
+    public string? DataType { get; set; }
 
     /// <summary>A constant value (attribute); use <see cref="ValueRef"/> to refer to a value.</summary>
     [XmlAttribute("value")]

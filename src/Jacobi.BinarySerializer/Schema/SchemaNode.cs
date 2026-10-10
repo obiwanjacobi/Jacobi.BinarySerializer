@@ -20,6 +20,30 @@ public sealed class SchemaTypeDef : SchemaNode
     public SchemaDataType? DataType { get; init; }
 }
 
+/// <summary>
+/// A data type defined in a schema (document): a base data type with facets and processors.
+/// It inherits the parser and the default representation of its base.
+/// Referenced by a field with its full name ('document.name'); without a namespace it must be defined in the schema it is used in.
+/// </summary>
+public sealed class SchemaDataTypeDef : SchemaProcessor
+{
+    public required string Name { get; init; }
+
+    /// <summary>The data type this type is based on: a built-in type or another data type def.</summary>
+    public required SchemaDataType BasedOn { get; init; }
+
+    public decimal? Min { get; init; }
+    public decimal? Max { get; init; }
+    public decimal? Scale { get; init; }
+    public decimal? Shift { get; init; }
+
+    /// <summary>The allowed physical values mapped to their names.</summary>
+    public IReadOnlyDictionary<long, string>? Options { get; init; }
+
+    /// <summary>Processors merged into every field that uses this data type (those of the base come first).</summary>
+    public IReadOnlyList<SchemaProcessorRef> Processors { get; init; } = [];
+}
+
 public sealed class SchemaField : SchemaNode
 {
     public SchemaField()
@@ -115,6 +139,7 @@ public class Schema : SchemaGroup
     }
 
     public required IReadOnlyList<SchemaTypeDef> TypeDefs { get; init; }
+    public IReadOnlyList<SchemaDataTypeDef> DataTypeDefs { get; init; } = [];
     public required IReadOnlyList<SchemaProcessorDef> ProcessorDefs { get; init; }
 
     public required IReadOnlyList<SchemaDocumentRef> Includes { get; init; }

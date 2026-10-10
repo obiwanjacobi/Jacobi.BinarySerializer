@@ -81,7 +81,7 @@ public class XmlSerializerTests
                     <processor processor="root" />
                   </processors>
                   <members>
-                    <field name="FieldA" type="Int32" scale="10">
+                    <field name="FieldA" datatype="Int32" scale="10">
                       <processor processor="identity" />
                     </field>
                   </members>
@@ -117,22 +117,19 @@ public class XmlSerializerTests
                 </processor>
               </processorDefs>
               <typeDefs>
-                <field name="CommonField" type="Int32">
+                <typeDef name="CommonField" datatype="Int32">
+                  <processors>
                     <processor name="ref:deltaProcessor" />
+                  </processors>
                   <properties>
                     <property name="scale" value="100" />
                   </properties>
-                </field>
-                <group name="CommonGroup">
+                </typeDef>
+                <typeDef name="CommonGroup">
                   <processors>
                     <processor name="ref:rootProcessor" />
                   </processors>
-                  <members>
-                    <field name="InnerField" type="Int16">
-                      <processor name="ref:deltaProcessor" />
-                    </field>
-                  </members>
-                </group>
+                </typeDef>
               </typeDefs>
               <members>
                 <group name="RootGroup">
@@ -140,7 +137,7 @@ public class XmlSerializerTests
                     <processor name="ref:rootProcessor" />
                   </processors>
                   <members>
-                    <field name="Value" typeDef="CommonField" type="Int32">
+                    <field name="Value" typeDef="CommonField" datatype="Int32">
                       <processor name="ref:deltaProcessor" />
                     </field>
                   </members>
@@ -182,7 +179,7 @@ public class XmlSerializerTests
                     <processor processor="sys.align" />
                   </processors>
                   <members>
-                    <field name="Value" type="Int32">
+                    <field name="Value" datatype="Int32">
                       <processor processor="identity" />
                     </field>
                   </members>
@@ -192,8 +189,8 @@ public class XmlSerializerTests
                     <processor processor="ref:selectorProcessor" />
                   </processors>
                   <members>
-                    <field name="OptionA" type="Int16" />
-                    <field name="OptionB" type="Int16" />
+                    <field name="OptionA" datatype="Int16" />
+                    <field name="OptionB" datatype="Int16" />
                   </members>
                 </choice>
               </members>
@@ -248,15 +245,48 @@ public class XmlSerializerTests
     }
 
     [Test]
+    public void Serialize_RoundTrip_PreservesDataTypeDefs()
+    {
+        var xml = """
+            <schema name="DefSchema">
+              <dataTypeDefs>
+                <dataTypeDef name="Celsius" basedOn="Int16" min="-40" max="125" scale="10">
+                  <options><option value="1" name="One" /></options>
+                  <processors><processor name="sys.scale" /></processors>
+                </dataTypeDef>
+              </dataTypeDefs>
+              <members><group name="Root"><members>
+                <field name="Temp" datatype="DefSchema.Celsius" />
+              </members></group></members>
+              <properties />
+            </schema>
+            """;
+
+        var document = new SchemaSet().LoadFromXml(xml);
+        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+
+        foreach (var def in new[] { document.DataTypeDefs.Single(), roundTripped.DataTypeDefs.Single() })
+        {
+            Assert.That(def.Name, Is.EqualTo("Celsius"));
+            Assert.That(def.BasedOn.FullName, Is.EqualTo("sys.int16"));
+            Assert.That(def.Min, Is.EqualTo(-40m));
+            Assert.That(def.Max, Is.EqualTo(125m));
+            Assert.That(def.Scale, Is.EqualTo(10m));
+            Assert.That(def.Options![1], Is.EqualTo("One"));
+            Assert.That(def.Processors, Has.Count.EqualTo(1));
+        }
+    }
+
+    [Test]
     public void Serialize_RoundTrip_PreservesFieldValues()
     {
         var xml = """
             <schema name="ValueSchema">
               <members><group name="Root"><members>
-                <field name="Constant" type="UInt32" value="0x89504E47" />
-                <field name="Published" type="Int32"><value pub="hdr.magic" /></field>
-                <field name="Node" type="Int32"><value ref="Constant" /></field>
-                <field name="None" type="Int32" />
+                <field name="Constant" datatype="UInt32" value="0x89504E47" />
+                <field name="Published" datatype="Int32"><value pub="hdr.magic" /></field>
+                <field name="Node" datatype="Int32"><value ref="Constant" /></field>
+                <field name="None" datatype="Int32" />
               </members></group></members>
               <properties />
             </schema>
@@ -332,10 +362,10 @@ public class XmlSerializerTests
         var xml = """
             <schema name="LengthSchema">
               <members><group name="Root"><members>
-                <field name="Len" type="UInt8" />
-                <field name="Blob" type="Bytes"><byteLength ref="Root.Len" /></field>
-                <field name="Sig" type="Bytes" byteLength="2" value="0x8950" />
-                <field name="Rest" type="Bytes" />
+                <field name="Len" datatype="UInt8" />
+                <field name="Blob" datatype="Bytes"><byteLength ref="Root.Len" /></field>
+                <field name="Sig" datatype="Bytes" byteLength="2" value="0x8950" />
+                <field name="Rest" datatype="Bytes" />
               </members></group></members>
               <properties />
             </schema>

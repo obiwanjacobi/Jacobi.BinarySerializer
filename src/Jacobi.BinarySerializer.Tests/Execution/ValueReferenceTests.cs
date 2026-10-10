@@ -91,11 +91,11 @@ public class ValueReferenceTests
               <members>
                 <group name="Root">
                   <members>
-                    <field name="Length" type="Int32" />
+                    <field name="Length" datatype="Int32" />
                     <repeat name="Items">
                       <count ref="Root.Length" />
                       <members>
-                        <field name="Item" type="Int32" />
+                        <field name="Item" datatype="Int32" />
                       </members>
                     </repeat>
                   </members>
@@ -126,7 +126,7 @@ public class ValueReferenceTests
                   "name": "Items",
                   "count": { "pub": "hdr.count" },
                   "members": [
-                    { "kind": "field", "name": "Item", "type": "Int32" }
+                    { "kind": "field", "name": "Item", "datatype": "Int32" }
                   ]
                 }
               ]

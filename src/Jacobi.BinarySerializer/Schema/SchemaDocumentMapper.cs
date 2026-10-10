@@ -21,6 +21,7 @@ internal static class SchemaDocumentMapper
             PropertyList = schema.Properties.ToList(),
             MemberList = schema.MemberList,
             TypeDefs = schema.TypeDefs,
+            DataTypeDefs = schema.DataTypeDefs,
             ProcessorDefs = schema.ProcessorDefs,
             Includes = schema.Includes,
             Roots = schema.Members.OfType<SchemaGroup>().ToList(),

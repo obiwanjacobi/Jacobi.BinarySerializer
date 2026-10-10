@@ -27,6 +27,7 @@
 - Editing safety: the edit tool replaces whole lines, so `oldString`/`newString` must cover complete lines (never start or end mid-line). Re-read the target lines right before editing (the user edits files too, e.g. ticking TODO items), and re-read them after editing to verify. This matters most for `readme.md` TODO lists.
 - Do not add interfaces to processors to solve engine needs (e.g. a read-window interface); extend the contexts or the engine instead.
 - Truncated input is an error: callers must supply a complete message. Do not design for resuming/streaming reads.
+- Any changes made to the Schema (SchemaNode etc) must be reflected in the JSON/XML mappers and the `SchemaSet.Compile` validation. The schema is the source of truth for the engine; it must be complete and correct. Also the xml and json schemas must stay in sync with the xml and json models/mappers.
 
 ## Domain Terms
 - Processor kinds: Semantic/value (value <-> value), Representation/field (value <-> encoded field), Layout (bytes in a group/field, e.g. align), Stream (whole-message: framing, compression, encryption).

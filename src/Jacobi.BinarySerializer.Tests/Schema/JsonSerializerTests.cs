@@ -50,6 +50,36 @@ public class JsonSerializerTests
     }
 
     [Test]
+    public void Serialize_RoundTrip_PreservesDataTypeDefs()
+    {
+        var json = @"
+        {
+            ""name"": ""DefSchema"",
+            ""dataTypeDefs"": [
+                { ""name"": ""Celsius"", ""basedOn"": ""Int16"", ""min"": -40, ""max"": 125, ""scale"": 10,
+                  ""options"": { ""1"": ""One"" },
+                  ""processors"": [ { ""name"": ""sys.scale"" } ] }
+            ],
+            ""members"": [ { ""name"": ""Root"", ""kind"": ""group"", ""members"": [] } ],
+            ""properties"": []
+        }";
+
+        var document = JsonSerializer.Deserialize(json);
+        var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
+
+        foreach (var def in new[] { document.DataTypeDefs.Single(), roundTripped.DataTypeDefs.Single() })
+        {
+            Assert.That(def.Name, Is.EqualTo("Celsius"));
+            Assert.That(def.BasedOn.FullName, Is.EqualTo("sys.int16"));
+            Assert.That(def.Min, Is.EqualTo(-40m));
+            Assert.That(def.Max, Is.EqualTo(125m));
+            Assert.That(def.Scale, Is.EqualTo(10m));
+            Assert.That(def.Options![1], Is.EqualTo("One"));
+            Assert.That(def.Processors, Has.Count.EqualTo(1));
+        }
+    }
+
+    [Test]
     public void Deserialize_ProcessorPubNs_IsNotAProcessorProperty()
     {
         var json = @"
@@ -98,7 +128,7 @@ public class JsonSerializerTests
                             ""processors"": [
                                 { ""name"": ""identity"" }
                             ],
-                            ""type"": ""Int32"",
+                            ""datatype"": ""Int32"",
                             ""scale"": 10
                         }
                     ],
@@ -144,7 +174,7 @@ public class JsonSerializerTests
                     ""processors"": [
                         { ""name"": ""ref:deltaProcessor"" }
                     ],
-                    ""type"": ""Int32"",
+                    ""datatype"": ""Int32"",
                     ""properties"": [
                         { ""name"": ""scale"", ""value"": ""100"" }
                     ]
@@ -162,7 +192,7 @@ public class JsonSerializerTests
                             ""processors"": [
                                 { ""name"": ""ref:deltaProcessor"" }
                             ],
-                            ""type"": ""Int16""
+                            ""datatype"": ""Int16""
                         }
                     ]
                 }
@@ -182,7 +212,7 @@ public class JsonSerializerTests
                             ""processors"": [
                                 { ""name"": ""ref:deltaProcessor"" }
                             ],
-                            ""type"": ""Int32""
+                            ""datatype"": ""Int32""
                         }
                     ]
                 }
@@ -229,7 +259,7 @@ public class JsonSerializerTests
                     {
                       "kind": "field",
                       "name": "Value",
-                      "type": "Int32",
+                      "datatype": "Int32",
                       "processors": [
                         { "name": "identity" }
                       ]
@@ -247,12 +277,12 @@ public class JsonSerializerTests
                     {
                       "kind": "field",
                       "name": "OptionA",
-                      "type": "Int16"
+                      "datatype": "Int16"
                     },
                     {
                       "kind": "field",
                       "name": "OptionB",
-                      "type": "Int16"
+                      "datatype": "Int16"
                     }
                   ]
                 }
@@ -302,10 +332,10 @@ public class JsonSerializerTests
             {
               "name": "ValueSchema",
               "members": [ { "kind": "group", "name": "Root", "members": [
-                { "kind": "field", "name": "Constant", "type": "UInt32", "value": "0x89504E47" },
-                { "kind": "field", "name": "Published", "type": "Int32", "value": { "pub": "hdr.magic" } },
-                { "kind": "field", "name": "Node", "type": "Int32", "value": { "ref": "Constant" } },
-                { "kind": "field", "name": "None", "type": "Int32" }
+                { "kind": "field", "name": "Constant", "datatype": "UInt32", "value": "0x89504E47" },
+                { "kind": "field", "name": "Published", "datatype": "Int32", "value": { "pub": "hdr.magic" } },
+                { "kind": "field", "name": "Node", "datatype": "Int32", "value": { "ref": "Constant" } },
+                { "kind": "field", "name": "None", "datatype": "Int32" }
               ] } ],
               "properties": []
             }
@@ -382,10 +412,10 @@ public class JsonSerializerTests
             {
               "name": "LengthSchema",
               "members": [ { "kind": "group", "name": "Root", "members": [
-                { "kind": "field", "name": "Len", "type": "UInt8" },
-                { "kind": "field", "name": "Blob", "type": "Bytes", "byteLength": { "ref": "Root.Len" } },
-                { "kind": "field", "name": "Sig", "type": "Bytes", "byteLength": 2, "value": "0x8950" },
-                { "kind": "field", "name": "Rest", "type": "Bytes" }
+                { "kind": "field", "name": "Len", "datatype": "UInt8" },
+                { "kind": "field", "name": "Blob", "datatype": "Bytes", "byteLength": { "ref": "Root.Len" } },
+                { "kind": "field", "name": "Sig", "datatype": "Bytes", "byteLength": 2, "value": "0x8950" },
+                { "kind": "field", "name": "Rest", "datatype": "Bytes" }
               ] } ],
               "properties": []
             }

@@ -11,7 +11,20 @@
             </xs:sequence>
           </xs:complexType>
         </xs:element>
-        <xs:element name="typeDefs" type="nodeList" minOccurs="0" />
+        <xs:element name="typeDefs" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="typeDef" type="typeDef" minOccurs="0" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="dataTypeDefs" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="dataTypeDef" type="dataTypeDef" minOccurs="0" maxOccurs="unbounded" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
         <xs:element name="processorDefs" minOccurs="0">
           <xs:complexType>
             <xs:sequence>
@@ -69,6 +82,41 @@
     </xs:sequence>
   </xs:complexType>
 
+  <xs:complexType name="dataTypeDef">
+    <xs:sequence>
+      <xs:element name="options" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="option" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:attribute name="value" type="xs:long" use="required" />
+                <xs:attribute name="name" type="xs:string" use="required" />
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="processors" type="processorList" minOccurs="0" />
+      <xs:element name="properties" type="propertyList" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="basedOn" type="xs:string" use="required" />
+    <xs:attribute name="min" type="xs:decimal" />
+    <xs:attribute name="max" type="xs:decimal" />
+    <xs:attribute name="scale" type="xs:decimal" />
+    <xs:attribute name="shift" type="xs:decimal" />
+    <xs:anyAttribute processContents="skip" />
+  </xs:complexType>
+
+  <xs:complexType name="typeDef">
+    <xs:sequence>
+      <xs:element name="properties" type="propertyList" minOccurs="0" />
+      <xs:element name="processors" type="processorList" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="datatype" type="xs:string" />
+  </xs:complexType>
+
   <xs:complexType name="valueRef">
     <xs:attribute name="ref" type="xs:string" />
     <xs:attribute name="pub" type="xs:string" />
@@ -91,7 +139,8 @@
       <xs:element name="byteLength" type="valueRef" minOccurs="0" />
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
-    <xs:attribute name="type" type="xs:string" />
+    <xs:attribute name="typeDef" type="xs:string" />
+    <xs:attribute name="datatype" type="xs:string" />
     <xs:attribute name="value" type="xs:string" />
     <xs:attribute name="byteLength" type="xs:string" />
     <xs:attribute name="byteOffset" type="xs:integer" />
@@ -106,6 +155,7 @@
       <xs:element name="members" type="nodeList" minOccurs="0" />
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="typeDef" type="xs:string" />
     <xs:attribute name="byteSize" type="xs:string" />
     <xs:anyAttribute processContents="skip" />
   </xs:complexType>
@@ -120,6 +170,7 @@
       <xs:element name="members" type="nodeList" minOccurs="0" />
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="typeDef" type="xs:string" />
     <xs:attribute name="byteSize" type="xs:string" />
     <xs:attribute name="count" type="xs:string" />
     <xs:anyAttribute processContents="skip" />
@@ -135,6 +186,7 @@
       <xs:element name="members" type="nodeList" minOccurs="0" />
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="typeDef" type="xs:string" />
     <xs:attribute name="byteSize" type="xs:string" />
     <xs:attribute name="selectedIndex" type="xs:string" />
     <xs:anyAttribute processContents="skip" />
