@@ -23,6 +23,11 @@
   - [x] reparses its properties on every call. Use state in context to cache the parsed map.
 - [ ] **Bare JSON `value` literals.** `SchemaField.Value` is a string union, so a bare JSON number or boolean (`"value": 42`) is not supported; only strings (e.g. `"0x2A"`).
 - [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage?
+- [ ] A `byteLength` given as a reference on a fixed-size field without a field processor is not checked against the type size at plan build (only fails when read/written).
+- [ ] **MIDI schema gaps** (see `IntegrationTests/Midi/Midi.xml`): 
+  - [ ] running status (a first byte below 0x80 reuses the previous status); 
+  - [ ] the status peek must be supplied by the model on write (not derived from the chosen alternative); 
+  - [ ] the repeated `Status` group cannot be reused (typedef/group reuse); no test parses `Midi.xml` yet. See item on Group TypeDef to include members.
 
 ---
 
@@ -77,6 +82,11 @@
 - [x] **Ranges that start inside a repeat.** `ExecutionPlan.CreateRange(fromPath, fromInstance, toPath, toInstance)` takes an `InstancePath` per bound; the cursor skips repeat items outside the range. Missing indices mean the first (from) or last (to) item.
 - [x] **Flat API with repeats and choices.** `IFieldSource` / `IFieldSink` no longer need repeat counts or choice indexes: the engine resolves them from constants or published values, and flat models get `Instance` in the contexts. (The writer's count-vs-model check is skipped for flat models.)
 - [x] **Multiple Representation (field) processors per field.** Done: same-signature followers (`IFieldWriter<EncodedField,EncodedField>` / `IFieldReader<EncodedField,EncodedField>`) chain after the head `IFieldProcessor`; the plan builder validates chains (`ValidateFieldChain`). Original note: Only one is allowed; more throws `NotSupportedException`.
+- [x] **Virtual fields (`byteOffset`).** A field with a `byteOffset` is read at that offset from the current position and the position is restored; the model sees the value on read and must supply it on write (no bytes written). Its value can be referenced (e.g. a choice `selectedIndex` peeking at a status byte).
+- [x] **`sys.bits` (semantic).** Extracts a bit range (`bitoffset`, `bitlength`) from an integer value, with sign extension for signed types. Combine with a virtual field to get the high/low nibble of a peeked byte.
+- [x] **Sized repeat without a count.** A `repeat` with `byteSize` and no `count` repeats until the end of the window; the size is derived on write. Tests in `SessionSizedGroupTests`.
+- [x] **`sys.bitslicer` and `BitSlicerCodec`.** Joins the low `bits` bits (1-8, default 7) of each byte of one field (MIDI 14-bit pitch bend, sync-safe integers). The byte count is the field `byteLength` or the `bytelength` property.
+- [x] **`byteLength` on all fixed-size data types except `Boolean`.** The data type is the logical representation, so the physical length is a property of the field. Without a field processor a constant length must equal the type size (plan error otherwise).
 - [x] **Multiple Layout processors per field.** Done: every layout processor is a head; followers also implement `ILayoutWriter<ReadOnlySpan<byte>>` / `ILayoutReader<ReadOnlyMemory<byte>>` and the engine owns the buffers between stages (`ValidateLayoutChain`, `sys:align` is the first follower). Original note: Same limit: only one layout processor can write/read a field.
 - [x] **Variable-length integers (`sys:varint`).** Field processor with an `encoding` property: `leb128` (default, unsigned), `sleb128`, `zigzag`, `vlq` (MIDI) and `prefix` (UTF-8 style length prefix). One static codec class per algorithm in `Codecs`. Signed field types need `sleb128` or `zigzag`; `vlq` and `prefix` are unsigned only.
 - [x] **Open-width fields and result types.** `IFieldReader.Read` returns `FieldReadResult<T>` (status, value, bits consumed) and `IFieldWriter.Write` returns `FieldWriteResult<T>` (status, value, bits written); layout reads return `LayoutReadResult<T>`. With field processors, the default layout offers a window of up to `OpenWidthWindowBytes` (10) bytes and the engine rewinds the unused bytes. Layout writes and stream stages still return `WriteResult` / `ReadResult`.

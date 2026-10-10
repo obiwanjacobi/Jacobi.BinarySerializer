@@ -61,10 +61,6 @@ A `PlanRange` (from path/instance to path/instance) limits a read or write to pa
 
 If an `ILoggerFactory` is in the services, the engine logs under `Jacobi.BinarySerializer.Engine` and each processor under its key. Without it logging is a no-op.
 
-## How to...
+---
 
-- **Add a new node kind or schema feature:** extend the schema model, bind it in `ExecutionPlanBuilder` (report errors with the node path), add a cursor step only if the walk changes, then handle it in both sessions.
-- **Derive a value from the model's absence:** resolve it in the session (`Resolve`), never in an adapter.
-- **Write an engine test:** use the helpers in the Tests project (`SessionTestHelpers`); rare edge cases go in `EngineEdgeCaseTests`.
-
-See also: [Schema](../Schema/readme.md), [Processor](../Processor/readme.md), [Serializer](../readme.md) (public API and TODO list).
+See also: [Schema](../Schema/readme.md), [Processor](../Processor/readme.md), [Pusblic API](../readme.md).

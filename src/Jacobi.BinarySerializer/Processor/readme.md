@@ -53,7 +53,7 @@ Every call gets a context for its stage (`ValueProcessorContext`, `FieldProcesso
 | `Logger` | Logger for this processor; a no-op without a logger factory. |
 | `Instance` | The repeat instance indices of the current node. |
 | `GetOrCreateState<T>(scope)` | Private per-session state (see below). |
-| `Publish(ns, name, value)` | Publishes a public value. |
+| `Publish(name, value)` | Publishes a public value. The namespace is the processor key (or the schema `pubns`), so the processor passes only the name. |
 | `Field` / `Group` | The node being processed (varies by stage). Layout also has `RootPosition`/`GroupPosition`. |
 
 ## Properties
@@ -92,12 +92,13 @@ State is private: a processor cannot read the state of another one. State lives 
 
 ## Well-Known Properties
 
-A common set of properties that are used by the mechanism or other processors. 
+These properties are **managed by the engine**: they are defined by the schema (on the node), resolved by the engine (constants, `ref:` and `pub:` values are looked up for you) and handed to the processor through the context. A processor can **read** them but does not declare, parse or validate them as its own properties, and cannot change them.
 
-| Property Name | Data Type | Description |
-|---------------|-----------|-------------|
-| pubns | string | Publish Namespace: the namespace used when a processor publishes public values. |
-| length | int | The physical length in bytes of the data being processed (not a character or item count). `sys:string` also accepts the field-level `byteLength`. |
+| Name | Schema member | Data Type | Where a processor reads it | Description |
+|------|---------------|-----------|----------------------------|-------------|
+| `byteLength` | field `byteLength` | int | `context.FieldData.ByteLength` (field and layout contexts) | The resolved physical length in bytes of the field (not a character or item count). Null when the field declares none. A processor may also offer its own `bytelength` property as an alternative (`sys:string`, `sys:bitslicer`); giving both is an error. |
+| `byteSize` | group `byteSize` | int | `context.GroupData.ByteSize` (layout context) | The resolved size in bytes of the group content. When reading it is known at group start; when writing it is only known at group end. |
+| `pubns` | processor entry `pubns` | string | Applied by `context.Publish` | The namespace the processor publishes under (default: the processor key). |
 
 ## Specifying Processor Properties
 
@@ -109,11 +110,13 @@ However when specifying properties inside the processor-definitions in a schema,
 
 ## Publishing Public Values
 
-A processor can publish public values that can be used by other components in the pipeline.
-These values can be used to configure the processor or to provide information about the processing that has been done.
+A processor can publish public values that other parts of the schema can use (e.g. as a `byteLength`, `count` or `value`), or that give information about the processing that was done.
 
-A public value can be published using a namespace and a name. 
-The namespace is used to group related values together and prevents collisions between multiple processors publishing the same value.
-The name is used to identify the value within the namespace.
+Publishing takes only a name: `context.Publish(name, value)`. The engine supplies the namespace, so the processor cannot collide with others by accident:
 
-Typically the namespace can be set on the publishing processor.
+- the namespace is the processor key (`sys.crc`), unless the schema entry sets `pubns`; then that is used instead (use it when the same processor appears more than once);
+- the full name of a published value is `namespace.name` (`sys.crc.value`) and a schema refers to it with `pub:` (no instance indices; the last published value wins).
+
+Declare each published value in the processor's `Properties` as a read-only, published `PropertyDescriptor` (`isReadOnly: true, isPublished: true`), so it is documented and the plan can check references to it. Examples: `sys.crc` publishes `value` (the calculated CRC), `sys.string` publishes `length` (the string length in chars).
+
+The values of fields are published by the engine itself under their schema path, for `ref:`; a processor does not publish those.

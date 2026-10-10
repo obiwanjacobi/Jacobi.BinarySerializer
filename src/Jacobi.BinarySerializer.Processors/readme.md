@@ -8,8 +8,9 @@ The built-in processors of namespace `sys`. Property names are short names as us
 | `sys.enum` | Semantic | field, repeat/choice (`valueProcessors`) | Maps enum names to integers. |
 | `sys.map` | Semantic | field, repeat/choice (`valueProcessors`) | Maps logical values to physical values. |
 | `sys.nullable` | Semantic | field | Not implemented yet. |
-| `sys.bits` | Representation | field | Extracts a range of bits from a fixed-size integer field. |
+| `sys.bits` | Semantic | field, repeat/choice (`valueProcessors`) | Extracts a range of bits from an integer value. |
 | `sys.varint` | Representation | field | Variable-length integers. |
+| `sys.bitslicer` | Representation | field | Joins the low bits of each byte of one field (e.g. 7 bits: MIDI 14-bit values). |
 | `sys.string` | Representation | field | Strings with a fixed length or a terminator. |
 | `sys.bytepacker` | Layout | group (fields inherit) | Whole bytes in a byte order. |
 | `sys.bitpacker` | Layout | group (fields inherit; `bits` on a field) | Fields of arbitrary bit widths. |
@@ -36,7 +37,19 @@ Maps logical values to physical values of the field's data type. Each property m
 
 | Property | Required | Description |
 |----------|----------|-------------|
-(default `sys.string`; any registered data type)
+| `logical` | no | The data type of the logical values (default `sys.string`; any registered data type). It is the type of the *name* side of every mapping. |
+| any other name | at least one | One mapping: the property name is the logical value, the property value is the physical value of the field's data type. Both are parsed with their data types. A property with no value (`null`) is the default: it catches unmapped physical values on read and cannot be written. |
+
+Example (a status byte to a choice index): `logical` = `sys.int32`, then `0` = `8`, `1` = `9`, ... maps the physical value 8 to the index 0.
+
+### `sys.bits`
+
+Extracts a range of bits from an integer value: the physical value is the whole integer (usually a virtual or peeked field), the logical value is the bit range. Reading extracts the range (sign-extended for signed types); writing places the bits at the offset. The value type is the data type of the field (or the value type of the repeat/choice), a fixed-size integer of 1 to 8 bytes.
+
+| Property | Required | Description |
+|----------|----------|-------------|
+| `bitoffset` | yes | Index of the first (lowest) bit of the range. |
+| `bitlength` | yes | Number of bits in the range. The range must fit the data type. |
 
 ### `sys.nullable`
 
@@ -64,6 +77,16 @@ Strings, delimited by exactly one of `byteLength` or `terminator`.
 | `byteLength` | one of | Fixed length in bytes. Shorter strings are padded with `padding`; trailing padding is trimmed on read. |
 | `terminator` | one of | Byte value (0-255) that ends the string; not part of the string. |
 | `padding` | no | Byte value (0-255) used for padding a fixed length (default 0). |
+
+### `sys.bitslicer`
+
+Joins the lowest `bits` bits of each byte of one field into a single unsigned value, and back (the within-one-field counterpart of `sys.bitpacker`). For example 7 bits of 2 bytes give a 14-bit value (MIDI pitch bend), 7 bits of 4 bytes a sync-safe integer. On read a byte with a bit set above `bits` is an error; on write the unused high bits are zero and a value that does not fit is an error. The field data type must be an integer that can hold `bits x byte count` bits (one less for signed types; at most 64 bits in total).
+
+| Property | Required | Description |
+|----------|----------|-------------|
+| `bytelength` | one of | Number of bytes. Alternative to the field `byteLength` (both together is an error). |
+| `bits` | no | Bits taken from each byte, 1 to 8 (default 7). |
+| `byteorder` | no | `little` (default, least significant slice first) or `big`. |
 
 ## Layout processors
 

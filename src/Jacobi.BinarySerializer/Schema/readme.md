@@ -15,7 +15,7 @@ A schema describes the structure of a binary format: which fields exist, in what
 |---------|---------|
 | `name` | Name of the document (namespace for references from other documents). |
 | `includes` | Other documents this one refers to. |
-Reusable group and field types: an optional data type (fields only) plus processors. |
+| `typeDefs` | Reusable group and field types: an optional data type (fields only) plus processors. |
 | `processorDefs` | Named processor configurations (a processor key with default properties). |
 | `properties` / `processors` | Document-level defaults. |
 | `members` | The root groups. |
@@ -26,12 +26,53 @@ Every node has a `name`, a `kind` and optional `properties`.
 
 | Kind | Meaning | Notable members |
 |------|---------|-----------------|
-makes the field virtual - read at the offset with the position restored; the model sees the value on read and must provide it on write, no bytes are written; its value can be referenced), `processors` |
+| `field` | A single value. | `type`, `value`, `byteLength`, `byteOffset`, `processors` |
 | `group` | An ordered sequence of members. | `members`, `byteSize` (physical size in bytes of the encoded content), `processors` |
 | `repeat` | A group that repeats. | `count` (constant or reference); no count means until the end of the data. `valueProcessors` convert a referenced count. |
 | `choice` | A group where exactly one member is used. | `selectedIndex` (constant or reference), `valueProcessors` |
 
 Nodes are addressed by path (`Png.Chunk.Body.Type`).
+
+## Fixed schema properties
+
+The members below are part of the schema model itself (as opposed to the free-form `properties` of a processor). The engine interprets them; processors can only read the resolved result. Members marked *constant or reference* accept a constant, a `ref:` or a `pub:` (see below).
+
+### Fields
+
+| Member | Meaning | Use it to |
+|--------|---------|-----------|
+| `type` | The data type of the *logical* value (`UInt16`, `String`, `Bytes`, ...). It says how the value is represented in the model, not how many bytes it takes on the wire. | Choose the model type. Representation processors (varint, bit slicer) may encode it differently from the type's default fixed width. |
+| `value` | An expected value (constant or reference), compared with the logical value after the semantic processors. | Check magic numbers/signatures on read (a mismatch fails). The writer supplies the value when the model has none (so the model need not know it). |
+| `byteLength` | The physical length of the encoded field in bytes (constant or reference). Allowed on every data type except `Boolean`. | Fix the width of `Bytes`/`String`; give a field processor its byte count (`sys.bitslicer`); point at a length field (`ref:`) so a length prefix is read before the data and derived on write. Without a field processor, a fixed-size type needs a length equal to its size. |
+| `byteOffset` | A signed offset in bytes from the current position. The field is read there and the position is restored afterwards: it is *virtual*. The model sees the value on read and must supply it on write; no bytes are written. Its value can be referenced. | Peek at bytes without consuming them: e.g. a MIDI status byte used as a choice `selectedIndex`, before the alternative reads it again. |
+| `processors` | The processors (semantic, field, layout) of this field. | Transform or encode the value, see [Processors](../../Jacobi.BinarySerializer.Processors/readme.md). |
+
+### Groups, repeats and choices
+
+| Member | Applies to | Meaning | Use it to |
+|--------|-----------|---------|-----------|
+| `members` | group, repeat, choice | The ordered child nodes. | Structure. A repeat repeats all its members as one item; a choice has one alternative per member. |
+| `byteSize` | group, repeat, choice | The physical size in bytes of the encoded content (constant or reference). The reader limits the content to that window; the writer derives the value from the encoded content. | Length-prefixed blocks (PNG chunk data, MIDI track). A repeat with a `byteSize` and no `count` repeats until the window is full. |
+| `count` | repeat | The number of items (constant or reference). No count: repeat until the end of the data (or of the `byteSize` window). | Item counts stored in the data, fixed-size arrays, or until-the-end lists. |
+| `selectedIndex` | choice | The zero-based index of the used alternative (constant or reference). | Pick a variant from a discriminator (type byte, tag). |
+| `valueProcessors` | repeat, choice | Semantic processors that convert the referenced value to the count/index (read direction). | Convert a discriminator that is not a number (`sys.map` of a FourCC string, `sys.bits` of a status byte) to the index. |
+| `processors` | group, repeat, choice | Layout/stream processors; child nodes inherit them unless they specify their own for that stage. | Bit/byte packing, alignment, CRC over a whole group. |
+
+### Shared members
+
+| Member | Meaning | Use it to |
+|--------|---------|-----------|
+| `name` | The node name; part of the path used by references and by the model. | Address a node (`Png.Chunk.Body.Type`). |
+| `properties` | Free-form named values for the processors that apply to the node (e.g. `byteorder` on a group is read by the layout processors). | Configure inherited processors without repeating them. |
+| `typeDef` | A reference to a reusable type (data type plus processors). | Share a configuration between nodes. |
+
+### On a processor entry
+
+| Member | Meaning | Use it to |
+|--------|---------|-----------|
+| `processor` | The processor key (`sys.varint`) or a `ref:` to a definition. | Select the processor. |
+| `pubns` | The namespace the processor publishes its values under (default: its key, e.g. `sys.crc`). Interpreted by the engine, not a processor property. | Keep published values apart when the same processor is used more than once, then reference them with `pub:`. |
+| other keys | The processor's own properties. | Configure the processor. |
 
 ## Values and references
 
@@ -63,6 +104,12 @@ A child node inherits the stages of its parent
 **Check a magic number:** give the field a `value`. The writer supplies it when the model has none; the reader fails when the data differs.
 
 **Read a fixed number of raw bytes:** type `Bytes` with `byteLength` (always a byte count, also for `String`). Without a byte length the field takes the rest of the enclosing sized group.
+
+**Give a field a physical length:** `byteLength` is allowed on every data type except `Boolean`. The data type is the logical representation, so the length says how many bytes the encoded form takes. Without a field processor a fixed-size type must have a constant length equal to its size; with a field processor (e.g. `sys.bitslicer`, `sys.varint`) the processor reads the length from the field.
+
+**Bound a repeat without a count:** give a `repeat` a `byteSize` and no `count`; it repeats until the end of that window (and derives the size on write).
+
+**Peek at a value without consuming it:** a virtual field (`byteOffset`), e.g. `byteOffset=0` to read the status byte that a choice uses as `selectedIndex` before the alternative reads it.
 
 `"count": { "ref": "Header.Count" }`.
 
