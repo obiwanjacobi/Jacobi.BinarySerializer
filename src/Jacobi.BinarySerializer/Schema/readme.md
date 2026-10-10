@@ -90,7 +90,7 @@ A reference to a value that is not available yet is an error at runtime. Plan bu
 
 - A processor is used by its key (`sys.varint`: namespace `sys`, id `varint`) or by a reference to a definition (`ref:name`, or `ref:document.name` from another document).
 - Properties given on the use override the properties of the definition.
-- Properties of a processor use or definition can be given explicitly (`"properties": [ { "name": "byteorder", "value": "big" } ]`) or inline: any key that is not mapped to the model is a property. `{ "processor": "sys.bytepacker", "byteorder": "big" }` is the same as the explicit form; in XML use attributes or child elements (`<processor processor="sys.bytepacker" byteorder="big" />`).
+- Properties of a processor use or definition can be given explicitly (`"properties": [ { "name": "byteorder", "value": "big" } ]`) or inline: any key that is not mapped to the model is a property. `{ "name": "sys.bytepacker", "byteorder": "big" }` is the same as the explicit form; in XML use attributes or child elements (`<processor name="sys.bytepacker" byteorder="big" />`).
 - JSON documents may contain `//` and `/* */` comments and trailing commas.
 - Inside a processor entry the properties belong to that processor, so no prefix is needed. Elsewhere the full name is used (`sys.enum.map`). `Compile()` expands the short names to the full form.
 - Properties on fields and groups themselves are generic (e.g. `byteorder` on a group is read by the layout processors that care about it).

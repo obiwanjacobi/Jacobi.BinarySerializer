@@ -133,7 +133,7 @@ public sealed class XmlSchemaProcessorDef
 /// <summary>A processor key ('namespace.id') or a reference to a processor declaration ('ref:name').</summary>
 public sealed class XmlSchemaProcessorRef
 {
-    [XmlAttribute("processor")]
+    [XmlAttribute("name")]
     public string Processor { get; set; } = string.Empty;
 
     [XmlAttribute("pubns")]

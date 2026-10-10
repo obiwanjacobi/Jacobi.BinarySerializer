@@ -118,18 +118,18 @@ public class XmlSerializerTests
               </processorDefs>
               <typeDefs>
                 <field name="CommonField" type="Int32">
-                    <processor processor="ref:deltaProcessor" />
+                    <processor name="ref:deltaProcessor" />
                   <properties>
                     <property name="scale" value="100" />
                   </properties>
                 </field>
                 <group name="CommonGroup">
                   <processors>
-                    <processor processor="ref:rootProcessor" />
+                    <processor name="ref:rootProcessor" />
                   </processors>
                   <members>
                     <field name="InnerField" type="Int16">
-                      <processor processor="ref:deltaProcessor" />
+                      <processor name="ref:deltaProcessor" />
                     </field>
                   </members>
                 </group>
@@ -137,11 +137,11 @@ public class XmlSerializerTests
               <members>
                 <group name="RootGroup">
                   <processors>
-                    <processor processor="ref:rootProcessor" />
+                    <processor name="ref:rootProcessor" />
                   </processors>
                   <members>
                     <field name="Value" typeDef="CommonField" type="Int32">
-                      <processor processor="ref:deltaProcessor" />
+                      <processor name="ref:deltaProcessor" />
                     </field>
                   </members>
                 </group>

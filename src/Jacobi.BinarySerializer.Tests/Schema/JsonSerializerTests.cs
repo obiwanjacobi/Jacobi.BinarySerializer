@@ -32,7 +32,7 @@ public class JsonSerializerTests
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
                     ""processors"": [
-                        { ""processor"": ""root"" }
+                        { ""name"": ""root"" }
                     ],
                     ""members"": [],
                     ""properties"": [
@@ -60,7 +60,7 @@ public class JsonSerializerTests
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
                     ""processors"": [
-                        { ""processor"": ""root"", ""pubns"": ""hdr"", ""extra"": ""x"" }
+                        { ""name"": ""root"", ""pubns"": ""hdr"", ""extra"": ""x"" }
                     ],
                     ""members"": []
                 }
@@ -89,14 +89,14 @@ public class JsonSerializerTests
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
                     ""processors"": [
-                        { ""processor"": ""root"" }
+                        { ""name"": ""root"" }
                     ],
                     ""members"": [
                         {
                             ""name"": ""FieldA"",
                             ""kind"": ""field"",
                             ""processors"": [
-                                { ""processor"": ""identity"" }
+                                { ""name"": ""identity"" }
                             ],
                             ""type"": ""Int32"",
                             ""scale"": 10
@@ -142,7 +142,7 @@ public class JsonSerializerTests
                     ""name"": ""CommonField"",
                     ""kind"": ""field"",
                     ""processors"": [
-                        { ""processor"": ""ref:deltaProcessor"" }
+                        { ""name"": ""ref:deltaProcessor"" }
                     ],
                     ""type"": ""Int32"",
                     ""properties"": [
@@ -153,14 +153,14 @@ public class JsonSerializerTests
                     ""name"": ""CommonGroup"",
                     ""kind"": ""group"",
                     ""processors"": [
-                        { ""processor"": ""ref:rootProcessor"" }
+                        { ""name"": ""ref:rootProcessor"" }
                     ],
                     ""members"": [
                         {
                             ""name"": ""InnerField"",
                             ""kind"": ""field"",
                             ""processors"": [
-                                { ""processor"": ""ref:deltaProcessor"" }
+                                { ""name"": ""ref:deltaProcessor"" }
                             ],
                             ""type"": ""Int16""
                         }
@@ -172,7 +172,7 @@ public class JsonSerializerTests
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
                     ""processors"": [
-                        { ""processor"": ""ref:rootProcessor"" }
+                        { ""name"": ""ref:rootProcessor"" }
                     ],
                     ""members"": [
                         {
@@ -180,7 +180,7 @@ public class JsonSerializerTests
                             ""typeDef"": ""CommonField"",
                             ""kind"": ""field"",
                             ""processors"": [
-                                { ""processor"": ""ref:deltaProcessor"" }
+                                { ""name"": ""ref:deltaProcessor"" }
                             ],
                             ""type"": ""Int32""
                         }
@@ -223,7 +223,7 @@ public class JsonSerializerTests
                   "name": "RepeatGroup",
                   "count": { "pub": "hdr.count" },
                   "processors": [
-                    { "processor": "rootProcessor" }
+                    { "name": "rootProcessor" }
                   ],
                   "members": [
                     {
@@ -231,7 +231,7 @@ public class JsonSerializerTests
                       "name": "Value",
                       "type": "Int32",
                       "processors": [
-                        { "processor": "identity" }
+                        { "name": "identity" }
                       ]
                     }
                   ]
@@ -241,7 +241,7 @@ public class JsonSerializerTests
                   "name": "ChoiceGroup",
                   "selectedIndex": 2,
                   "processors": [
-                    { "processor": "ref:selectorProcessor" }
+                    { "name": "ref:selectorProcessor" }
                   ],
                   "members": [
                     {
@@ -329,9 +329,9 @@ public class JsonSerializerTests
               "name": "VpSchema",
               "members": [ { "kind": "group", "name": "Root", "members": [
                 { "kind": "repeat", "name": "Items", "count": { "ref": "Root.Kind" },
-                  "valueProcessors": [ { "processor": "sys.map", "properties": [ { "name": "a", "value": "1" } ] } ], "members": [] },
+                  "valueProcessors": [ { "name": "sys.map", "properties": [ { "name": "a", "value": "1" } ] } ], "members": [] },
                 { "kind": "choice", "name": "Pick", "selectedIndex": { "ref": "Root.Kind" },
-                  "valueProcessors": [ { "processor": "sys.map", "properties": [ { "name": "b", "value": "2" } ] } ], "members": [] }
+                  "valueProcessors": [ { "name": "sys.map", "properties": [ { "name": "b", "value": "2" } ] } ], "members": [] }
               ] } ],
               "properties": []
             }

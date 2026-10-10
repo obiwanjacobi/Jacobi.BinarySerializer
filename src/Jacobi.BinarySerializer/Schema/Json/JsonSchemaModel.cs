@@ -91,6 +91,7 @@ internal sealed class JsonSchemaProcessorDef
 /// <summary>A processor key ('namespace.id') or a reference to a processor declaration ('ref:name').</summary>
 internal sealed class JsonSchemaProcessorRef
 {
+    [JsonPropertyName("name")]
     public required string Processor { get; init; }
 
     [JsonPropertyName("pubns")]

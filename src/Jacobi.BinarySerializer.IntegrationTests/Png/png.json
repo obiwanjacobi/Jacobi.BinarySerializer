@@ -19,7 +19,7 @@
       "kind": "group",
       "processors": [
         {
-          "processor": "sys.bytepacker",
+          "name": "sys.bytepacker",
           "byteorder": "big"
         }
       ],
@@ -44,8 +44,8 @@
               "name": "Body",
               "kind": "group",
               "processors": [
-                { "processor": "sys.bytepacker" },
-                { "processor": "sys.crc" }
+                { "name": "sys.bytepacker" },
+                { "name": "sys.crc" }
               ],
               "members": [
                 {
@@ -54,7 +54,7 @@
                   "type": "String",
                   "processors": [
                     {
-                      "processor": "sys.string",
+                      "name": "sys.string",
                       "byteLength": 4,
                       "encoding": "ascii"
                     }
@@ -65,7 +65,7 @@
                   "kind": "choice",
                   "selectedIndex": { "ref": "Png.Chunk[].Body.Type" },
                   "byteSize": { "ref": "Png.Chunk[].Length" },
-                  "valueProcessors": [ { "processor": "ref:chunkType" } ],
+                  "valueProcessors": [ { "name": "ref:chunkType" } ],
                   "members": [
                     {
                       "name": "Header",
