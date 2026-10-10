@@ -96,6 +96,71 @@ public class SchemaSetTests
     }
 
     [Test]
+    public void Compile_DataTypeDefBasedOnDef_MergesProcessorsAlongTheChain()
+    {
+        var schemaSet = new SchemaSet();
+        var a = new SchemaDataTypeDef
+        {
+            Name = "A",
+            BasedOn = "Int32",
+            Processors = [new SchemaProcessorRef { Processor = new SchemaProcessorName("sys.scale") }]
+        };
+        var b = new SchemaDataTypeDef
+        {
+            Name = "B",
+            BasedOn = "Main.A",
+            Processors = [new SchemaProcessorRef { Processor = new SchemaProcessorName("sys.align") }]
+        };
+        var rootGroup = CreateGroup("Root");
+        AddChild(rootGroup, new SchemaField { Name = "Value", DataType = "Main.B", ProcessorsList = [] });
+
+        schemaSet.AddDocument(CreateDocument("Main", roots: [rootGroup], dataTypeDefs: [a, b]));
+        schemaSet.Compile();
+
+        var field = rootGroup.Members.OfType<SchemaField>().Single();
+        Assert.That(field.DataType.FullName, Is.EqualTo("Main.B").IgnoreCase);
+        Assert.That(field.Processors.Select(p => p.Processor.FullName), Is.EquivalentTo(new[] { "sys.scale", "sys.align" }));
+    }
+
+    [Test]
+    public void Compile_CircularDataTypeDefs_Throws()
+    {
+        var schemaSet = new SchemaSet();
+        var a = new SchemaDataTypeDef { Name = "A", BasedOn = "Main.B" };
+        var b = new SchemaDataTypeDef { Name = "B", BasedOn = "Main.A" };
+        var rootGroup = CreateGroup("Root");
+        AddChild(rootGroup, new SchemaField { Name = "Value", DataType = "Main.A", ProcessorsList = [] });
+
+        schemaSet.AddDocument(CreateDocument("Main", roots: [rootGroup], dataTypeDefs: [a, b]));
+
+        Assert.Throws<InvalidOperationException>(() => schemaSet.Compile());
+    }
+
+    [Test]
+    public void Compile_DataTypeDefFromIncludedDocument_IsResolved()
+    {
+        var schemaSet = new SchemaSet();
+        var celsius = new SchemaDataTypeDef
+        {
+            Name = "Celsius",
+            BasedOn = "Int32",
+            Processors = [new SchemaProcessorRef { Processor = new SchemaProcessorName("sys.scale") }]
+        };
+        var shared = CreateDocument("Shared", dataTypeDefs: [celsius]);
+        var rootGroup = CreateGroup("Root");
+        AddChild(rootGroup, new SchemaField { Name = "Temp", DataType = "Shared.Celsius", ProcessorsList = [] });
+        var main = CreateDocument("Main", roots: [rootGroup], includes: [new SchemaDocumentRef { Schema = "Shared" }]);
+
+        schemaSet.AddDocument(shared);
+        schemaSet.AddDocument(main);
+        schemaSet.Compile();
+
+        var field = rootGroup.Members.OfType<SchemaField>().Single();
+        Assert.That(field.DataType.FullName, Is.EqualTo("Shared.Celsius").IgnoreCase);
+        Assert.That(field.Processors, Has.Count.EqualTo(1));
+    }
+
+    [Test]
     public void Compile_NodeDefInstantiation_KeepsTheFieldValue()
     {
         var schemaSet = new SchemaSet();
