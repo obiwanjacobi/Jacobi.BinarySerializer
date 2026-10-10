@@ -12,10 +12,10 @@ namespace Jacobi.BinarySerializer.Tests.Execution;
 public class SessionBytesTests
 {
     private static SchemaField Blob(SchemaValueOrRef<int> length = default)
-        => new() { Name = "Blob", DataType = "Bytes", ByteLength = length };
+        => new() { Name = "Blob", DataType = "sys.bytes", ByteLength = length };
 
     private static SchemaGroup LengthPrefixed()
-        => Group("Root", [], Field("Len", "UInt8"), Blob(new SchemaNodeRef { Path = "Root.Len" }), Field("Tail", "UInt8"));
+        => Group("Root", [], Field("Len", "sys.uint8"), Blob(new SchemaNodeRef { Path = "Root.Len" }), Field("Tail", "sys.uint8"));
 
     [Test]
     public void Read_LengthFromReference_ReadsThatManyBytes()
@@ -32,7 +32,7 @@ public class SessionBytesTests
     [Test]
     public void Read_ConstantLength_ReadsThatManyBytes()
     {
-        var plan = Build(Group("Root", [], Blob(2), Field("Tail", "UInt8")));
+        var plan = Build(Group("Root", [], Blob(2), Field("Tail", "sys.uint8")));
         var sink = new Sink();
 
         var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 7, 8, 9 }), sink);
@@ -53,7 +53,7 @@ public class SessionBytesTests
     public void Read_NoLengthInWindow_TakesRestOfWindow()
     {
         var body = new SchemaGroup { Name = "Body", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Blob() } };
-        var plan = Build(Group("Root", [], Field("Len", "UInt8"), body, Field("Tail", "UInt8")));
+        var plan = Build(Group("Root", [], Field("Len", "sys.uint8"), body, Field("Tail", "sys.uint8")));
         var sink = new Sink();
 
         var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 3, 10, 11, 12, 99 }), sink);
@@ -70,7 +70,7 @@ public class SessionBytesTests
     [Test]
     public void Build_NoLengthNotLast_ReportsError()
     {
-        var body = new SchemaGroup { Name = "Body", ByteSize = 4, MemberList = { Blob(), Field("Tail", "UInt8") } };
+        var body = new SchemaGroup { Name = "Body", ByteSize = 4, MemberList = { Blob(), Field("Tail", "sys.uint8") } };
 
         Assert.That(() => Build(Group("Root", [], body)), Throws.TypeOf<ExecutionPlanException>());
     }
@@ -78,7 +78,7 @@ public class SessionBytesTests
     [Test]
     public void Build_LengthDifferentFromFixedSizeWithoutProcessor_ReportsError()
     {
-        var field = new SchemaField { Name = "Number", DataType = "UInt8", ByteLength = 2 };
+        var field = new SchemaField { Name = "Number", DataType = "sys.uint8", ByteLength = 2 };
 
         Assert.That(() => Build(Group("Root", [], field)), Throws.TypeOf<ExecutionPlanException>());
     }
@@ -86,7 +86,7 @@ public class SessionBytesTests
     [Test]
     public void Build_LengthEqualToFixedSize_Succeeds()
     {
-        var field = new SchemaField { Name = "Number", DataType = "UInt16", ByteLength = 2 };
+        var field = new SchemaField { Name = "Number", DataType = "sys.uint16", ByteLength = 2 };
 
         Assert.That(() => Build(Group("Root", [], field)), Throws.Nothing);
     }
@@ -94,7 +94,7 @@ public class SessionBytesTests
     [Test]
     public void Build_LengthOnBoolean_ReportsError()
     {
-        var field = new SchemaField { Name = "Flag", DataType = "Boolean", ByteLength = 1 };
+        var field = new SchemaField { Name = "Flag", DataType = "sys.boolean", ByteLength = 1 };
 
         Assert.That(() => Build(Group("Root", [], field)), Throws.TypeOf<ExecutionPlanException>());
     }
@@ -122,7 +122,7 @@ public class SessionBytesTests
     [Test]
     public void Parse_HexLiteral_ReadsBytes()
     {
-        var Bytes = Jacobi.BinarySerializer.Descriptors.DataTypeRegistry.CreateDefault().Get(new SchemaDataType("Bytes"));
+        var Bytes = Jacobi.BinarySerializer.Descriptors.DataTypeRegistry.CreateDefault().Get(new SchemaName("sys.bytes"));
         Assert.That(Bytes.Parse("0x89504E47", out var value), Is.True);
         Assert.That((byte[])value!, Is.EqualTo(new byte[] { 0x89, 0x50, 0x4E, 0x47 }));
         Assert.That(Bytes.Parse("89 50 4E", out value), Is.True);
@@ -134,7 +134,7 @@ public class SessionBytesTests
     [Test]
     public void Read_ConstantBytes_MismatchThrows()
     {
-        var signature = new SchemaField { Name = "Sig", DataType = "Bytes", ByteLength = 2, Value = "0x8950" };
+        var signature = new SchemaField { Name = "Sig", DataType = "sys.bytes", ByteLength = 2, Value = "0x8950" };
         var plan = Build(Group("Root", [], signature));
 
         Assert.That(new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 0x89, 0x50 }), new Sink()), Is.EqualTo(ReadResult.Success));

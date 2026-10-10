@@ -17,14 +17,14 @@ public class FieldChainTests
     }
 
     private static SchemaProcessorRef Ref(string id)
-        => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
+        => new() { Processor = new SchemaName($"{Ns}.{id}") };
 
     private static SchemaGroup Root(params string[] chain)
     {
         var field = new SchemaField
         {
             Name = "A",
-            DataType = "Int32",
+            DataType = "sys.int32",
             ProcessorsList = [.. chain.Select(Ref)]
         };
         var group = new SchemaGroup { Name = "Root" };

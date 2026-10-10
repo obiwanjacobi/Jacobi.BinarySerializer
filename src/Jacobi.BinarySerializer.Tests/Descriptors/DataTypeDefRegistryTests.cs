@@ -22,7 +22,7 @@ public class DataTypeDefRegistryTests
     public void Register_DefBasedOnDef_InheritsAndOverridesFacets()
     {
         var registry = DataTypeRegistry.CreateDefault();
-        var a = new SchemaDataTypeDef { Name = "A", BasedOn = "Int32", Scale = 10m, Min = 0m, Max = 100m };
+        var a = new SchemaDataTypeDef { Name = "A", BasedOn = "sys.int32", Scale = 10m, Min = 0m, Max = 100m };
         var b = new SchemaDataTypeDef { Name = "B", BasedOn = "Doc.A", Max = 50m, Shift = 2m };
 
         registry.RegisterDataTypeDefs([Document("Doc", b, a)]);
@@ -39,7 +39,7 @@ public class DataTypeDefRegistryTests
     public void Register_DefInOtherDocument_IsUsableAsBase()
     {
         var registry = DataTypeRegistry.CreateDefault();
-        var shared = Document("Shared", new SchemaDataTypeDef { Name = "Celsius", BasedOn = "Int32", Scale = 100m });
+        var shared = Document("Shared", new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 100m });
         var main = Document("Main", new SchemaDataTypeDef { Name = "Body", BasedOn = "Shared.Celsius", Shift = 1m });
 
         registry.RegisterDataTypeDefs([main, shared]);
@@ -70,7 +70,7 @@ public class DataTypeDefRegistryTests
     public void Register_CalledTwice_DoesNotThrow()
     {
         var registry = DataTypeRegistry.CreateDefault();
-        var documents = new[] { Document("Doc", new SchemaDataTypeDef { Name = "A", BasedOn = "Int32" }) };
+        var documents = new[] { Document("Doc", new SchemaDataTypeDef { Name = "A", BasedOn = "sys.int32" }) };
 
         registry.RegisterDataTypeDefs(documents);
 

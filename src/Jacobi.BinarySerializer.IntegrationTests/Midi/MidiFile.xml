@@ -49,7 +49,7 @@
                   <selectedIndex ref="Midi.Track[].Events[].StatusPeek" />
                   <valueProcessors>
                     <processor processor="sys.bits" bitoffset="4" bitlength="4" />
-                    <processor processor="sys.map" logical="Int32">
+                    <processor processor="sys.map" logical="sys.int32">
                       <properties>
                         <property name="0" value="8" />   <!-- NoteOff -->
                         <property name="1" value="9" />   <!-- NoteOn -->
@@ -181,7 +181,7 @@
                       <!-- [OK] same peek, now the whole byte is mapped -->
                       <selectedIndex ref="Midi.Track[].Events[].StatusPeek" />
                       <valueProcessors>
-                        <processor processor="sys.map" logical="Int32">
+                        <processor processor="sys.map" logical="sys.int32">
                           <properties>
                             <property name="0" value="255" /> <!-- Meta -->
                             <property name="1" value="240" /> <!-- SysEx -->

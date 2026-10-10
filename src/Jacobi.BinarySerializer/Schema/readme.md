@@ -1,4 +1,4 @@
-﻿# Schema
+# Schema
 
 A schema describes the structure of a binary format: which fields exist, in what order, how they repeat or branch and which processors transform them. It describes *structure only*. The code that does the transforming lives in processors, the walking is done by the [engine](../Execution/readme.md).
 
@@ -134,7 +134,7 @@ A `dataTypeDef` derives a new logical data type from an existing one (built-in o
 
 ```xml
 <dataTypeDefs>
-  <dataTypeDef name="Celsius" basedOn="Int32" scale="100">
+  <dataTypeDef name="Celsius" basedOn="sys.int32" scale="100">
     <processors><processor name="sys.scale" /></processors>
   </dataTypeDef>
 </dataTypeDefs>
@@ -153,7 +153,8 @@ A `dataTypeDef` derives a new logical data type from an existing one (built-in o
 Facets are fallbacks: a processor's own property wins. Resolution rules:
 
 - A field that uses a def gets its datatype rewritten to `Document.Name`; use `Document.Name` to refer to a def in another (included) document.
-- A name without a namespace is first looked up in the document's own `dataTypeDefs` (a local def wins over a built-in of the same name), otherwise it is a built-in `sys` type.
+- Data type names are always full names (`sys.int32`, `Document.Celsius`); there is no `sys` shorthand. Names are case-insensitive.
+- A name without a namespace refers to a def in the document it is used in. Built-in types always need the `sys.` prefix.
 - Circular `basedOn` chains and unknown bases are errors.
 
 See the [Processor readme](../Processor/readme.md) for the available properties of processors and how they are interpreted.

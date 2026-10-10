@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -109,7 +109,7 @@ public class ExecutionPlanBuilderTests
     [Test]
     public void Build_ProcessorPublishNamespace_IsPassedToBinding()
     {
-        var processorRef = new SchemaProcessorRef { Processor = new SchemaProcessorName($"{Ns}.layout"), PublishNamespace = "hdr" };
+        var processorRef = new SchemaProcessorRef { Processor = new SchemaName($"{Ns}.layout"), PublishNamespace = "hdr" };
         var root = CreateGroup("Root", processorRef);
 
         var plan = CreateBuilder().Build(root);
@@ -206,7 +206,7 @@ public class ExecutionPlanBuilderTests
     public void Build_UnknownProcessorNamespace_ReportsErrorWithPath()
     {
         var root = CreateGroup("Root");
-        root.MemberList.Add(CreateField("A", new SchemaProcessorRef { Processor = new SchemaProcessorName("nons.proc") }));
+        root.MemberList.Add(CreateField("A", new SchemaProcessorRef { Processor = new SchemaName("nons.proc") }));
 
         var ex = Assert.Throws<ExecutionPlanException>(() => CreateBuilder().Build(root));
 
@@ -301,13 +301,13 @@ public class ExecutionPlanBuilderTests
     }
 
     private static SchemaProcessorRef Ref(string id)
-        => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
+        => new() { Processor = new SchemaName($"{Ns}.{id}") };
 
     private static SchemaGroup CreateGroup(string name, params SchemaProcessorRef[] processors)
         => new() { Name = name, ProcessorsList = [.. processors] };
 
     private static SchemaField CreateField(string name, params SchemaProcessorRef[] processors)
-        => new() { Name = name, DataType = "Int32", ProcessorsList = [.. processors] };
+        => new() { Name = name, DataType = "sys.int32", ProcessorsList = [.. processors] };
 
     private static SchemaDocument CreateDocument(string name, SchemaGroup root)
         => new()

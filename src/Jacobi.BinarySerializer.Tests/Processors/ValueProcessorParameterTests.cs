@@ -18,16 +18,16 @@ public class ValueProcessorParameterTests
             SelectedIndex = new SchemaNodeRef { Path = "Root.Type" },
             ValueProcessorsList = [.. valueProcessors],
         };
-        choice.MemberList.Add(Field("A", "Int16"));
-        choice.MemberList.Add(Field("B", "Int16"));
+        choice.MemberList.Add(Field("A", "sys.int16"));
+        choice.MemberList.Add(Field("B", "sys.int16"));
 
         return Group("Root", [],
-            Field("Type", "String", [Ref("string", ("byteLength", "4"), ("encoding", "ascii"))]),
+            Field("Type", "sys.string", [Ref("string", ("byteLength", "4"), ("encoding", "ascii"))]),
             choice);
     }
 
     private static SchemaProcessorRef TypeMap()
-        => Ref("map", ("logical", "Int32"), ("0", "IHDR"), ("1", "PLTE"));
+        => Ref("map", ("logical", "sys.int32"), ("0", "IHDR"), ("1", "PLTE"));
 
     [TestCase("IHDR", "A", 5)]
     [TestCase("PLTE", "B", 7)]

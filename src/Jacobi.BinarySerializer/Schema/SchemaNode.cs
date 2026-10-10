@@ -17,7 +17,7 @@ public closed class SchemaNode
 public sealed class SchemaNodeDef : SchemaNode
 {
     public required IReadOnlyList<SchemaProcessorRef> Processors { get; init; }
-    public SchemaDataType? DataType { get; init; }
+    public SchemaName? DataType { get; init; }
 }
 
 /// <summary>
@@ -30,7 +30,7 @@ public sealed class SchemaDataTypeDef : SchemaProcessor
     public required string Name { get; init; }
 
     /// <summary>The data type this type is based on: a built-in type or another data type def.</summary>
-    public required SchemaDataType BasedOn { get; init; }
+    public required SchemaName BasedOn { get; init; }
 
     public decimal? Min { get; init; }
     public decimal? Max { get; init; }
@@ -53,7 +53,7 @@ public sealed class SchemaField : SchemaNode
 
     public IReadOnlyList<SchemaProcessorRef> Processors => ProcessorsList;
     internal List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
-    public required SchemaDataType DataType { get; init; }
+    public required SchemaName DataType { get; init; }
 
     /// <summary>
     /// Optional constant (a literal parsed by <see cref="DataType"/>) or a reference to another value that this field must have.
@@ -191,7 +191,7 @@ public sealed class SchemaProcessorDef : SchemaProcessor
 /// </summary>
 public sealed class SchemaProcessorRef : SchemaProcessor
 {
-    public required SchemaProcessorName Processor { get; init; }
+    public required SchemaName Processor { get; init; }
 
     /// <summary>
     /// Optional namespace ('pubns') the processor publishes its values under, so published values do not collide.

@@ -80,7 +80,7 @@ public class DefaultProcessorTests
     {
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>([1, 0, 0, 0, 9, 9]));
         var context = new LayoutProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
-        context.Field = CreateField("Int32");
+        context.Field = CreateField("sys.int32");
 
         var result = new DefaultLayoutProcessor().Read(ref reader, context);
         var encoded = result.Value;
@@ -96,7 +96,7 @@ public class DefaultProcessorTests
     {
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>([1, 0]));
         var context = new LayoutProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
-        context.Field = CreateField("Int32");
+        context.Field = CreateField("sys.int32");
 
         var result = new DefaultLayoutProcessor().Read(ref reader, context);
 
@@ -108,7 +108,7 @@ public class DefaultProcessorTests
     public void Field_Write_EncodesValueAsFixedWidthBytes()
     {
         var context = new FieldProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
-        context.Field = CreateField("UInt16");
+        context.Field = CreateField("sys.uint16");
 
         var encoded = new DefaultFieldProcessor().Write(new LogicalField("F", typeof(int), 258), context).Value;
 
@@ -120,7 +120,7 @@ public class DefaultProcessorTests
     public void Field_Write_ValueDoesNotFit_ThrowsWithPath()
     {
         var context = new FieldProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
-        context.Field = CreateField("UInt8");
+        context.Field = CreateField("sys.uint8");
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => new DefaultFieldProcessor().Write(new LogicalField("F", typeof(int), 999), context));
@@ -132,7 +132,7 @@ public class DefaultProcessorTests
     public void Field_Read_DecodesBytesToTypedValue()
     {
         var context = new FieldProcessorContext(NewReader()) { ProcessorProperties = [], Services = null! };
-        context.Field = CreateField("Int16");
+        context.Field = CreateField("sys.int16");
 
         var logical = new DefaultFieldProcessor().Read(new EncodedField("F", typeof(byte[]), new byte[] { 0xFE, 0xFF }, 16), context).Value;
 
@@ -143,7 +143,7 @@ public class DefaultProcessorTests
     [Test]
     public void DefaultStages_WriteThenRead_RoundTripsAValue()
     {
-        var field = CreateField("Double");
+        var field = CreateField("sys.double");
         var writeContext = new FieldProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
         writeContext.Field = field;
         var layoutWrite = new LayoutProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
@@ -177,7 +177,7 @@ public class DefaultProcessorTests
         return new WriterSession(plan, new ArrayBufferWriter<byte>());
     }
 
-    private static FieldInfo CreateField(SchemaDataType type)
+    private static FieldInfo CreateField(SchemaName type)
         => new()
         {
             Name = "F",

@@ -22,7 +22,7 @@ internal sealed class JsonSchemaDataTypeDef
 {
     public required string Name { get; init; }
     [JsonPropertyName("basedOn")]
-    public required SchemaDataType BasedOn { get; init; }
+    public required string BasedOn { get; init; }
     public decimal? Min { get; init; }
     public decimal? Max { get; init; }
     public decimal? Scale { get; init; }
@@ -39,7 +39,7 @@ internal sealed class JsonSchemaNodeDef : JsonSchemaNode
 {
     public required IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; }
     [JsonPropertyName("datatype")]
-    public SchemaDataType? DataType { get; init; }
+    public string? DataType { get; init; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
@@ -67,7 +67,7 @@ internal sealed class JsonSchemaField : JsonSchemaNode
 {
     public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
     [JsonPropertyName("datatype")]
-    public required SchemaDataType DataType { get; init; }
+    public required string DataType { get; init; }
     public JsonSchemaValueOrRef<string> Value { get; init; }
     public JsonSchemaValueOrRef<int> ByteLength { get; init; }
     public int? ByteOffset { get; init; }

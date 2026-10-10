@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;

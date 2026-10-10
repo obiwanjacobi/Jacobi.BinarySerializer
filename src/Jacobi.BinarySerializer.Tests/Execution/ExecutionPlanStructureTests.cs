@@ -226,7 +226,7 @@ public class ExecutionPlanStructureTests
         => new ExecutionPlanBuilder(new BinarySerializer.Processor.ProcessorManager()).Build(root);
 
     private static SchemaField Field(string name)
-        => new() { Name = name, DataType = "Int32" };
+        => new() { Name = name, DataType = "sys.int32" };
 
     private static SchemaGroup Group(string name, params SchemaNode[] members)
     {

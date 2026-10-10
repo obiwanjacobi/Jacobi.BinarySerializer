@@ -83,7 +83,7 @@ internal static class JsonSchemaMapper
             Name = jsonField.Name,
             NodeDef = ToNodeDefName(jsonField.NodeDef),
             ProcessorsList = jsonField.Processors.Select(ToSchemaProcessorRef).ToList(),
-            DataType = jsonField.DataType,
+            DataType = new SchemaName(jsonField.DataType),
             Value = ToSchemaValueOrRef(jsonField.Value),
             ByteLength = ToSchemaValueOrRef(jsonField.ByteLength),
             ByteOffset = jsonField.ByteOffset,
@@ -105,7 +105,7 @@ internal static class JsonSchemaMapper
         return new SchemaNodeDef
         {
             Name = jsonNodeDef.Name,
-            DataType = jsonNodeDef.DataType,
+            DataType = jsonNodeDef.DataType is { } dataType ? new SchemaName(dataType) : (SchemaName?)null,
             Processors = jsonNodeDef.Processors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(jsonNodeDef.Properties, jsonNodeDef.AdditionalData)
         };
@@ -116,7 +116,7 @@ internal static class JsonSchemaMapper
         return new SchemaDataTypeDef
         {
             Name = jsonDef.Name,
-            BasedOn = jsonDef.BasedOn,
+            BasedOn = new SchemaName(jsonDef.BasedOn),
             Min = jsonDef.Min,
             Max = jsonDef.Max,
             Scale = jsonDef.Scale,
@@ -132,7 +132,7 @@ internal static class JsonSchemaMapper
         return new JsonSchemaDataTypeDef
         {
             Name = def.Name,
-            BasedOn = def.BasedOn,
+            BasedOn = def.BasedOn.FullName,
             Min = def.Min,
             Max = def.Max,
             Scale = def.Scale,
@@ -157,7 +157,7 @@ internal static class JsonSchemaMapper
     {
         return new SchemaProcessorRef
         {
-            Processor = new SchemaProcessorName(processor.Processor),
+            Processor = new SchemaName(processor.Processor),
             PublishNamespace = processor.PubNs,
             PropertyList = MergeProperties(processor.Properties, processor.AdditionalData)
         };
@@ -253,7 +253,7 @@ internal static class JsonSchemaMapper
                 Name = field.Name,
                 NodeDef = field.NodeDef?.ToString(),
                 Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
-                DataType = field.DataType,
+                DataType = field.DataType.FullName,
                 Value = FromSchemaValueOrRef(field.Value),
                 ByteLength = FromSchemaValueOrRef(field.ByteLength),
                 ByteOffset = field.ByteOffset,
@@ -269,7 +269,7 @@ internal static class JsonSchemaMapper
         return new JsonSchemaNodeDef
         {
             Name = nodeDef.Name,
-            DataType = nodeDef.DataType,
+            DataType = nodeDef.DataType?.FullName,
             Processors = nodeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
             Properties = nodeDef.Properties.Select(FromSchemaProperty).ToList()
         };

@@ -7,9 +7,9 @@ public class BytePackerProcessorTests
 {
     private static SchemaGroup CreateRoot(string? endian = null)
         => Group("Root", [endian is null ? Ref("bytepacker") : Ref("bytepacker", ("byteorder", endian))],
-            Field("A", "UInt16"),
-            Field("B", "UInt8"),
-            Field("C", "Int32"));
+            Field("A", "sys.uint16"),
+            Field("B", "sys.uint8"),
+            Field("C", "sys.int32"));
 
     private static Dictionary<string, object?> CreateValues()
         => new() { ["Root.A"] = (ushort)0x1234, ["Root.B"] = (byte)7, ["Root.C"] = 0x01020304 };
@@ -36,8 +36,8 @@ public class BytePackerProcessorTests
     public void RoundTrip_NegativeAndFloatingPointValues()
     {
         var root = Group("Root", [Ref("bytepacker", ("byteorder", "big"))],
-            Field("A", "Int64"),
-            Field("B", "Double"));
+            Field("A", "sys.int64"),
+            Field("B", "sys.double"));
         var values = new Dictionary<string, object?> { ["Root.A"] = -2L, ["Root.B"] = 3.25d };
 
         var (bytes, read) = RoundTrip(root, values);

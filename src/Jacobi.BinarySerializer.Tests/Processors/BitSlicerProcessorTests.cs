@@ -43,7 +43,7 @@ public class BitSlicerProcessorTests
     {
         var values = new Dictionary<string, object?> { ["Root.A"] = (ushort)0x2000 };
 
-        var (bytes, read) = RoundTrip(Root("UInt16", 2, 7, order), values);
+        var (bytes, read) = RoundTrip(Root("sys.uint16", 2, 7, order), values);
 
         Assert.That(bytes, Is.EqualTo(expected));
         Assert.That(read, Is.EqualTo(values));
@@ -54,7 +54,7 @@ public class BitSlicerProcessorTests
     {
         var values = new Dictionary<string, object?> { ["Root.A"] = 257u };
 
-        var (bytes, read) = RoundTrip(Root("UInt32", 4, 7, "big"), values);
+        var (bytes, read) = RoundTrip(Root("sys.uint32", 4, 7, "big"), values);
 
         Assert.That(bytes, Is.EqualTo(new byte[] { 0, 0, 2, 1 }));
         Assert.That(read, Is.EqualTo(values));
@@ -64,8 +64,8 @@ public class BitSlicerProcessorTests
     public void RoundTrip_FieldsKeepTheirBoundaries()
     {
         var root = Group("Root", [],
-            Field("A", "UInt16", [Ref("bitslicer", ("bytelength", "2"))]),
-            Field("B", "UInt8"));
+            Field("A", "sys.uint16", [Ref("bitslicer", ("bytelength", "2"))]),
+            Field("B", "sys.uint8"));
         var values = new Dictionary<string, object?> { ["Root.A"] = (ushort)300, ["Root.B"] = (byte)9 };
 
         var (bytes, read) = RoundTrip(root, values);
@@ -77,7 +77,7 @@ public class BitSlicerProcessorTests
     [Test]
     public void RoundTrip_FieldByteLength_UsedWithoutProperty()
     {
-        var field = Field("A", "UInt16", [Ref("bitslicer")]);
+        var field = Field("A", "sys.uint16", [Ref("bitslicer")]);
         var root = Group("Root", [], new Jacobi.BinarySerializer.Schema.SchemaField
         {
             Name = field.Name,
@@ -97,13 +97,13 @@ public class BitSlicerProcessorTests
     public void Write_ValueTooLarge_Throws()
     {
         Assert.Throws<InvalidOperationException>(() =>
-            Write(Root("UInt16", 2, 7), new() { ["Root.A"] = (ushort)0x4000 }, out _));
+            Write(Root("sys.uint16", 2, 7), new() { ["Root.A"] = (ushort)0x4000 }, out _));
     }
 
     [Test]
     public void Read_HighBitSet_Throws()
     {
-        var plan = Build(Root("UInt16", 2, 7));
+        var plan = Build(Root("sys.uint16", 2, 7));
 
         Assert.That(() => new Jacobi.BinarySerializer.Execution.ReaderSession(plan).Read(
             new System.Buffers.ReadOnlySequence<byte>(new byte[] { 0x80, 0x00 }), new Jacobi.BinarySerializer.Tests.Execution.DictSink()),
@@ -113,7 +113,7 @@ public class BitSlicerProcessorTests
     [Test]
     public void Read_NotEnoughData_NeedsMoreData()
     {
-        var plan = Build(Root("UInt16", 2, 7));
+        var plan = Build(Root("sys.uint16", 2, 7));
 
         var result = new Jacobi.BinarySerializer.Execution.ReaderSession(plan).Read(
             new System.Buffers.ReadOnlySequence<byte>(new byte[] { 0x01 }), new Jacobi.BinarySerializer.Tests.Execution.DictSink());
@@ -121,12 +121,12 @@ public class BitSlicerProcessorTests
         Assert.That(result, Is.EqualTo(Jacobi.BinarySerializer.Processor.ReadResult.NeedMoreData));
     }
 
-    [TestCase("UInt8", 2, 7)]
-    [TestCase("UInt16", 3, 7)]
-    [TestCase("Int16", 2, 8)]
-    [TestCase("UInt16", 2, 9)]
-    [TestCase("UInt16", 0, 7)]
-    [TestCase("String", 2, 7)]
+    [TestCase("sys.uint8", 2, 7)]
+    [TestCase("sys.uint16", 3, 7)]
+    [TestCase("sys.int16", 2, 8)]
+    [TestCase("sys.uint16", 2, 9)]
+    [TestCase("sys.uint16", 0, 7)]
+    [TestCase("sys.string", 2, 7)]
     public void Options_OutsideDataType_Throws(string type, int byteLength, int bits)
     {
         Assert.Throws<InvalidOperationException>(() =>

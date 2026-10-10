@@ -20,13 +20,13 @@ internal static class SessionTestHelpers
     }
 
     public static SchemaProcessorRef Ref(string id)
-        => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
+        => new() { Processor = new SchemaName($"{Ns}.{id}") };
 
-    public static SchemaField Field(string name, SchemaDataType? type = null)
-        => new() { Name = name, DataType = type ?? "Int32" };
+    public static SchemaField Field(string name, SchemaName? type = null)
+        => new() { Name = name, DataType = type ?? "sys.int32" };
 
     public static SchemaField FieldWith(string name, SchemaProcessorRef processor)
-        => new() { Name = name, DataType = "Int32", ProcessorsList = [processor] };
+        => new() { Name = name, DataType = "sys.int32", ProcessorsList = [processor] };
 
     public static SchemaGroup Group(string name, SchemaProcessorRef[] processors, params SchemaNode[] members)
     {

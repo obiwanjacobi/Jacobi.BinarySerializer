@@ -17,11 +17,11 @@ public class StringLengthPrefixTests
         var text = new SchemaField
         {
             Name = "Text",
-            DataType = "String",
+            DataType = "sys.string",
             ByteLength = new SchemaNodeRef { Path = "Root.Len" },
             ProcessorsList = [Ref("string")]
         };
-        return Group("Root", [], Field("Len", "UInt8"), text, Field("Tail", "UInt8"));
+        return Group("Root", [], Field("Len", "sys.uint8"), text, Field("Tail", "sys.uint8"));
     }
 
     [Test]

@@ -13,7 +13,7 @@ public class CrcProcessorTests
 
     private static SchemaGroup CrcGroup(params (string Name, string Value)[] properties)
     {
-        var data = new SchemaField { Name = "Data", DataType = "Bytes", ByteLength = Check.Length };
+        var data = new SchemaField { Name = "Data", DataType = "sys.bytes", ByteLength = Check.Length };
         return Group("Root", [Ref("crc", properties)], data);
     }
 

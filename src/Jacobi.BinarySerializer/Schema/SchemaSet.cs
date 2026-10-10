@@ -326,9 +326,9 @@ public sealed class SchemaSet
         }
     }
 
-    private static void AddDataTypeDependency(SchemaDataType dataType, string documentName, HashSet<string> dependencies)
+    private static void AddDataTypeDependency(SchemaName dataType, string documentName, HashSet<string> dependencies)
     {
-        var ns = dataType.Name.Namespace;
+        var ns = dataType.Namespace;
         if (!String.IsNullOrEmpty(ns) &&
             !String.Equals(ns, "sys", StringComparison.OrdinalIgnoreCase) &&
             !String.Equals(ns, documentName, StringComparison.OrdinalIgnoreCase))
@@ -341,7 +341,7 @@ public sealed class SchemaSet
     {
         if (processorRef.Processor.IsReference)
         {
-            AddSchemaDependency(processorRef.Processor.ToSchemaName(), documentName, dependencies);
+            AddSchemaDependency(processorRef.Processor, documentName, dependencies);
         }
     }
 
@@ -504,18 +504,18 @@ public sealed class SchemaSet
         return allResolved;
     }
 
-    private bool TryFindDataTypeDef(SchemaDocument document, SchemaDataType dataType, [NotNullWhen(true)] out SchemaDocument? defDocument, [NotNullWhen(true)] out SchemaDataTypeDef? dataTypeDef)
+    private bool TryFindDataTypeDef(SchemaDocument document, SchemaName dataType, [NotNullWhen(true)] out SchemaDocument? defDocument, [NotNullWhen(true)] out SchemaDataTypeDef? dataTypeDef)
     {
-        var name = dataType.Name;
+        var name = dataType;
         var ns = name.Namespace;
         defDocument = null;
         dataTypeDef = null;
 
-        if (String.Equals(ns, "sys", StringComparison.OrdinalIgnoreCase))
+        if (String.IsNullOrEmpty(ns) || String.Equals(ns, document.Name, StringComparison.OrdinalIgnoreCase))
         {
             defDocument = document;
         }
-        else if (!String.IsNullOrEmpty(ns))
+        else
         {
             defDocument = _documents.GetValueOrDefault(ns);
         }
@@ -563,7 +563,7 @@ public sealed class SchemaSet
         {
             Name = field.Name,
             NodeDef = field.NodeDef,
-            DataType = new SchemaDataType($"{defDocument.Name}{SchemaName.Separator}{dataTypeDef.Name}"),
+            DataType = new SchemaName($"{defDocument.Name}{SchemaName.Separator}{dataTypeDef.Name}"),
             Value = field.Value,
             ByteLength = field.ByteLength,
             ByteOffset = field.ByteOffset,

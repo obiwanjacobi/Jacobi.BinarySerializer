@@ -12,7 +12,7 @@ namespace Jacobi.BinarySerializer.Tests.Execution;
 public class SessionFieldValueTests
 {
     private static SchemaField Valued(string name, SchemaValueOrRef<string> value)
-        => new() { Name = name, DataType = "UInt8", Value = value };
+        => new() { Name = name, DataType = "sys.uint8", Value = value };
 
     private static ReadResult Read(ExecutionPlan plan, byte[] bytes, out DictSink sink, ReaderSession? session = null)
     {
@@ -67,7 +67,7 @@ public class SessionFieldValueTests
     [Test]
     public void Write_ConstantNotInModel_WritesConstant()
     {
-        var plan = Build(Group("Root", [], Valued("Magic", "0x2A"), Field("B", "UInt8")));
+        var plan = Build(Group("Root", [], Valued("Magic", "0x2A"), Field("B", "sys.uint8")));
         var output = new ArrayBufferWriter<byte>();
 
         var bytes = WriteBytes(new WriterSession(plan, output), output, new() { ["Root.B"] = (byte)1 });
@@ -143,7 +143,7 @@ public class SessionFieldValueTests
     [Test]
     public void Read_NodeRefValue_MatchAndMismatch()
     {
-        var plan = Build(Group("Root", [], Field("A", "UInt8"), Valued("Copy", new SchemaNodeRef { Path = "Root.A" })));
+        var plan = Build(Group("Root", [], Field("A", "sys.uint8"), Valued("Copy", new SchemaNodeRef { Path = "Root.A" })));
 
         Assert.That(Read(plan, [5, 5], out _), Is.EqualTo(ReadResult.Success));
         Assert.That(() => Read(plan, [5, 6], out _), Throws.Exception);
@@ -152,7 +152,7 @@ public class SessionFieldValueTests
     [Test]
     public void Write_NodeRefValue_WritesReferencedValue()
     {
-        var plan = Build(Group("Root", [], Field("A", "UInt8"), Valued("Copy", new SchemaNodeRef { Path = "Root.A" })));
+        var plan = Build(Group("Root", [], Field("A", "sys.uint8"), Valued("Copy", new SchemaNodeRef { Path = "Root.A" })));
         var output = new ArrayBufferWriter<byte>();
 
         var bytes = WriteBytes(new WriterSession(plan, output), output, new() { ["Root.A"] = (byte)5 });

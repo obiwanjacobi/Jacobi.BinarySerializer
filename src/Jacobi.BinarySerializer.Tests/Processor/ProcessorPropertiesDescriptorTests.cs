@@ -12,7 +12,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void GetTyped_Present_ParsesValue()
     {
-        var descriptor = new PropertyDescriptor("count", "int32", isRequired: false);
+        var descriptor = new PropertyDescriptor("count", "sys.int32", isRequired: false);
 
         Assert.That(Props(("count", "42")).Get<int>(descriptor), Is.EqualTo(42));
     }
@@ -20,7 +20,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void GetTyped_FullName_Resolves()
     {
-        var descriptor = new PropertyDescriptor("count", "int32", isRequired: false);
+        var descriptor = new PropertyDescriptor("count", "sys.int32", isRequired: false);
 
         Assert.That(Props(("sys.test.count", "7")).Get<int>(descriptor), Is.EqualTo(7));
     }
@@ -28,7 +28,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void GetOrDefault_Absent_ReturnsDefault()
     {
-        var descriptor = new PropertyDescriptor("count", "int32", isRequired: false);
+        var descriptor = new PropertyDescriptor("count", "sys.int32", isRequired: false);
 
         Assert.That(Props().GetOrDefault<int>(descriptor), Is.EqualTo(0));
         Assert.That(Props().GetOrDefault(descriptor, 5), Is.EqualTo(5));
@@ -38,7 +38,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void TryGet_AbsentAndPresent()
     {
-        var descriptor = new PropertyDescriptor("count", "int32", isRequired: false);
+        var descriptor = new PropertyDescriptor("count", "sys.int32", isRequired: false);
 
         Assert.That(Props().TryGet<int>(descriptor, out _), Is.False);
         Assert.That(Props(("count", "3")).TryGet<int>(descriptor, out var value), Is.True);
@@ -49,7 +49,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void Get_OptionalAbsent_Throws()
     {
-        var descriptor = new PropertyDescriptor("count", "int32", isRequired: false);
+        var descriptor = new PropertyDescriptor("count", "sys.int32", isRequired: false);
 
         Assert.Throws<InvalidOperationException>(() => Props().Get<int>(descriptor));
     }
@@ -57,7 +57,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void GetTyped_RequiredAbsent_Throws()
     {
-        var descriptor = new PropertyDescriptor("count", "int32", isRequired: true);
+        var descriptor = new PropertyDescriptor("count", "sys.int32", isRequired: true);
 
         Assert.Throws<InvalidOperationException>(() => Props().Get<int>(descriptor));
     }
@@ -65,7 +65,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void GetTyped_InvalidValue_Throws()
     {
-        var descriptor = new PropertyDescriptor("count", "int32", isRequired: false);
+        var descriptor = new PropertyDescriptor("count", "sys.int32", isRequired: false);
 
         Assert.Throws<InvalidOperationException>(() => Props(("count", "abc")).Get<int>(descriptor));
     }
@@ -73,7 +73,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void GetTyped_TypeMismatch_Throws()
     {
-        var descriptor = new PropertyDescriptor("count", "string", isRequired: false);
+        var descriptor = new PropertyDescriptor("count", "sys.string", isRequired: false);
 
         Assert.Throws<InvalidOperationException>(() => Props(("count", "1")).Get<int>(descriptor));
     }
@@ -81,7 +81,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void GetString_Present_ReturnsText()
     {
-        var descriptor = new PropertyDescriptor("name", "string", isRequired: false);
+        var descriptor = new PropertyDescriptor("name", "sys.string", isRequired: false);
 
         Assert.That(Props(("name", "abc")).Get<string>(descriptor), Is.EqualTo("abc"));
     }
@@ -89,7 +89,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void GetString_OptionalAbsent_ReturnsNull()
     {
-        var descriptor = new PropertyDescriptor("name", "string", isRequired: false);
+        var descriptor = new PropertyDescriptor("name", "sys.string", isRequired: false);
 
         Assert.That(Props().GetOrDefault<string>(descriptor), Is.Null);
     }
@@ -97,7 +97,7 @@ public class ProcessorPropertiesDescriptorTests
     [Test]
     public void GetString_RequiredAbsent_Throws()
     {
-        var descriptor = new PropertyDescriptor("name", "string", isRequired: true);
+        var descriptor = new PropertyDescriptor("name", "sys.string", isRequired: true);
 
         Assert.Throws<InvalidOperationException>(() => Props().GetOrDefault<string>(descriptor));
         Assert.That(Props().TryGet<string>(descriptor, out _), Is.False);

@@ -1,6 +1,12 @@
-﻿namespace Jacobi.BinarySerializer.Schema;
+﻿using Jacobi.BinarySerializer.Processor;
 
-public readonly struct SchemaName : IEquatable<SchemaName>, IEquatable<string>
+namespace Jacobi.BinarySerializer.Schema;
+
+/// <summary>
+/// A namespaced name in a schema: 'namespace.name', or a reference 'ref:name'.
+/// Names are compared case-insensitively.
+/// </summary>
+public readonly struct SchemaName
 {
     public const char Separator = '.';
 
@@ -34,22 +40,30 @@ public readonly struct SchemaName : IEquatable<SchemaName>, IEquatable<string>
 
     public bool IsReference { get; }
 
-    override public string ToString()
-        => FullName;
+    /// <summary>The processor this name designates. Not valid for references or names without a namespace.</summary>
+    public ProcessorKey ToProcessorKey()
+        => IsReference || String.IsNullOrEmpty(Namespace)
+            ? throw new InvalidOperationException($"'{this}' does not designate a processor ('namespace{Separator}id').")
+            : new ProcessorKey(Namespace, Name);
 
-    public bool Equals(SchemaName other) => string.Equals(FullName, other.FullName, StringComparison.Ordinal);
-    public bool Equals(string? other) => string.Equals(FullName, other, StringComparison.Ordinal);
+    /// <summary>The name as written in a schema (including the 'ref:' prefix).</summary>
+    public override string ToString()
+        => IsReference ? "ref:" + FullName : FullName;
+
+    public bool Equals(SchemaName other)
+        => IsReference == other.IsReference && String.Equals(FullName, other.FullName, StringComparison.OrdinalIgnoreCase);
+    public bool Equals(string? other) => String.Equals(ToString(), other, StringComparison.OrdinalIgnoreCase);
     public override bool Equals(object? obj) => obj switch
     {
-        SchemaPath path => Equals(path),
+        SchemaName name => Equals(name),
         string text => Equals(text),
         _ => false
     };
-    public override int GetHashCode() => FullName.GetHashCode(StringComparison.Ordinal);
+    public override int GetHashCode() => ToString().GetHashCode(StringComparison.OrdinalIgnoreCase);
 
     public static bool operator ==(SchemaName left, SchemaName right) => left.Equals(right);
     public static bool operator !=(SchemaName left, SchemaName right) => !left.Equals(right);
 
     public static implicit operator SchemaName(string value) => new(value);
-    public static implicit operator string(SchemaName path) => path.FullName;
+    public static implicit operator string(SchemaName name) => name.ToString();
 }

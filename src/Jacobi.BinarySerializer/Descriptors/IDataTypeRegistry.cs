@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Descriptors;
@@ -12,11 +12,7 @@ public interface IDataTypeRegistry
     IEnumerable<DataTypeDescriptor> Types { get; }
 
     bool TryGet(SchemaName name, [NotNullWhen(true)] out DataTypeDescriptor? descriptor);
-    bool TryGet(SchemaDataType type, [NotNullWhen(true)] out DataTypeDescriptor? descriptor);
 
     /// <summary>Gets a descriptor or throws when the name is not registered.</summary>
     DataTypeDescriptor Get(SchemaName name);
-
-    /// <summary>Gets the descriptor of a data type or throws when it is not registered.</summary>
-    DataTypeDescriptor Get(SchemaDataType type);
 }

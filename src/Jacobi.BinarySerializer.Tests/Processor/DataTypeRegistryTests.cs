@@ -18,8 +18,8 @@ public class DataTypeRegistryTests
     {
         var registry = DataTypeRegistry.CreateDefault();
 
-        Assert.That(registry.TryGet(new SchemaDataType("Int32"), out _), Is.True);
-        Assert.That(registry.TryGet(new SchemaDataType("sys.string"), out _), Is.True);
+        Assert.That(registry.TryGet(new SchemaName("sys.int32"), out _), Is.True);
+        Assert.That(registry.TryGet(new SchemaName("sys.string"), out _), Is.True);
         Assert.That(registry.Types.Count(), Is.GreaterThan(10));
     }
 
@@ -47,7 +47,7 @@ public class DataTypeRegistryTests
         var descriptor = Custom("my.a");
         registry.Register(descriptor);
 
-        Assert.That(registry.Get(new SchemaDataType("MY.A")), Is.SameAs(descriptor));
+        Assert.That(registry.Get(new SchemaName("MY.A")), Is.SameAs(descriptor));
     }
 
     [Test]
@@ -55,7 +55,7 @@ public class DataTypeRegistryTests
     {
         var registry = new DataTypeRegistry();
 
-        Assert.Throws<KeyNotFoundException>(() => registry.Get(new SchemaDataType("my.none")));
+        Assert.Throws<KeyNotFoundException>(() => registry.Get(new SchemaName("my.none")));
     }
 
     [Test]
@@ -63,7 +63,7 @@ public class DataTypeRegistryTests
     {
         var registry = new DataTypeRegistry();
 
-        Assert.That(registry.TryGet(new SchemaDataType("my.none"), out var descriptor), Is.False);
+        Assert.That(registry.TryGet(new SchemaName("my.none"), out var descriptor), Is.False);
         Assert.That(descriptor, Is.Null);
     }
 
@@ -72,6 +72,6 @@ public class DataTypeRegistryTests
     {
         IDataTypeRegistry view = DataTypeRegistry.CreateDefault();
 
-        Assert.That(view.Get(new SchemaDataType("bytes")).Name.FullName, Is.EqualTo("sys.bytes"));
+        Assert.That(view.Get(new SchemaName("sys.bytes")).Name.FullName, Is.EqualTo("sys.bytes"));
     }
 }

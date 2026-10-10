@@ -13,7 +13,7 @@ public class SessionRepeatUntilEndTests
     private static SchemaRepeat Items()
     {
         var repeat = new SchemaRepeat { Name = "Items" };
-        repeat.MemberList.Add(Field("Byte", "UInt8"));
+        repeat.MemberList.Add(Field("Byte", "sys.uint8"));
         return repeat;
     }
 
@@ -22,7 +22,7 @@ public class SessionRepeatUntilEndTests
     [TestCase(4)]
     public void Read_RepeatWithoutCount_ReadsUntilEnd(int items)
     {
-        var plan = Build(Group("Root", [], Field("Head", "UInt8"), Items()));
+        var plan = Build(Group("Root", [], Field("Head", "sys.uint8"), Items()));
         var bytes = new byte[1 + items];
         var sink = new Sink();
 
@@ -35,7 +35,7 @@ public class SessionRepeatUntilEndTests
     [Test]
     public void Build_RepeatWithoutCountNotLast_ReportsError()
     {
-        var root = Group("Root", [], Items(), Field("Tail", "UInt8"));
+        var root = Group("Root", [], Items(), Field("Tail", "sys.uint8"));
 
         var ex = Assert.Throws<ExecutionPlanException>(() => Build(root));
 
@@ -58,8 +58,8 @@ public class SessionRepeatUntilEndTests
     public void Read_ChoiceAsRoot_ReadsTheSelectedAlternative()
     {
         var choice = new SchemaChoice { Name = "Root", SelectedIndex = 1 };
-        choice.MemberList.Add(Field("A", "UInt8"));
-        choice.MemberList.Add(Field("B", "UInt16"));
+        choice.MemberList.Add(Field("A", "sys.uint8"));
+        choice.MemberList.Add(Field("B", "sys.uint16"));
         var sink = new Sink();
 
         var result = new ReaderSession(Build(choice)).Read(new ReadOnlySequence<byte>(new byte[] { 1, 0 }), sink);
@@ -73,8 +73,8 @@ public class SessionRepeatUntilEndTests
     {
         var choice = new SchemaChoice { Name = "Pick", SelectedIndex = 0 };
         choice.MemberList.Add(Items());
-        choice.MemberList.Add(Field("Other", "UInt8"));
-        var root = Group("Root", [], choice, Field("Tail", "UInt8"));
+        choice.MemberList.Add(Field("Other", "sys.uint8"));
+        var root = Group("Root", [], choice, Field("Tail", "sys.uint8"));
 
         var ex = Assert.Throws<ExecutionPlanException>(() => Build(root));
 
@@ -88,7 +88,7 @@ public class SessionRepeatUntilEndTests
         choice.MemberList.Add(Items());
         choice.MemberList.Add(Items());
 
-        Assert.That(() => Build(Group("Root", [], Field("Head", "UInt8"), choice)), Throws.Nothing);
+        Assert.That(() => Build(Group("Root", [], Field("Head", "sys.uint8"), choice)), Throws.Nothing);
     }
 
     [Test]
@@ -98,13 +98,13 @@ public class SessionRepeatUntilEndTests
         choice.MemberList.Add(Items());
         choice.MemberList.Add(Items());
 
-        Assert.That(() => Build(Group("Root", [], choice, Field("Tail", "UInt8"))), Throws.Nothing);
+        Assert.That(() => Build(Group("Root", [], choice, Field("Tail", "sys.uint8"))), Throws.Nothing);
     }
 
     [Test]
     public void Write_OpenRepeatFromFlatSource_StopsAtEndOfData()
     {
-        var plan = Build(Group("Root", [], Field("Head", "UInt8"), Items()));
+        var plan = Build(Group("Root", [], Field("Head", "sys.uint8"), Items()));
         var output = new ArrayBufferWriter<byte>();
 
         var result = new WriterSession(plan, output).Write(new ItemsSource(3));
@@ -116,7 +116,7 @@ public class SessionRepeatUntilEndTests
     [Test]
     public void Write_EndOfDataOutsideOpenRepeat_Throws()
     {
-        var plan = Build(Group("Root", [], Field("Head", "UInt8")));
+        var plan = Build(Group("Root", [], Field("Head", "sys.uint8")));
 
         Assert.That(() => new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(new ItemsSource(-1)), Throws.Exception);
     }

@@ -15,11 +15,11 @@ public class SessionSizedGroupTests
         {
             Name = "Body",
             ByteSize = new SchemaNodeRef { Path = "Root.Len" },
-            MemberList = { Field("A", "Int16"), Field("B", "Int16") },
+            MemberList = { Field("A", "sys.int16"), Field("B", "sys.int16") },
         };
 
     private static SchemaGroup Root()
-        => Group("Root", [], Field("Len", "UInt16"), Body());
+        => Group("Root", [], Field("Len", "sys.uint16"), Body());
 
     [Test]
     public void Write_SizeFieldNotInModel_DerivesSize()
@@ -76,9 +76,9 @@ public class SessionSizedGroupTests
     [Test]
     public void Read_OpenRepeatInWindow_EndsAtWindowEnd()
     {
-        var items = new SchemaRepeat { Name = "Items", MemberList = { Field("Byte", "UInt8") } };
+        var items = new SchemaRepeat { Name = "Items", MemberList = { Field("Byte", "sys.uint8") } };
         var body = new SchemaGroup { Name = "Body", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { items } };
-        var plan = Build(Group("Root", [], Field("Len", "UInt8"), body, Field("Tail", "UInt8")));
+        var plan = Build(Group("Root", [], Field("Len", "sys.uint8"), body, Field("Tail", "sys.uint8")));
         var sink = new Sink();
 
         var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 3, 10, 11, 12, 99 }), sink);
@@ -91,8 +91,8 @@ public class SessionSizedGroupTests
     [Test]
     public void Read_SizedRepeatWithoutCount_EndsAtWindowEnd()
     {
-        var items = new SchemaRepeat { Name = "Items", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Field("Byte", "UInt8") } };
-        var plan = Build(Group("Root", [], Field("Len", "UInt8"), items, Field("Tail", "UInt8")));
+        var items = new SchemaRepeat { Name = "Items", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Field("Byte", "sys.uint8") } };
+        var plan = Build(Group("Root", [], Field("Len", "sys.uint8"), items, Field("Tail", "sys.uint8")));
         var sink = new Sink();
 
         var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 3, 10, 11, 12, 99 }), sink);
@@ -105,8 +105,8 @@ public class SessionSizedGroupTests
     [Test]
     public void Read_SizedRepeatWithoutCount_ZeroSize_ReadsNoItems()
     {
-        var items = new SchemaRepeat { Name = "Items", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Field("Byte", "UInt8") } };
-        var plan = Build(Group("Root", [], Field("Len", "UInt8"), items, Field("Tail", "UInt8")));
+        var items = new SchemaRepeat { Name = "Items", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Field("Byte", "sys.uint8") } };
+        var plan = Build(Group("Root", [], Field("Len", "sys.uint8"), items, Field("Tail", "sys.uint8")));
         var sink = new Sink();
 
         var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 0, 99 }), sink);
@@ -119,8 +119,8 @@ public class SessionSizedGroupTests
     [Test]
     public void Write_SizedRepeatWithoutCount_DerivesSize()
     {
-        var items = new SchemaRepeat { Name = "Items", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Field("Byte", "UInt8") } };
-        var plan = Build(Group("Root", [], Field("Len", "UInt8"), items, Field("Tail", "UInt8")));
+        var items = new SchemaRepeat { Name = "Items", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Field("Byte", "sys.uint8") } };
+        var plan = Build(Group("Root", [], Field("Len", "sys.uint8"), items, Field("Tail", "sys.uint8")));
         var output = new ArrayBufferWriter<byte>();
 
         var result = new WriterSession(plan, output).Write(new ItemsSource(3));

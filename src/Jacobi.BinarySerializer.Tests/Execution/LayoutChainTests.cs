@@ -17,10 +17,10 @@ public class LayoutChainTests
     }
 
     private static SchemaProcessorRef Ref(string id)
-        => new() { Processor = new SchemaProcessorName($"{Ns}.{id}") };
+        => new() { Processor = new SchemaName($"{Ns}.{id}") };
 
-    private static SchemaField Field(string name, SchemaDataType? type = null)
-        => new() { Name = name, DataType = type ?? "UInt8" };
+    private static SchemaField Field(string name, SchemaName? type = null)
+        => new() { Name = name, DataType = type ?? "sys.uint8" };
 
     private static SchemaGroup Group(string name, SchemaProcessorRef[] processors, params SchemaNode[] members)
     {
@@ -88,7 +88,7 @@ public class LayoutChainTests
     {
         var log = new List<string>();
         var plan = Build(
-            Group("Root", [], Field("P", "UInt16"), Group("G", [Ref("head"), Ref("align")], Field("X"))), log);
+            Group("Root", [], Field("P", "sys.uint16"), Group("G", [Ref("head"), Ref("align")], Field("X"))), log);
 
         var bytes = Write(plan, new() { ["Root.P"] = (ushort)0x0102, ["Root.G.X"] = (byte)9 });
 

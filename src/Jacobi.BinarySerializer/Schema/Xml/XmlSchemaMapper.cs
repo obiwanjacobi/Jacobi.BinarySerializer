@@ -178,7 +178,7 @@ internal static class XmlSchemaMapper
             Name = xmlField.Name,
             NodeDef = ToNodeDefName(xmlField.NodeDef),
             ProcessorsList = xmlField.Processors.Select(ToSchemaProcessorRef).ToList(),
-            DataType = new SchemaDataType(xmlField.DataType ?? throw new InvalidOperationException($"The field '{xmlField.Name}' has no type.")),
+            DataType = new SchemaName(xmlField.DataType ?? throw new InvalidOperationException($"The field '{xmlField.Name}' has no type.")),
             Value = ToSchemaValueOrText(xmlField.Value, xmlField.ValueRef),
             ByteLength = ToSchemaValue(xmlField.ByteLength, xmlField.ByteLengthRef),
             ByteOffset = xmlField.ByteOffset is { } offsetText ? Int32.Parse(offsetText, System.Globalization.CultureInfo.InvariantCulture) : null,
@@ -204,7 +204,7 @@ internal static class XmlSchemaMapper
         return new SchemaDataTypeDef
         {
             Name = xmlDef.Name,
-            BasedOn = new SchemaDataType(xmlDef.BasedOn),
+            BasedOn = new SchemaName(xmlDef.BasedOn),
             Min = ParseDecimal(xmlDef.Min),
             Max = ParseDecimal(xmlDef.Max),
             Scale = ParseDecimal(xmlDef.Scale),
@@ -243,10 +243,10 @@ internal static class XmlSchemaMapper
 
     private static SchemaNodeDef ToSchemaNodeDef(XmlSchemaNodeDef xmlNodeDef)
     {
-        SchemaDataType? dataType = null;
+        SchemaName? dataType = null;
         if (!String.IsNullOrWhiteSpace(xmlNodeDef.DataType))
         {
-            dataType = new SchemaDataType(xmlNodeDef.DataType);
+            dataType = new SchemaName(xmlNodeDef.DataType);
         }
 
         return new SchemaNodeDef
@@ -373,7 +373,7 @@ internal static class XmlSchemaMapper
     {
         return new SchemaProcessorRef
         {
-            Processor = new SchemaProcessorName(processor.Processor),
+            Processor = new SchemaName(processor.Processor),
             PublishNamespace = processor.PubNs,
             PropertyList = MergeProperties(
                 processor.Properties,

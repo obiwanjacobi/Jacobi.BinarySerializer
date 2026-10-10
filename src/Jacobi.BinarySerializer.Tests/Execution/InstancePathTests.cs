@@ -46,7 +46,7 @@ public class InstancePathTests
     public void Write_FieldInRepeat_ReceivesInstanceIndex()
     {
         var repeat = new SchemaRepeat { Name = "Items", Count = 3 };
-        repeat.MemberList.Add(Field("Item", "Int16"));
+        repeat.MemberList.Add(Field("Item", "sys.int16"));
         var plan = Build(Group("Root", [], repeat));
         var source = new RecordingSource();
         new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(source);

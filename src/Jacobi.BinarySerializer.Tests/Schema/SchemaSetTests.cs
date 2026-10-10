@@ -1,4 +1,4 @@
-﻿using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Tests.Schema;
@@ -44,7 +44,7 @@ public class SchemaSetTests
         var commonNodeDef = new SchemaNodeDef
         {
             Name = "CommonField",
-            DataType = "Int32",
+            DataType = "sys.int32",
             Processors = []
         };
 
@@ -52,7 +52,7 @@ public class SchemaSetTests
         AddChild(rootGroup, new SchemaField
         {
             Name = "Value",
-            DataType = "UInt8",
+            DataType = "sys.uint8",
             NodeDef = new SchemaName("CommonField"),
             ProcessorsList = []
         });
@@ -65,7 +65,7 @@ public class SchemaSetTests
 
         var resolvedField = rootGroup.Members.OfType<SchemaField>().Single();
         Assert.That(main.IsCompiled, Is.True);
-        Assert.That(resolvedField.DataType, Is.EqualTo(new SchemaDataType("Int32")));
+        Assert.That(resolvedField.DataType, Is.EqualTo(new SchemaName("sys.int32")));
     }
 
     [Test]
@@ -75,9 +75,9 @@ public class SchemaSetTests
         var dataTypeDef = new SchemaDataTypeDef
         {
             Name = "Celsius",
-            BasedOn = "Int32",
+            BasedOn = "sys.int32",
             Scale = 100m,
-            Processors = [new SchemaProcessorRef { Processor = new SchemaProcessorName("sys.scale") }]
+            Processors = [new SchemaProcessorRef { Processor = new SchemaName("sys.scale") }]
         };
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField
@@ -102,14 +102,14 @@ public class SchemaSetTests
         var a = new SchemaDataTypeDef
         {
             Name = "A",
-            BasedOn = "Int32",
-            Processors = [new SchemaProcessorRef { Processor = new SchemaProcessorName("sys.scale") }]
+            BasedOn = "sys.int32",
+            Processors = [new SchemaProcessorRef { Processor = new SchemaName("sys.scale") }]
         };
         var b = new SchemaDataTypeDef
         {
             Name = "B",
             BasedOn = "Main.A",
-            Processors = [new SchemaProcessorRef { Processor = new SchemaProcessorName("sys.align") }]
+            Processors = [new SchemaProcessorRef { Processor = new SchemaName("sys.align") }]
         };
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField { Name = "Value", DataType = "Main.B", ProcessorsList = [] });
@@ -143,8 +143,8 @@ public class SchemaSetTests
         var celsius = new SchemaDataTypeDef
         {
             Name = "Celsius",
-            BasedOn = "Int32",
-            Processors = [new SchemaProcessorRef { Processor = new SchemaProcessorName("sys.scale") }]
+            BasedOn = "sys.int32",
+            Processors = [new SchemaProcessorRef { Processor = new SchemaName("sys.scale") }]
         };
         var shared = CreateDocument("Shared", dataTypeDefs: [celsius]);
         var rootGroup = CreateGroup("Root");
@@ -164,12 +164,12 @@ public class SchemaSetTests
     public void Compile_NodeDefInstantiation_KeepsTheFieldValue()
     {
         var schemaSet = new SchemaSet();
-        var nodeDef = new SchemaNodeDef { Name = "CommonField", DataType = "Int32", Processors = [] };
+        var nodeDef = new SchemaNodeDef { Name = "CommonField", DataType = "sys.int32", Processors = [] };
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField
         {
             Name = "Value",
-            DataType = "UInt8",
+            DataType = "sys.uint8",
             Value = "0x2A",
             NodeDef = new SchemaName("CommonField"),
             ProcessorsList = []
@@ -224,7 +224,7 @@ public class SchemaSetTests
     {
         var schemaSet = new SchemaSet();
         var root = CreateGroup("Root");
-        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("sys.align") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaName("sys.align") };
         processor.PropertyList.Add(new SchemaProperty { Name = "bytes", Value = "4" });
         processor.PropertyList.Add(new SchemaProperty { Name = "sys.align.relative", Value = "root" });
         root.ProcessorsList.Add(processor);
@@ -233,7 +233,7 @@ public class SchemaSetTests
         var field = new SchemaField
         {
             Name = "A",
-            DataType = "UInt8",
+            DataType = "sys.uint8",
             ProcessorsList = [],
             PropertyList = [fieldProperty]
         };
@@ -253,7 +253,7 @@ public class SchemaSetTests
     public void Compile_LocalProcessorAlias_ResolvesDefinition()
     {
         var root = CreateGroup("Root");
-        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:aligned") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaName("ref:aligned") };
         root.ProcessorsList.Add(processor);
         var def = new SchemaProcessorDef { Name = "aligned", Processor = new ProcessorKey("sys.align") };
 
@@ -272,7 +272,7 @@ public class SchemaSetTests
         var shared = CreateDocument("Shared", processorDefs: [def]);
 
         var root = CreateGroup("Root");
-        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:Shared.aligned") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaName("ref:Shared.aligned") };
         root.ProcessorsList.Add(processor);
         var main = CreateDocument("Main", roots: [root], includes: [new SchemaDocumentRef { Schema = "Shared" }]);
 
@@ -293,7 +293,7 @@ public class SchemaSetTests
         def.PropertyList.Add(new SchemaProperty { Name = "relative", Value = "root" });
 
         var root = CreateGroup("Root");
-        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:aligned") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaName("ref:aligned") };
         processor.PropertyList.Add(new SchemaProperty { Name = "bytes", Value = "8" });
         root.ProcessorsList.Add(processor);
 
@@ -310,11 +310,11 @@ public class SchemaSetTests
     public void Compile_NodeDefProcessorAlias_ResolvesDefinition()
     {
         var def = new SchemaProcessorDef { Name = "aligned", Processor = new ProcessorKey("sys.align") };
-        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:aligned") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaName("ref:aligned") };
         var nodeDef = new SchemaNodeDef
         {
             Name = "CommonField",
-            DataType = "Int32",
+            DataType = "sys.int32",
             Processors = [processor]
         };
 
@@ -329,7 +329,7 @@ public class SchemaSetTests
     public void Compile_UnresolvedProcessorAlias_Throws()
     {
         var root = CreateGroup("Root");
-        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:missing") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaName("ref:missing") };
         root.ProcessorsList.Add(processor);
 
         var schemaSet = new SchemaSet();

@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Processors;
@@ -25,7 +25,7 @@ internal static class ProcessorTestHelpers
     /// <summary>Property names are expanded to the full 'sys:{id}.{name}' form (enum options stay as-is; they are values, not settings).</summary>
     public static SchemaProcessorRef Ref(string id, params (string Name, string Value)[] properties)
     {
-        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName($"sys.{id}") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaName($"sys.{id}") };
         var key = new ProcessorKey("sys", id);
         processor.PropertyList.AddRange(properties.Select(p => new SchemaProperty
         {
@@ -36,7 +36,7 @@ internal static class ProcessorTestHelpers
     }
 
     /// <summary>Field properties are expanded to the full 'sys:bitpacker.{name}' form unless already prefixed.</summary>
-    public static SchemaField Field(string name, SchemaDataType type, SchemaProcessorRef[]? processors = null, params (string Name, string Value)[] properties)
+    public static SchemaField Field(string name, SchemaName type, SchemaProcessorRef[]? processors = null, params (string Name, string Value)[] properties)
         => new()
         {
             Name = name,

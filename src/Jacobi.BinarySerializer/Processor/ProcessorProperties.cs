@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Schema;
 
@@ -107,7 +107,7 @@ public sealed class ProcessorProperties : IReadOnlyList<SchemaProperty>
 
     private T Parse<T>(PropertyDescriptor descriptor, string text)
     {
-        var dataType = _dataTypes?.TryGet(new SchemaDataType(descriptor.DataType.FullName), out var found) == true ? found
+        var dataType = _dataTypes?.TryGet(new SchemaName(descriptor.DataType.FullName), out var found) == true ? found
             : throw new InvalidOperationException(
                 $"The data type '{descriptor.DataType}' of the '{FullName(descriptor.Name)}' property is not registered.");
 

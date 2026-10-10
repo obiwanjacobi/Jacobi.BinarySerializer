@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Descriptors;
@@ -53,20 +53,16 @@ public sealed class DataTypeRegistry : IDataTypeRegistry
             throw new InvalidOperationException($"Circular data type definition '{name}'.");
         }
 
-        var baseName = def.BasedOn.Name;
-        var local = all.Where(a => ReferenceEquals(a.Document, document) &&
-                String.Equals(a.Def.Name, baseName.Name, StringComparison.OrdinalIgnoreCase) &&
-                !ReferenceEquals(a.Def, def) &&
-                String.Equals(baseName.Namespace, SystemNamespace, StringComparison.OrdinalIgnoreCase))
-            .Select(a => ((SchemaDocument, SchemaDataTypeDef)?)(a.Document, a.Def))
-            .FirstOrDefault();
-        var qualified = all.Where(a => String.Equals(a.Document.Name, baseName.Namespace, StringComparison.OrdinalIgnoreCase) &&
+        var baseName = def.BasedOn;
+        var baseOwner = String.IsNullOrEmpty(baseName.Namespace) ? document.Name : baseName.Namespace;
+        var found = all
+            .Where(a => String.Equals(a.Document.Name, baseOwner, StringComparison.OrdinalIgnoreCase) &&
                 String.Equals(a.Def.Name, baseName.Name, StringComparison.OrdinalIgnoreCase))
             .Select(a => ((SchemaDocument, SchemaDataTypeDef)?)(a.Document, a.Def))
             .FirstOrDefault();
 
         DataTypeDescriptor baseDescriptor;
-        if ((local ?? qualified) is var (baseDocument, baseDef))
+        if (found is var (baseDocument, baseDef))
         {
             baseDescriptor = Resolve(baseDocument, baseDef, all, visiting);
         }
@@ -90,18 +86,6 @@ public sealed class DataTypeRegistry : IDataTypeRegistry
             ? descriptor
             : throw new KeyNotFoundException($"The data type '{name}' is not registered.");
 
-    /// <summary>Gets the descriptor of a data type or throws when it is not registered.</summary>
-    public DataTypeDescriptor Get(SchemaDataType type)
-        => TryGet(type, out var descriptor)
-            ? descriptor
-            : throw new KeyNotFoundException($"The data type '{type}' is not registered.");
-
-    public bool TryGet(SchemaDataType type, [NotNullWhen(true)] out DataTypeDescriptor? descriptor)
-    {
-        return TryGet(type.Name, out descriptor);
-    }
-
-    /// <summary>Creates a registry with the built-in data types.</summary>
     /// <summary>Creates a registry prepopulated with the built-in data types.</summary>
     public static DataTypeRegistry CreateDefault()
     {

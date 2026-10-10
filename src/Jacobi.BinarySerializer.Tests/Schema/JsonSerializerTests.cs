@@ -1,4 +1,4 @@
-﻿using Jacobi.BinarySerializer.Schema;
+using Jacobi.BinarySerializer.Schema;
 using Jacobi.BinarySerializer.Schema.Json;
 
 namespace Jacobi.BinarySerializer.Tests.Schema;
@@ -36,7 +36,7 @@ public class JsonSerializerTests
                     ],
                     ""members"": [],
                     ""properties"": [
-                        { ""name"": ""endianness"", ""type"": ""String"", ""value"": ""little"" }
+                        { ""name"": ""endianness"", ""type"": ""sys.string"", ""value"": ""little"" }
                     ]
                 }
             ],
@@ -56,7 +56,7 @@ public class JsonSerializerTests
         {
             ""name"": ""DefSchema"",
             ""dataTypeDefs"": [
-                { ""name"": ""Celsius"", ""basedOn"": ""Int16"", ""min"": -40, ""max"": 125, ""scale"": 10,
+                { ""name"": ""Celsius"", ""basedOn"": ""sys.int16"", ""min"": -40, ""max"": 125, ""scale"": 10,
                   ""options"": { ""1"": ""One"" },
                   ""processors"": [ { ""name"": ""sys.scale"" } ] }
             ],
@@ -128,7 +128,7 @@ public class JsonSerializerTests
                             ""processors"": [
                                 { ""name"": ""identity"" }
                             ],
-                            ""datatype"": ""Int32"",
+                            ""datatype"": ""sys.int32"",
                             ""scale"": 10
                         }
                     ],
@@ -174,7 +174,7 @@ public class JsonSerializerTests
                     ""processors"": [
                         { ""name"": ""ref:deltaProcessor"" }
                     ],
-                    ""datatype"": ""Int32"",
+                    ""datatype"": ""sys.int32"",
                     ""properties"": [
                         { ""name"": ""scale"", ""value"": ""100"" }
                     ]
@@ -192,7 +192,7 @@ public class JsonSerializerTests
                             ""processors"": [
                                 { ""name"": ""ref:deltaProcessor"" }
                             ],
-                            ""datatype"": ""Int16""
+                            ""datatype"": ""sys.int16""
                         }
                     ]
                 }
@@ -212,7 +212,7 @@ public class JsonSerializerTests
                             ""processors"": [
                                 { ""name"": ""ref:deltaProcessor"" }
                             ],
-                            ""datatype"": ""Int32""
+                            ""datatype"": ""sys.int32""
                         }
                     ]
                 }
@@ -227,7 +227,7 @@ public class JsonSerializerTests
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "deltaProcessor" && p.Processor.ToString() == "sys.scale" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
         Assert.That(document.NodeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.NodeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == "Int32"));
+        Assert.That(document.NodeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == "sys.int32"));
         Assert.That(document.NodeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType is null));
 
         // Resolver not implemented yet: usage remains as raw references.
@@ -259,7 +259,7 @@ public class JsonSerializerTests
                     {
                       "kind": "field",
                       "name": "Value",
-                      "datatype": "Int32",
+                      "datatype": "sys.int32",
                       "processors": [
                         { "name": "identity" }
                       ]
@@ -277,12 +277,12 @@ public class JsonSerializerTests
                     {
                       "kind": "field",
                       "name": "OptionA",
-                      "datatype": "Int16"
+                      "datatype": "sys.int16"
                     },
                     {
                       "kind": "field",
                       "name": "OptionB",
-                      "datatype": "Int16"
+                      "datatype": "sys.int16"
                     }
                   ]
                 }
@@ -332,10 +332,10 @@ public class JsonSerializerTests
             {
               "name": "ValueSchema",
               "members": [ { "kind": "group", "name": "Root", "members": [
-                { "kind": "field", "name": "Constant", "datatype": "UInt32", "value": "0x89504E47" },
-                { "kind": "field", "name": "Published", "datatype": "Int32", "value": { "pub": "hdr.magic" } },
-                { "kind": "field", "name": "Node", "datatype": "Int32", "value": { "ref": "Constant" } },
-                { "kind": "field", "name": "None", "datatype": "Int32" }
+                { "kind": "field", "name": "Constant", "datatype": "sys.uint32", "value": "0x89504E47" },
+                { "kind": "field", "name": "Published", "datatype": "sys.int32", "value": { "pub": "hdr.magic" } },
+                { "kind": "field", "name": "Node", "datatype": "sys.int32", "value": { "ref": "Constant" } },
+                { "kind": "field", "name": "None", "datatype": "sys.int32" }
               ] } ],
               "properties": []
             }
@@ -412,10 +412,10 @@ public class JsonSerializerTests
             {
               "name": "LengthSchema",
               "members": [ { "kind": "group", "name": "Root", "members": [
-                { "kind": "field", "name": "Len", "datatype": "UInt8" },
-                { "kind": "field", "name": "Blob", "datatype": "Bytes", "byteLength": { "ref": "Root.Len" } },
-                { "kind": "field", "name": "Sig", "datatype": "Bytes", "byteLength": 2, "value": "0x8950" },
-                { "kind": "field", "name": "Rest", "datatype": "Bytes" }
+                { "kind": "field", "name": "Len", "datatype": "sys.uint8" },
+                { "kind": "field", "name": "Blob", "datatype": "sys.bytes", "byteLength": { "ref": "Root.Len" } },
+                { "kind": "field", "name": "Sig", "datatype": "sys.bytes", "byteLength": 2, "value": "0x8950" },
+                { "kind": "field", "name": "Rest", "datatype": "sys.bytes" }
               ] } ],
               "properties": []
             }
@@ -425,7 +425,7 @@ public class JsonSerializerTests
         var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
         var fields = roundTripped.Groups.Single(g => g.Name == "Root").Members.OfType<SchemaField>().ToList();
 
-        Assert.That(fields[1].DataType, Is.EqualTo(new SchemaDataType("Bytes")));
+        Assert.That(fields[1].DataType, Is.EqualTo(new SchemaName("sys.bytes")));
         Assert.That(fields[1].ByteLength is SchemaNodeRef { Path: "Root.Len" }, Is.True);
         Assert.That(fields[2].ByteLength is 2, Is.True);
         Assert.That(fields[2].Value is "0x8950", Is.True);

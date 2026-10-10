@@ -18,8 +18,8 @@ public class SessionVarIntSizeTests
         {
             body.ProcessorsList.AddRange(bodyProcessors);
         }
-        body.MemberList.Add(new SchemaField { Name = "Blob", DataType = "Bytes" });
-        return Group("Root", [], Field("Len", "UInt32", [Ref("varint")]), body);
+        body.MemberList.Add(new SchemaField { Name = "Blob", DataType = "sys.bytes" });
+        return Group("Root", [], Field("Len", "sys.uint32", [Ref("varint")]), body);
     }
 
     private static byte[] WriteBlob(SchemaGroup root, int length)

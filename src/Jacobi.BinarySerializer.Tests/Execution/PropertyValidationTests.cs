@@ -29,14 +29,14 @@ public class PropertyValidationTests
         var manager = new ProcessorManager();
         manager.Register(new Factory(dataType));
 
-        var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("pv.typed") };
+        var processor = new SchemaProcessorRef { Processor = new SchemaName("pv.typed") };
         if (value is not null)
         {
             processor.PropertyList.Add(new SchemaProperty { Name = "amount", Value = value });
         }
 
         var root = new SchemaGroup { Name = "Root" };
-        root.MemberList.Add(new SchemaField { Name = "A", DataType = "Int32", ProcessorsList = [processor] });
+        root.MemberList.Add(new SchemaField { Name = "A", DataType = "sys.int32", ProcessorsList = [processor] });
         return new ExecutionPlanBuilder(manager).Build(root);
     }
 

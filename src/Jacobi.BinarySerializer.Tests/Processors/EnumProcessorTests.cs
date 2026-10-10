@@ -7,7 +7,7 @@ public class EnumProcessorTests
 {
     private static SchemaGroup CreateRoot()
         => Group("Root", [],
-            Field("Color", "Int32", [Ref("enum", ("Red", "1"), ("Green", "2"), ("Blue", "4"))]));
+            Field("Color", "sys.int32", [Ref("enum", ("Red", "1"), ("Green", "2"), ("Blue", "4"))]));
 
     [TestCase("Red", 1)]
     [TestCase("Green", 2)]

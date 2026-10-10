@@ -10,8 +10,8 @@ public class ValueFieldModelTests
     private static ExecutionPlan CreatePlan()
     {
         var root = SessionTestHelpers.Group("Root", [],
-            new SchemaField { Name = "Fixed", DataType = "Int32", Value = "42" },
-            SessionTestHelpers.Field("Free", "Int32"));
+            new SchemaField { Name = "Fixed", DataType = "sys.int32", Value = "42" },
+            SessionTestHelpers.Field("Free", "sys.int32"));
         return SessionTestHelpers.Build(root);
     }
 

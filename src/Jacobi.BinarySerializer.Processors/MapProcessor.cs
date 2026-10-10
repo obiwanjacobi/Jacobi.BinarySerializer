@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -83,9 +83,9 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
         var physicalType = context.DataType
             ?? throw context.Logger.Fail("The map processor requires a field (or a reference to a field) to know the physical type.");
 
-        var logicalType = context.DataTypes.Get(new SchemaDataType("string"));
+        var logicalType = context.DataTypes.Get(new SchemaName("sys.string"));
         if (context.Properties.GetOrDefault<string>(LogicalProperty) is { } logicalName
-            && !context.DataTypes.TryGet(new SchemaDataType(logicalName), out logicalType!))
+            && !context.DataTypes.TryGet(new SchemaName(logicalName), out logicalType!))
         {
             throw context.Logger.Fail($"Invalid logical type '{logicalName}'.");
         }

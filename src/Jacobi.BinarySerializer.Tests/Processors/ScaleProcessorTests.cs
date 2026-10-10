@@ -1,4 +1,4 @@
-﻿using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 using static Jacobi.BinarySerializer.Tests.Processors.ProcessorTestHelpers;
 
@@ -8,7 +8,7 @@ public class ScaleProcessorTests
 {
     private static SchemaGroup CreateRoot(string scale = "100")
         => Group("Root", [],
-            Field("Temperature", "Int32", [Ref("scale", ("scale", scale))]));
+            Field("Temperature", "sys.int32", [Ref("scale", ("scale", scale))]));
 
     [Test]
     public void RoundTrip_ScalesToAnIntegerOnTheWire_AndBack()
@@ -31,7 +31,7 @@ public class ScaleProcessorTests
     [Test]
     public void RoundTrip_ScaleFromDerivedDataType()
     {
-        var def = new SchemaDataTypeDef { Name = "Celsius", BasedOn = "Int32", Scale = 100m };
+        var def = new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 100m };
         var manager = new ProcessorManager();
         manager.Register(new Jacobi.BinarySerializer.Processors.ProcessorFactory());
         var dataTypes = Jacobi.BinarySerializer.Descriptors.DataTypeRegistry.CreateDefault();
@@ -59,7 +59,7 @@ public class ScaleProcessorTests
             NodeDefs = [],
             ProcessorDefs = [],
             Includes = [],
-            DataTypeDefs = [new SchemaDataTypeDef { Name = "Celsius", BasedOn = "Int32", Scale = 100m, Processors = [Ref("scale")] }]
+            DataTypeDefs = [new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 100m, Processors = [Ref("scale")] }]
         };
         var schemaSet = new SchemaSet();
         schemaSet.AddDocument(document);
@@ -90,7 +90,7 @@ public class ScaleProcessorTests
     [Test]
     public void Write_MissingScaleProperty_Throws()
     {
-        var root = Group("Root", [], Field("Temperature", "Int32", [Ref("scale")]));
+        var root = Group("Root", [], Field("Temperature", "sys.int32", [Ref("scale")]));
 
         Assert.That(() => Write(root, new() { ["Root.Temperature"] = 1m }, out _),
             Throws.InstanceOf<InvalidOperationException>());

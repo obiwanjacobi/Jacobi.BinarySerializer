@@ -13,10 +13,10 @@ namespace Jacobi.BinarySerializer.Tests.Execution;
 public class ByteOffsetTests
 {
     private static SchemaField Virtual(string name, int byteOffset)
-        => new() { Name = name, DataType = "UInt8", ByteOffset = byteOffset };
+        => new() { Name = name, DataType = "sys.uint8", ByteOffset = byteOffset };
 
     private static SchemaField Plain(string name)
-        => new() { Name = name, DataType = "UInt8" };
+        => new() { Name = name, DataType = "sys.uint8" };
 
     private static (ReadResult Result, Sink Sink) Read(SchemaGroup root, params byte[] bytes)
     {
@@ -74,8 +74,8 @@ public class ByteOffsetTests
     public void Read_OffsetField_DrivesChoice()
     {
         var choice = new SchemaChoice { Name = "Pick", SelectedIndex = new SchemaNodeRef { Path = "Root.Kind" } };
-        choice.MemberList.Add(Field("A", "Int16"));
-        choice.MemberList.Add(Field("B", "Int16"));
+        choice.MemberList.Add(Field("A", "sys.int16"));
+        choice.MemberList.Add(Field("B", "sys.int16"));
         var root = Group("Root", [], Virtual("Kind", 1), choice);
 
         var (result, sink) = Read(root, 0, 1);
@@ -111,8 +111,8 @@ public class ByteOffsetTests
     public void Write_OffsetField_DrivesChoice()
     {
         var choice = new SchemaChoice { Name = "Pick", SelectedIndex = new SchemaNodeRef { Path = "Root.Kind" } };
-        choice.MemberList.Add(Field("A", "Int16"));
-        choice.MemberList.Add(Field("B", "Int16"));
+        choice.MemberList.Add(Field("A", "sys.int16"));
+        choice.MemberList.Add(Field("B", "sys.int16"));
         var root = Group("Root", [], Virtual("Kind", 0), choice);
         var output = new ArrayBufferWriter<byte>();
 

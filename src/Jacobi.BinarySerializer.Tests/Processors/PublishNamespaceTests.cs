@@ -13,7 +13,7 @@ public class PublishNamespaceTests
     public void Crc_PubNs_PublishesTheCalculatedCrcOnWriteAndRead()
     {
         var crc = WithPubNs(Ref("crc", ("algorithm", "crc32")), "hdr");
-        var root = Group("Root", [crc], Field("A", "UInt8"), Field("B", "UInt8"));
+        var root = Group("Root", [crc], Field("A", "sys.uint8"), Field("B", "sys.uint8"));
         var plan = Build(root);
 
         var output = new ArrayBufferWriter<byte>();
@@ -34,7 +34,7 @@ public class PublishNamespaceTests
     public void String_PubNs_PublishesTheCharCountOnWriteAndRead()
     {
         var str = WithPubNs(Ref("string", ("byteLength", "8")), "name");
-        var root = Group("Root", [], Field("A", "String", [str]));
+        var root = Group("Root", [], Field("A", "sys.string", [str]));
         var plan = Build(root);
 
         var output = new ArrayBufferWriter<byte>();

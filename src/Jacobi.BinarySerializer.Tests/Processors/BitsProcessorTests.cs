@@ -23,7 +23,7 @@ public class BitsProcessorTests
     [Test]
     public void Read_ExtractsBitRange()
     {
-        var values = Read(Root("UInt8", 4, 3), 0b1101_0110);
+        var values = Read(Root("sys.uint8", 4, 3), 0b1101_0110);
 
         Assert.That(values["Root.A"], Is.EqualTo((byte)0b101));
     }
@@ -31,7 +31,7 @@ public class BitsProcessorTests
     [Test]
     public void Write_PlacesBitRange_OtherBitsZero()
     {
-        var bytes = Write(Root("UInt8", 4, 3), new() { ["Root.A"] = (byte)0b101 }, out var result);
+        var bytes = Write(Root("sys.uint8", 4, 3), new() { ["Root.A"] = (byte)0b101 }, out var result);
 
         Assert.That(result, Is.EqualTo(WriteResult.Success));
         Assert.That(bytes, Is.EqualTo(new byte[] { 0b0101_0000 }));
@@ -42,7 +42,7 @@ public class BitsProcessorTests
     {
         var values = new Dictionary<string, object?> { ["Root.A"] = (ushort)0x2A };
 
-        var (bytes, read) = RoundTrip(Root("UInt16", 8, 8), values);
+        var (bytes, read) = RoundTrip(Root("sys.uint16", 8, 8), values);
 
         Assert.That(bytes, Is.EqualTo(new byte[] { 0x2A, 0x00 }).Or.EqualTo(new byte[] { 0x00, 0x2A }));
         Assert.That(read, Is.EqualTo(values));
@@ -51,7 +51,7 @@ public class BitsProcessorTests
     [Test]
     public void Read_SignedRange_IsSignExtended()
     {
-        var values = Read(Root("Int8", 2, 4), 0b0011_1000);
+        var values = Read(Root("sys.int8", 2, 4), 0b0011_1000);
 
         Assert.That(values["Root.A"], Is.EqualTo((sbyte)-2));
     }
@@ -61,7 +61,7 @@ public class BitsProcessorTests
     {
         var values = new Dictionary<string, object?> { ["Root.A"] = (sbyte)-2 };
 
-        var (bytes, read) = RoundTrip(Root("Int8", 2, 4), values);
+        var (bytes, read) = RoundTrip(Root("sys.int8", 2, 4), values);
 
         Assert.That(bytes, Is.EqualTo(new byte[] { 0b0011_1000 }));
         Assert.That(read, Is.EqualTo(values));
@@ -71,7 +71,7 @@ public class BitsProcessorTests
     public void Write_ValueDoesNotFit_Throws()
     {
         Assert.Throws<InvalidOperationException>(() =>
-            Write(Root("UInt8", 0, 3), new() { ["Root.A"] = (byte)8 }, out _));
+            Write(Root("sys.uint8", 0, 3), new() { ["Root.A"] = (byte)8 }, out _));
     }
 
     [TestCase(6, 3)]
@@ -81,13 +81,13 @@ public class BitsProcessorTests
     [TestCase(0, 0)]
     public void Range_OutsideDataType_Throws(int offset, int length)
     {
-        Assert.Throws<InvalidOperationException>(() => Read(Root("UInt8", offset, length), 0xFF));
+        Assert.Throws<InvalidOperationException>(() => Read(Root("sys.uint8", offset, length), 0xFF));
     }
 
     [Test]
     public void Read_NonIntegerType_Throws()
     {
-        Assert.Throws<InvalidOperationException>(() => Read(Root("String", 0, 1), 0xFF));
+        Assert.Throws<InvalidOperationException>(() => Read(Root("sys.string", 0, 1), 0xFF));
     }
 
     [Test]
@@ -96,11 +96,11 @@ public class BitsProcessorTests
         var field = new SchemaField
         {
             Name = "Kind",
-            DataType = "UInt8",
+            DataType = "sys.uint8",
             ByteOffset = 0,
             ProcessorsList = [Ref("bits", ("bitoffset", "4"), ("bitlength", "4"))]
         };
-        var root = Group("Root", [], field, Field("A", "UInt8"));
+        var root = Group("Root", [], field, Field("A", "sys.uint8"));
 
         var values = Read(root, 0xA5);
 
