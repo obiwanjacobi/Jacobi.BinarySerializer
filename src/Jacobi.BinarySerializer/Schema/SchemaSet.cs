@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Jacobi.BinarySerializer.Schema.Json;
 using Jacobi.BinarySerializer.Schema.Xml;
@@ -181,9 +181,9 @@ public sealed class SchemaSet
     /// </summary>
     private static void ExpandPropertyNames(SchemaDocument document)
     {
-        foreach (var typeDef in document.TypeDefs)
+        foreach (var nodeDef in document.NodeDefs)
         {
-            foreach (var processor in typeDef.Processors)
+            foreach (var processor in nodeDef.Processors)
             {
                 ExpandPropertyNames(processor);
             }
@@ -273,10 +273,10 @@ public sealed class SchemaSet
             }
         }
 
-        foreach (var typeDef in document.TypeDefs)
+        foreach (var nodeDef in document.NodeDefs)
         {
-            AddSchemaDependency(typeDef.TypeDef, document.Name, dependencies);
-            foreach (var processor in typeDef.Processors)
+            AddSchemaDependency(nodeDef.NodeDef, document.Name, dependencies);
+            foreach (var processor in nodeDef.Processors)
             {
                 AddSchemaDependency(processor, document.Name, dependencies);
             }
@@ -303,7 +303,7 @@ public sealed class SchemaSet
     {
         foreach (var node in nodes)
         {
-            AddSchemaDependency(node.TypeDef, documentName, dependencies);
+            AddSchemaDependency(node.NodeDef, documentName, dependencies);
 
             if (node is SchemaField field)
             {
@@ -379,9 +379,9 @@ public sealed class SchemaSet
     {
         bool allResolved = ResolveIncludes(document);
 
-        foreach (var typeDef in document.TypeDefs)
+        foreach (var nodeDef in document.NodeDefs)
         {
-            foreach (var processor in typeDef.Processors)
+            foreach (var processor in nodeDef.Processors)
             {
                 if (!TryResolveProcessorRef(document, processor))
                 {
@@ -447,12 +447,12 @@ public sealed class SchemaSet
         // Resolve references for groups, fields and processors
         foreach (var node in schemaNodes)
         {
-            if (node.TypeDef.HasValue)
+            if (node.NodeDef.HasValue)
             {
-                if (document.TryFindTypeDef(node.TypeDef.Value, out var typeDef) ||
-                    TryFindTypeDef(node.TypeDef.Value, out typeDef))
+                if (document.TryFindNodeDef(node.NodeDef.Value, out var nodeDef) ||
+                    TryFindNodeDef(node.NodeDef.Value, out nodeDef))
                 {
-                    var replacementNode = InstantiateType(node, typeDef);
+                    var replacementNode = InstantiateNodeDef(node, nodeDef);
                     resolvedNodes.Replace(node, replacementNode);
                 }
                 else
@@ -562,7 +562,7 @@ public sealed class SchemaSet
         return new SchemaField
         {
             Name = field.Name,
-            TypeDef = field.TypeDef,
+            NodeDef = field.NodeDef,
             DataType = new SchemaDataType($"{defDocument.Name}{SchemaName.Separator}{dataTypeDef.Name}"),
             Value = field.Value,
             ByteLength = field.ByteLength,
@@ -580,19 +580,19 @@ public sealed class SchemaSet
             _ => []
         };
 
-    private SchemaNode InstantiateType(SchemaNode node, SchemaTypeDef typeDef)
+    private SchemaNode InstantiateNodeDef(SchemaNode node, SchemaNodeDef nodeDef)
     {
         if (node is SchemaField fieldNode)
         {
             return new SchemaField
             {
                 Name = node.Name,
-                DataType = typeDef.DataType ?? throw new InvalidOperationException($"The typedef '{typeDef.Name}' has no data type and cannot be applied to the field '{node.Name}'."),
+                DataType = nodeDef.DataType ?? throw new InvalidOperationException($"The nodeDef '{nodeDef.Name}' has no data type and cannot be applied to the field '{node.Name}'."),
                 Value = fieldNode.Value,
                 ByteLength = fieldNode.ByteLength,
                 ByteOffset = fieldNode.ByteOffset,
-                PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(typeDef.Processors, fieldNode.Processors),
+                PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
+                ProcessorsList = MergeProcessors(nodeDef.Processors, fieldNode.Processors),
             };
         }
         if (node is SchemaRepeat repeatNode)
@@ -600,8 +600,8 @@ public sealed class SchemaSet
             return new SchemaRepeat
             {
                 Name = node.Name,
-                PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(typeDef.Processors, repeatNode.Processors),
+                PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
+                ProcessorsList = MergeProcessors(nodeDef.Processors, repeatNode.Processors),
                 MemberList = [.. repeatNode.MemberList],
                 Count = repeatNode.Count,
                 ByteSize = repeatNode.ByteSize,
@@ -613,8 +613,8 @@ public sealed class SchemaSet
             return new SchemaChoice
             {
                 Name = node.Name,
-                PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(typeDef.Processors, choiceNode.Processors),
+                PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
+                ProcessorsList = MergeProcessors(nodeDef.Processors, choiceNode.Processors),
                 MemberList = [.. choiceNode.MemberList],
                 SelectedIndex = choiceNode.SelectedIndex,
                 ByteSize = choiceNode.ByteSize,
@@ -626,14 +626,14 @@ public sealed class SchemaSet
             return new SchemaGroup
             {
                 Name = node.Name,
-                PropertyList = MergeProperties(typeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(typeDef.Processors, groupNode.Processors),
+                PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
+                ProcessorsList = MergeProcessors(nodeDef.Processors, groupNode.Processors),
                 MemberList = [.. groupNode.MemberList],
                 ByteSize = groupNode.ByteSize,
             };
         }
 
-        throw new NotSupportedException($"Type '{typeDef.Kind}' is not supported.");
+        throw new NotSupportedException($"Type '{nodeDef.Kind}' is not supported.");
     }
 
     private List<SchemaProperty> MergeProperties(List<SchemaProperty> properties, IReadOnlyList<SchemaProperty> overrides)
@@ -693,26 +693,26 @@ public sealed class SchemaSet
         return true;
     }
 
-    private bool TryFindTypeDef(SchemaName schemaName, [NotNullWhen(true)] out SchemaTypeDef? typeDef)
+    private bool TryFindNodeDef(SchemaName schemaName, [NotNullWhen(true)] out SchemaNodeDef? nodeDef)
     {
         if (!String.IsNullOrEmpty(schemaName.Namespace) &&
             _documents.TryGetValue(schemaName.Namespace, out var document))
         {
-            return document.TryFindTypeDef(schemaName, out typeDef);
+            return document.TryFindNodeDef(schemaName, out nodeDef);
         }
 
-        typeDef = null;
+        nodeDef = null;
         return false;
     }
 }
 
 internal static class SchemaDocumentExtensions
 {
-    public static bool TryFindTypeDef(this SchemaDocument document, SchemaName schemaName, [NotNullWhen(true)] out SchemaTypeDef? node)
+    public static bool TryFindNodeDef(this SchemaDocument document, SchemaName schemaName, [NotNullWhen(true)] out SchemaNodeDef? node)
     {
         if (String.IsNullOrEmpty(schemaName.Namespace))
         {
-            node = document.TypeDefs.FirstOrDefault(n => n.Name == schemaName.Name);
+            node = document.NodeDefs.FirstOrDefault(n => n.Name == schemaName.Name);
             return node != null;
         }
 

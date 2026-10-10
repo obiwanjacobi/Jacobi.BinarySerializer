@@ -1,4 +1,4 @@
-using System.Xml;
+﻿using System.Xml;
 using System.Xml.Serialization;
 
 namespace Jacobi.BinarySerializer.Schema.Xml;
@@ -16,9 +16,9 @@ public sealed class XmlSchema
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode> Members { get; set; } = [];
 
-    [XmlArray("typeDefs")]
-    [XmlArrayItem("typeDef")]
-    public List<XmlSchemaTypeDef> TypeDefs { get; set; } = [];
+    [XmlArray("nodeDefs")]
+    [XmlArrayItem("nodeDef")]
+    public List<XmlSchemaNodeDef> NodeDefs { get; set; } = [];
 
     [XmlArray("dataTypeDefs")]
     [XmlArrayItem("dataTypeDef")]
@@ -101,7 +101,7 @@ public sealed class XmlSchemaOption
 /// <summary>
 /// A reusable type: an optional data type plus processors.
 /// </summary>
-public sealed class XmlSchemaTypeDef
+public sealed class XmlSchemaNodeDef
 {
     [XmlAttribute("name")]
     public string Name { get; set; } = string.Empty;
@@ -130,10 +130,10 @@ public abstract class XmlSchemaNode
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional reference to a typeDef that defines the type and processors of the node.
+    /// Optional reference to a nodeDef that defines the type and processors of the node.
     /// </summary>
-    [XmlAttribute("typeDef")]
-    public string? TypeDef { get; set; }
+    [XmlAttribute("nodeDef")]
+    public string? NodeDef { get; set; }
 
     [XmlArray("properties")]
     [XmlArrayItem("property")]

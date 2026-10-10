@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
   Standard MIDI File (SMF) - the IDEAL schema.
   Legend:
@@ -249,7 +249,7 @@
   2. StatusPeek must be supplied by the model on write (virtual fields are not derived); ideally the engine derives it
      from the chosen alternative's Status.
   3. Combining two 7-bit bytes into one value (pitch bend, Division bit 15 / SMPTE) - an overlay/combine processor.
-  4. The Status group is repeated per alternative: no reuse of a group definition (typeDefs may cover this - check).
+  4. The Status group is repeated per alternative: no reuse of a group definition (nodeDefs may cover this - check).
   5. Data bytes (0x00-0x7F) as a first byte currently throw 'not mapped' (that is running status).
   6. The unverified parts: the nested choice index (7) and the full-path refs (Event.System.Meta.Length) are not yet tested.
 -->

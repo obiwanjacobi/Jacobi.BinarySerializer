@@ -1,4 +1,4 @@
-using Jacobi.BinarySerializer.Schema;
+﻿using Jacobi.BinarySerializer.Schema;
 using Jacobi.BinarySerializer.Schema.Json;
 
 namespace Jacobi.BinarySerializer.Tests.Schema;
@@ -151,7 +151,7 @@ public class JsonSerializerTests
     }
 
     [Test]
-    public void Deserialize_TypeDefsAndProcessorDefs_ArePreservedWithoutResolution()
+    public void Deserialize_NodeDefsAndProcessorDefs_ArePreservedWithoutResolution()
     {
         var json = @"
         {
@@ -167,7 +167,7 @@ public class JsonSerializerTests
                     ]
                 }
             ],
-            ""typeDefs"": [
+            ""nodeDefs"": [
                 {
                     ""name"": ""CommonField"",
                     ""kind"": ""field"",
@@ -207,7 +207,7 @@ public class JsonSerializerTests
                     ""members"": [
                         {
                             ""name"": ""Value"",
-                            ""typeDef"": ""CommonField"",
+                            ""nodeDef"": ""CommonField"",
                             ""kind"": ""field"",
                             ""processors"": [
                                 { ""name"": ""ref:deltaProcessor"" }
@@ -226,9 +226,9 @@ public class JsonSerializerTests
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "rootProcessor" && p.Processor.ToString() == "sys.align"));
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "deltaProcessor" && p.Processor.ToString() == "sys.scale" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
-        Assert.That(document.TypeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == "Int32"));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType is null));
+        Assert.That(document.NodeDefs.Count, Is.EqualTo(2));
+        Assert.That(document.NodeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == "Int32"));
+        Assert.That(document.NodeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType is null));
 
         // Resolver not implemented yet: usage remains as raw references.
         var rootGroup = document.Roots.Single();
@@ -309,12 +309,12 @@ public class JsonSerializerTests
     }
 
     [Test]
-    public void Serialize_RoundTrip_TypeDefWithoutDataType_StaysNull()
+    public void Serialize_RoundTrip_NodeDefWithoutDataType_StaysNull()
     {
         var json = """
             {
-              "name": "TypeDefSchema",
-              "typeDefs": [ { "name": "CommonGroup", "kind": "group", "processors": [] } ],
+              "name": "NodeDefSchema",
+              "nodeDefs": [ { "name": "CommonGroup", "kind": "group", "processors": [] } ],
               "members": [ { "kind": "group", "name": "Root", "members": [] } ]
             }
             """;
@@ -322,7 +322,7 @@ public class JsonSerializerTests
         var document = JsonSerializer.Deserialize(json);
         var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
 
-        Assert.That(roundTripped.TypeDefs.Single().DataType, Is.Null);
+        Assert.That(roundTripped.NodeDefs.Single().DataType, Is.Null);
     }
 
     [Test]

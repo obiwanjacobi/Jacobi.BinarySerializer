@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Xml;
 using Jacobi.BinarySerializer.Processor;
 
@@ -10,7 +10,7 @@ internal static class XmlSchemaMapper
     {
         nameof(XmlSchema.Name),
         nameof(XmlSchema.Members),
-        nameof(XmlSchema.TypeDefs),
+        nameof(XmlSchema.NodeDefs),
         nameof(XmlSchema.DataTypeDefs),
         nameof(XmlSchema.ProcessorDefs),
         nameof(XmlSchema.Includes),
@@ -20,7 +20,7 @@ internal static class XmlSchemaMapper
     private static readonly HashSet<string> GroupKnownNames = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(XmlSchemaGroup.Name),
-        nameof(XmlSchemaGroup.TypeDef),
+        nameof(XmlSchemaGroup.NodeDef),
         nameof(XmlSchemaGroup.Processors),
         nameof(XmlSchemaGroup.Members),
         nameof(XmlSchemaGroup.ByteSize),
@@ -31,7 +31,7 @@ internal static class XmlSchemaMapper
     private static readonly HashSet<string> RepeatKnownNames = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(XmlSchemaRepeat.Name),
-        nameof(XmlSchemaRepeat.TypeDef),
+        nameof(XmlSchemaRepeat.NodeDef),
         nameof(XmlSchemaRepeat.Processors),
         nameof(XmlSchemaRepeat.Members),
         nameof(XmlSchemaRepeat.Count),
@@ -45,7 +45,7 @@ internal static class XmlSchemaMapper
     private static readonly HashSet<string> ChoiceKnownNames = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(XmlSchemaChoice.Name),
-        nameof(XmlSchemaChoice.TypeDef),
+        nameof(XmlSchemaChoice.NodeDef),
         nameof(XmlSchemaChoice.Processors),
         nameof(XmlSchemaChoice.Members),
         nameof(XmlSchemaChoice.SelectedIndex),
@@ -59,7 +59,7 @@ internal static class XmlSchemaMapper
     private static readonly HashSet<string> FieldKnownNames = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(XmlSchemaField.Name),
-        nameof(XmlSchemaField.TypeDef),
+        nameof(XmlSchemaField.NodeDef),
         nameof(XmlSchemaField.Processors),
         nameof(XmlSchemaField.DataType),
         nameof(XmlSchemaField.Value),
@@ -70,12 +70,12 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaField.Properties)
     };
 
-    private static readonly HashSet<string> TypeDefKnownNames = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> NodeDefKnownNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        nameof(XmlSchemaTypeDef.Name),
-        nameof(XmlSchemaTypeDef.DataType),
-        nameof(XmlSchemaTypeDef.Processors),
-        nameof(XmlSchemaTypeDef.Properties)
+        nameof(XmlSchemaNodeDef.Name),
+        nameof(XmlSchemaNodeDef.DataType),
+        nameof(XmlSchemaNodeDef.Processors),
+        nameof(XmlSchemaNodeDef.Properties)
     };
 
     private static readonly HashSet<string> DataTypeDefKnownNames = new(StringComparer.OrdinalIgnoreCase)
@@ -113,7 +113,7 @@ internal static class XmlSchemaMapper
         {
             Name = xmlSchema.Name,
             MemberList = members,
-            TypeDefs = xmlSchema.TypeDefs.Select(ToSchemaTypeDef).ToList(),
+            NodeDefs = xmlSchema.NodeDefs.Select(ToSchemaNodeDef).ToList(),
             DataTypeDefs = xmlSchema.DataTypeDefs.Select(ToSchemaDataTypeDef).ToList(),
             ProcessorDefs = xmlSchema.ProcessorDefs.Select(ToSchemaProcessorDef).ToList(),
             Includes = xmlSchema.Includes.Select(include => new SchemaDocumentRef
@@ -146,7 +146,7 @@ internal static class XmlSchemaMapper
         {
             Name = schema.Name,
             Members = schema.Members.Select(FromSchemaNode).ToList(),
-            TypeDefs = schema.TypeDefs.Select(FromSchemaTypeDef).ToList(),
+            NodeDefs = schema.NodeDefs.Select(FromSchemaNodeDef).ToList(),
             DataTypeDefs = schema.DataTypeDefs.Select(FromSchemaDataTypeDef).ToList(),
             ProcessorDefs = schema.ProcessorDefs.Select(FromSchemaProcessorDef).ToList(),
             Includes = schema.Includes.Select(include => new XmlSchemaDocumentRef
@@ -176,7 +176,7 @@ internal static class XmlSchemaMapper
         return new SchemaField
         {
             Name = xmlField.Name,
-            TypeDef = ToTypeDefName(xmlField.TypeDef),
+            NodeDef = ToNodeDefName(xmlField.NodeDef),
             ProcessorsList = xmlField.Processors.Select(ToSchemaProcessorRef).ToList(),
             DataType = new SchemaDataType(xmlField.DataType ?? throw new InvalidOperationException($"The field '{xmlField.Name}' has no type.")),
             Value = ToSchemaValueOrText(xmlField.Value, xmlField.ValueRef),
@@ -190,13 +190,13 @@ internal static class XmlSchemaMapper
         };
     }
 
-    private static SchemaName? ToTypeDefName(string? typeDef)
+    private static SchemaName? ToNodeDefName(string? nodeDef)
     {
-        if (String.IsNullOrWhiteSpace(typeDef))
+        if (String.IsNullOrWhiteSpace(nodeDef))
         {
             return null;
         }
-        return new SchemaName(typeDef);
+        return new SchemaName(nodeDef);
     }
 
     private static SchemaDataTypeDef ToSchemaDataTypeDef(XmlSchemaDataTypeDef xmlDef)
@@ -241,24 +241,24 @@ internal static class XmlSchemaMapper
         };
     }
 
-    private static SchemaTypeDef ToSchemaTypeDef(XmlSchemaTypeDef xmlTypeDef)
+    private static SchemaNodeDef ToSchemaNodeDef(XmlSchemaNodeDef xmlNodeDef)
     {
         SchemaDataType? dataType = null;
-        if (!String.IsNullOrWhiteSpace(xmlTypeDef.DataType))
+        if (!String.IsNullOrWhiteSpace(xmlNodeDef.DataType))
         {
-            dataType = new SchemaDataType(xmlTypeDef.DataType);
+            dataType = new SchemaDataType(xmlNodeDef.DataType);
         }
 
-        return new SchemaTypeDef
+        return new SchemaNodeDef
         {
-            Name = xmlTypeDef.Name,
+            Name = xmlNodeDef.Name,
             DataType = dataType,
-            Processors = xmlTypeDef.Processors.Select(ToSchemaProcessorRef).ToList(),
+            Processors = xmlNodeDef.Processors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
-                xmlTypeDef.Properties,
-                xmlTypeDef.AdditionalAttributes,
-                xmlTypeDef.AdditionalElements,
-                TypeDefKnownNames)
+                xmlNodeDef.Properties,
+                xmlNodeDef.AdditionalAttributes,
+                xmlNodeDef.AdditionalElements,
+                NodeDefKnownNames)
         };
     }
 
@@ -269,7 +269,7 @@ internal static class XmlSchemaMapper
         var group = new SchemaRepeat
         {
             Name = xmlGroup.Name,
-            TypeDef = ToTypeDefName(xmlGroup.TypeDef),
+            NodeDef = ToNodeDefName(xmlGroup.NodeDef),
             ProcessorsList = xmlGroup.Processors.Select(ToSchemaProcessorRef).ToList(),
             MemberList = members,
             Count = 1,
@@ -296,7 +296,7 @@ internal static class XmlSchemaMapper
         var repeat = new SchemaRepeat
         {
             Name = xmlRepeat.Name,
-            TypeDef = ToTypeDefName(xmlRepeat.TypeDef),
+            NodeDef = ToNodeDefName(xmlRepeat.NodeDef),
             ProcessorsList = xmlRepeat.Processors.Select(ToSchemaProcessorRef).ToList(),
             MemberList = members,
             Count = ToSchemaValue(xmlRepeat.Count, xmlRepeat.CountRef),
@@ -324,7 +324,7 @@ internal static class XmlSchemaMapper
         var choice = new SchemaChoice
         {
             Name = xmlChoice.Name,
-            TypeDef = ToTypeDefName(xmlChoice.TypeDef),
+            NodeDef = ToNodeDefName(xmlChoice.NodeDef),
             ProcessorsList = xmlChoice.Processors.Select(ToSchemaProcessorRef).ToList(),
             MemberList = members,
             SelectedIndex = ToSchemaValue(xmlChoice.SelectedIndex, xmlChoice.SelectedIndexRef),
@@ -390,7 +390,7 @@ internal static class XmlSchemaMapper
             return new XmlSchemaField
             {
                 Name = field.Name,
-                TypeDef = field.TypeDef?.ToString(),
+                NodeDef = field.NodeDef?.ToString(),
                 Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
                 DataType = field.DataType.FullName,
                 Value = ToConstantText(field.Value),
@@ -407,7 +407,7 @@ internal static class XmlSchemaMapper
             return new XmlSchemaRepeat
             {
                 Name = repeat.Name,
-                TypeDef = repeat.TypeDef?.ToString(),
+                NodeDef = repeat.NodeDef?.ToString(),
                 Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Members = repeat.Members.Select(FromSchemaNode).ToList(),
                 Count = ToConstantText(repeat.Count),
@@ -424,7 +424,7 @@ internal static class XmlSchemaMapper
             return new XmlSchemaChoice
             {
                 Name = choice.Name,
-                TypeDef = choice.TypeDef?.ToString(),
+                NodeDef = choice.NodeDef?.ToString(),
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Members = choice.Members.Select(FromSchemaNode).ToList(),
                 SelectedIndex = ToConstantText(choice.SelectedIndex),
@@ -439,14 +439,14 @@ internal static class XmlSchemaMapper
         throw new InvalidOperationException($"Unsupported schema node type '{node.GetType().Name}'.");
     }
 
-    private static XmlSchemaTypeDef FromSchemaTypeDef(SchemaTypeDef typeDef)
+    private static XmlSchemaNodeDef FromSchemaNodeDef(SchemaNodeDef nodeDef)
     {
-        return new XmlSchemaTypeDef
+        return new XmlSchemaNodeDef
         {
-            Name = typeDef.Name,
-            DataType = typeDef.DataType?.FullName,
-            Processors = typeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
-            Properties = typeDef.Properties.Select(FromSchemaProperty).ToList()
+            Name = nodeDef.Name,
+            DataType = nodeDef.DataType?.FullName,
+            Processors = nodeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
+            Properties = nodeDef.Properties.Select(FromSchemaProperty).ToList()
         };
     }
 

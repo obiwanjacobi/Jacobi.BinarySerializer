@@ -1,4 +1,4 @@
-using Jacobi.BinarySerializer.Processor;
+﻿using Jacobi.BinarySerializer.Processor;
 
 namespace Jacobi.BinarySerializer.Schema;
 
@@ -9,12 +9,12 @@ public closed class SchemaNode
     public IReadOnlyList<SchemaProperty> Properties => PropertyList;
     internal List<SchemaProperty> PropertyList { get; init; } = [];
     /// <summary>
-    /// Optional reference to a SchemaTypeDef that defines the field's type and processors.
+    /// Optional reference to a SchemaNodeDef that defines the field's type and processors.
     /// </summary>
-    public SchemaName? TypeDef { get; init; }
+    public SchemaName? NodeDef { get; init; }
 }
 
-public sealed class SchemaTypeDef : SchemaNode
+public sealed class SchemaNodeDef : SchemaNode
 {
     public required IReadOnlyList<SchemaProcessorRef> Processors { get; init; }
     public SchemaDataType? DataType { get; init; }
@@ -138,7 +138,7 @@ public class Schema : SchemaGroup
         Kind = SchemaNodeKind.Schema;
     }
 
-    public required IReadOnlyList<SchemaTypeDef> TypeDefs { get; init; }
+    public required IReadOnlyList<SchemaNodeDef> NodeDefs { get; init; }
     public IReadOnlyList<SchemaDataTypeDef> DataTypeDefs { get; init; } = [];
     public required IReadOnlyList<SchemaProcessorDef> ProcessorDefs { get; init; }
 
@@ -185,7 +185,7 @@ public sealed class SchemaProcessorDef : SchemaProcessor
 }
 
 /// <summary>
-/// The use of a processor on a node or typedef: either a processor key ('namespace.id')
+/// The use of a processor on a node or nodeDef: either a processor key ('namespace.id')
 /// or a reference to a <see cref="SchemaProcessorDef"/> ('ref:name' or 'ref:document.name').
 /// The properties of the ref override the properties of the definition.
 /// </summary>
@@ -248,7 +248,7 @@ public enum SchemaNodeKind
     /// <summary>Root container object for a schema.</summary>
     Schema,
     /// <summary>A reusable type definition.</summary>
-    TypeDef,
+    NodeDef,
     /// <summary>A field within a group.</summary>
     Field,
     /// <summary>A group of fields.</summary>

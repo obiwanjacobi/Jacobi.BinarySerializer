@@ -1,4 +1,4 @@
-using Jacobi.BinarySerializer.Processor;
+﻿using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Tests.Schema;
@@ -37,11 +37,11 @@ public class SchemaSetTests
     }
 
     [Test]
-    public void Compile_WithLocalTypeDef_ReplacesReferencedFieldDefinition()
+    public void Compile_WithLocalNodeDef_ReplacesReferencedFieldDefinition()
     {
         var schemaSet = new SchemaSet();
 
-        var commonTypeDef = new SchemaTypeDef
+        var commonNodeDef = new SchemaNodeDef
         {
             Name = "CommonField",
             DataType = "Int32",
@@ -53,11 +53,11 @@ public class SchemaSetTests
         {
             Name = "Value",
             DataType = "UInt8",
-            TypeDef = new SchemaName("CommonField"),
+            NodeDef = new SchemaName("CommonField"),
             ProcessorsList = []
         });
 
-        var main = CreateDocument("Main", roots: [rootGroup], typeDefs: [commonTypeDef]);
+        var main = CreateDocument("Main", roots: [rootGroup], nodeDefs: [commonNodeDef]);
 
         schemaSet.AddDocument(main);
 
@@ -96,20 +96,20 @@ public class SchemaSetTests
     }
 
     [Test]
-    public void Compile_TypeDefInstantiation_KeepsTheFieldValue()
+    public void Compile_NodeDefInstantiation_KeepsTheFieldValue()
     {
         var schemaSet = new SchemaSet();
-        var typeDef = new SchemaTypeDef { Name = "CommonField", DataType = "Int32", Processors = [] };
+        var nodeDef = new SchemaNodeDef { Name = "CommonField", DataType = "Int32", Processors = [] };
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField
         {
             Name = "Value",
             DataType = "UInt8",
             Value = "0x2A",
-            TypeDef = new SchemaName("CommonField"),
+            NodeDef = new SchemaName("CommonField"),
             ProcessorsList = []
         });
-        schemaSet.AddDocument(CreateDocument("Main", roots: [rootGroup], typeDefs: [typeDef]));
+        schemaSet.AddDocument(CreateDocument("Main", roots: [rootGroup], nodeDefs: [nodeDef]));
 
         schemaSet.Compile();
 
@@ -242,11 +242,11 @@ public class SchemaSetTests
     }
 
     [Test]
-    public void Compile_TypeDefProcessorAlias_ResolvesDefinition()
+    public void Compile_NodeDefProcessorAlias_ResolvesDefinition()
     {
         var def = new SchemaProcessorDef { Name = "aligned", Processor = new ProcessorKey("sys.align") };
         var processor = new SchemaProcessorRef { Processor = new SchemaProcessorName("ref:aligned") };
-        var typeDef = new SchemaTypeDef
+        var nodeDef = new SchemaNodeDef
         {
             Name = "CommonField",
             DataType = "Int32",
@@ -254,7 +254,7 @@ public class SchemaSetTests
         };
 
         var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(CreateDocument("Main", typeDefs: [typeDef], processorDefs: [def]));
+        schemaSet.AddDocument(CreateDocument("Main", nodeDefs: [nodeDef], processorDefs: [def]));
         schemaSet.Compile();
 
         Assert.That(processor.Definition, Is.SameAs(def));
@@ -278,7 +278,7 @@ public class SchemaSetTests
     private static SchemaDocument CreateDocument(
         string name,
         IReadOnlyList<SchemaNode>? roots = null,
-        IReadOnlyList<SchemaTypeDef>? typeDefs = null,
+        IReadOnlyList<SchemaNodeDef>? nodeDefs = null,
         IReadOnlyList<SchemaDataTypeDef>? dataTypeDefs = null,
         IReadOnlyList<SchemaProcessorDef>? processorDefs = null,
         IReadOnlyList<SchemaDocumentRef>? includes = null)
@@ -291,7 +291,7 @@ public class SchemaSetTests
             Groups = rootList,
             Fields = rootList.SelectMany(GetFields).ToList(),
             MemberList = roots?.ToList() ?? [],
-            TypeDefs = typeDefs ?? [],
+            NodeDefs = nodeDefs ?? [],
             DataTypeDefs = dataTypeDefs ?? [],
             ProcessorDefs = processorDefs ?? [],
             Includes = includes ?? []

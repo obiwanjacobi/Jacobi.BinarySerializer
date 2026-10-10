@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -317,7 +317,7 @@ public class ExecutionPlanBuilderTests
             Groups = [root],
             Fields = [],
             MemberList = [root],
-            TypeDefs = [],
+            NodeDefs = [],
             ProcessorDefs = [],
             Includes = []
         };

@@ -1,4 +1,4 @@
-# Schema
+﻿# Schema
 
 A schema describes the structure of a binary format: which fields exist, in what order, how they repeat or branch and which processors transform them. It describes *structure only*. The code that does the transforming lives in processors, the walking is done by the [engine](../Execution/readme.md).
 
@@ -15,7 +15,8 @@ A schema describes the structure of a binary format: which fields exist, in what
 |---------|---------|
 | `name` | Name of the document (namespace for references from other documents). |
 | `includes` | Other documents this one refers to. |
-| `typeDefs` | Reusable group and field types: an optional data type (fields only) plus processors. |
+| `nodeDefs` | Reusable group and field types: an optional data type (fields only) plus processors. |
+| `dataTypeDefs` | New data types based on an existing one: facets (`min`, `max`, `scale`, `shift`, `options`) plus processors. |
 | `processorDefs` | Named processor configurations (a processor key with default properties). |
 | `properties` / `processors` | Document-level defaults. |
 | `members` | The root groups. |
@@ -64,7 +65,7 @@ The members below are part of the schema model itself (as opposed to the free-fo
 |--------|---------|-----------|
 | `name` | The node name; part of the path used by references and by the model. | Address a node (`Png.Chunk.Body.Type`). |
 | `properties` | Free-form named values for the processors that apply to the node (e.g. `byteorder` on a group is read by the layout processors). | Configure inherited processors without repeating them. |
-| `typeDef` | A reference to a reusable type (data type plus processors). | Share a configuration between nodes. |
+| `nodeDef` | A reference to a reusable type (data type plus processors). | Share a configuration between nodes. |
 
 ### On a processor entry
 
@@ -119,11 +120,41 @@ A child node inherits the stages of its parent
 
 **Transform a value (scale, enum, nullable):** add the processor to the field's `processors` with its properties.
 
-**Reuse a configuration:** declare it in `processorDefs` (or a type in `typeDefs`) and use `ref:name`.
+**Reuse a configuration:** declare it in `processorDefs` (or a type in `nodeDefs`) and use `ref:name`.
+
+**Define a new data type:** declare it in `dataTypeDefs` with a `name`, a `basedOn` data type, optional facets (`min`, `max`, `scale`, `shift`, `options`), `processors` and `properties`, then use it as the field's `datatype` (see below).
 
 **Share definitions between files:** add an `include` and reference with `ref:document.name`.
 
 **Apply a layout to many fields (alignment, bit/byte packing):** put the layout processor on the group; the fields inherit it.
+
+## Data type definitions
+
+A `dataTypeDef` derives a new logical data type from an existing one (built-in or another def). It inherits the CLR type, parse and default encode/decode of its base.
+
+```xml
+<dataTypeDefs>
+  <dataTypeDef name="Celsius" basedOn="Int32" scale="100">
+    <processors><processor name="sys.scale" /></processors>
+  </dataTypeDef>
+</dataTypeDefs>
+<field name="Temperature" datatype="Celsius" />
+```
+
+| Attribute / element | Meaning |
+|---------------------|---------|
+| `name` | Name of the new data type; registered as `Document.Name`. |
+| `basedOn` | The data type it derives from. |
+| `min`, `max` | Allowed logical range (facet). |
+| `scale`, `shift` | Logical = physical / scale (+ shift) (facet). Used by `sys.scale` when it has no `scale` property. |
+| `options` | Allowed physical values mapped to names (facet; not consumed by a built-in processor yet). |
+| `processors`, `properties` | Merged into every field that uses the data type (base chain first, then the field's own). |
+
+Facets are fallbacks: a processor's own property wins. Resolution rules:
+
+- A field that uses a def gets its datatype rewritten to `Document.Name`; use `Document.Name` to refer to a def in another (included) document.
+- A name without a namespace is first looked up in the document's own `dataTypeDefs` (a local def wins over a built-in of the same name), otherwise it is a built-in `sys` type.
+- Circular `basedOn` chains and unknown bases are errors.
 
 See the [Processor readme](../Processor/readme.md) for the available properties of processors and how they are interpreted.
 

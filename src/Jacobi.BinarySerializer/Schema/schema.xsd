@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
 
   <xs:element name="schema">
@@ -11,10 +11,10 @@
             </xs:sequence>
           </xs:complexType>
         </xs:element>
-        <xs:element name="typeDefs" minOccurs="0">
+        <xs:element name="nodeDefs" minOccurs="0">
           <xs:complexType>
             <xs:sequence>
-              <xs:element name="typeDef" type="typeDef" minOccurs="0" maxOccurs="unbounded" />
+              <xs:element name="nodeDef" type="nodeDef" minOccurs="0" maxOccurs="unbounded" />
             </xs:sequence>
           </xs:complexType>
         </xs:element>
@@ -108,7 +108,7 @@
     <xs:anyAttribute processContents="skip" />
   </xs:complexType>
 
-  <xs:complexType name="typeDef">
+  <xs:complexType name="nodeDef">
     <xs:sequence>
       <xs:element name="properties" type="propertyList" minOccurs="0" />
       <xs:element name="processors" type="processorList" minOccurs="0" />
@@ -139,7 +139,7 @@
       <xs:element name="byteLength" type="valueRef" minOccurs="0" />
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
-    <xs:attribute name="typeDef" type="xs:string" />
+    <xs:attribute name="nodeDef" type="xs:string" />
     <xs:attribute name="datatype" type="xs:string" />
     <xs:attribute name="value" type="xs:string" />
     <xs:attribute name="byteLength" type="xs:string" />
@@ -155,7 +155,7 @@
       <xs:element name="members" type="nodeList" minOccurs="0" />
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
-    <xs:attribute name="typeDef" type="xs:string" />
+    <xs:attribute name="nodeDef" type="xs:string" />
     <xs:attribute name="byteSize" type="xs:string" />
     <xs:anyAttribute processContents="skip" />
   </xs:complexType>
@@ -170,7 +170,7 @@
       <xs:element name="members" type="nodeList" minOccurs="0" />
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
-    <xs:attribute name="typeDef" type="xs:string" />
+    <xs:attribute name="nodeDef" type="xs:string" />
     <xs:attribute name="byteSize" type="xs:string" />
     <xs:attribute name="count" type="xs:string" />
     <xs:anyAttribute processContents="skip" />
@@ -186,7 +186,7 @@
       <xs:element name="members" type="nodeList" minOccurs="0" />
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
-    <xs:attribute name="typeDef" type="xs:string" />
+    <xs:attribute name="nodeDef" type="xs:string" />
     <xs:attribute name="byteSize" type="xs:string" />
     <xs:attribute name="selectedIndex" type="xs:string" />
     <xs:anyAttribute processContents="skip" />

@@ -1,18 +1,21 @@
-# TODOs
+﻿# TODOs
 
-- [ ] **TypeDef for Groups include members** Should the typedef for groups also include members? And how do these members merge with the members of the group that references the typedef?
-  - [ ] Refactor `SchemaNode` into `SchemaObject` (name+kind). SchemaNode derives from SchemaObject. SchemaTypeDef derives from SchemaObject.
-  - [ ] Refactor typeDefs (dataTypeDefs?) into custom dataTypeDescruptors and a new section (nodeTypeDefs?) for predefined nodes.
+- [ ] **NodeDef for Groups include members** Should the nodeDef for groups also include members? And how do these members merge with the members of the group that references the nodeDef?
+  - [ ] Refactor `SchemaNode` into `SchemaObject` (name+kind). SchemaNode derives from SchemaObject. SchemaNodeDef derives from SchemaObject.
+  - [ ] Refactor nodeDefs (dataTypeDefs?) into custom dataTypeDescruptors and a new section (nodeNodeDefs?) for predefined nodes.
   - [ ] rename the namespace for datatypes (dt?) and do not use short names for data types.
 - [ ] **Freeze `SchemaSet` and `ProcessorProvider` once handed to a `Serializer`.** Cached `ExecutionPlan`s go stale if a schema is loaded/recompiled or a processor is registered after `SerializerBuilder.Build()`. Fix: add an `IsFrozen`/`Freeze()` to `SchemaSet` (after `Compile`) and to the processor provider (`ProcessorManager`), call it in `Build()`, and throw `InvalidOperationException` on later modification. Add tests.
   For `SchemaSet` use a builder pattern: `SchemaSetBuilder` loads then `Build()` (Compile) returns a frozen `SchemaSet`.
+- [ ] **Consume the `options` facet of a `dataTypeDef`.** `DataTypeDescriptor.Options` (allowed physical values mapped to names) is stored and round-tripped but no built-in processor uses it yet. Make e.g. `sys.map` fall back to it and/or validate values against it; add tests.
+- [ ] **Unqualified data type names in `dataTypeDefs`.** `SchemaDataType` normalizes an unqualified name to `sys.<name>`, so a local def is found only because the own document's defs win over the built-in of that name. Data types should always be full names (no namespace = defined in the schema it is used in); drop the `sys` shorthand and the local-wins rule (see the data type namespace item above). Update existing tests that use short names like `Int32`.
+- [ ] **`dataTypeDef` follow-ups.** Add a `range` check processor that uses `min`/`max` (and enforces them on write/read); test `shift`; test cross-document `dataTypeDefs` (`Doc.Name`) and `basedOn` chains/cycle/unknown-base errors.
 - [ ] **Write API documentation for the public API** including some examples. Describe what services are supported and expected.
 - [ ] **Processer pipeline stage processing should add all parent (group) processors** in order when running them. A child (group) that defines a processor for a specific stage does NOT replace it's parent processors for that stage, but adds to the pipeline. The current implementation replaces the parent processors for that stage with the child processors. Or do we have to make it selectable/overridable per stage? Or is this covered by the fact that different stages related to Fields and Groups? What about nested groups?
 - [ ] **Complex schema property values.** `PropertyDescriptor.DataType` now names a registered data type (`DataTypeDescriptor`, with a parser), so a processor can declare typed properties (including custom types such as `my.point`) and the string in `SchemaProperty.Value` is parsed by that type instead of by the processor itself. The plan builder already validates presence of required properties and that each value parses (`ExecutionPlanBuilder.ValidateProperties`).
   - [ ] the value is still a single string in the schema model (`SchemaNode.cs`), so lists and nested objects need a parser-defined text syntax; decide whether to allow structured JSON/XML values (list/object) that are handed to the data type parser. 
   - [ ] report unknown property names (typos) and value constraints (ranges) at plan build.
   - [ ] allow value references (`ref:`/`pub:`) in complex property values (the engine currently only resolves them for simple string values).
-- [ ] **Data type follow-ups.** Composite/structured data types and a neutral value tree for processor property types; enum data types for the remaining string-valued properties (align `relative`, varint `encoding`); built-in typedefs; replacing a registered descriptor; unit tests for the `Descriptors` namespace.
+- [ ] **Data type follow-ups.** Composite/structured data types and a neutral value tree for processor property types; enum data types for the remaining string-valued properties (align `relative`, varint `encoding`); built-in nodeDefs; replacing a registered descriptor; unit tests for the `Descriptors` namespace.
 - [ ] **Size on groups: follow-ups.** 
   - [x] `byteSize` (constant or `ref:`/`pub:`) on any group/repeat/choice is done (see below). 
   - [x] a variable-width (varint) derived size field: the size is encoded at group exit into its own buffer and flushed before the group content, so it takes the width its value needs.
@@ -30,11 +33,11 @@
 - [ ] **MIDI schema gaps** (see `IntegrationTests/Midi/Midi.xml`): 
   - [ ] running status (a first byte below 0x80 reuses the previous status); 
   - [ ] the status peek must be supplied by the model on write (not derived from the chosen alternative); 
-  - [ ] the repeated `Status` group cannot be reused (typedef/group reuse); no test parses `Midi.xml` yet. See item on Group TypeDef to include members.
+  - [ ] the repeated `Status` group cannot be reused (nodeDef/group reuse); no test parses `Midi.xml` yet. See item on Group NodeDef to include members.
 
 ---
 
-- [x] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, typedef instantiation.
+- [x] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, nodeDef instantiation.
 - [x] **CRC follow-ups.** 
   - [x] Missing processor-level tests (corrupt CRC, truncated input, bad properties, other algorithms); 
   - [x] no `poly`/`init` and `xorout` validation of custom parameters beyond the width.
@@ -73,7 +76,7 @@
 - [x] **Processor private state per iteration.** State keyed per binding is shared across repeat iterations.
 - [x] **Instance indices in node refs.** `ref:root.grp[2].fld` targets a specific repeat item; `ref:root.grp[].fld` means the same instance as the referrer; no index means the first item. Only `ref:` node refs take indices (not `pub:`). Values are published per instance; an unpublished instance is a runtime error.
 - [x] **Schema Processor Def Properties.** Done: `SchemaSet.Compile` expands short property names to `ns.id.name`, also for aliases (`ref:alias` / `ref:doc.alias`), using the key of the resolved def. Ref properties override def properties.
-- [x] **Processor def/ref split.** `SchemaProcessorDef` (named, in `ProcessorDefs`) and `SchemaProcessorRef` (key or `ref:[doc.]alias`, on nodes and typedefs) in the schema and in the JSON/XML models. Processors on typedefs and roots are resolved at compile time.
+- [x] **Processor def/ref split.** `SchemaProcessorDef` (named, in `ProcessorDefs`) and `SchemaProcessorRef` (key or `ref:[doc.]alias`, on nodes and nodeDefs) in the schema and in the JSON/XML models. Processors on nodeDefs and roots are resolved at compile time.
 - [x] **More engine tests.** Done in `EngineEdgeCaseTests`: truncated varint through the engine (mid-stream cut), consumed-bits mismatch (throws), and the `FieldWriteResult` failure path.
 - [x] **Field-level layout Begin/End semantics.** Layout `BeginWrite`/`EndWrite` and `BeginRead`/`EndRead` are only called per group. Decide whether fields that declare their own layout processors also get Begin/End calls, and what that means (e.g. a bit-packed field). No: Begin/End are per group, not per field. The layout processor is responsible for any field-level state it needs.
 - [x] **Repeat and choice support.** Done in `PlanCursor`, `ReaderSession` and `WriterSession`: a repeat visits its members `Count` times (`EnterItem`), a choice only the selected alternative (`EnterChoice`). Counts and indexes resolve from constants or the published-values store; reading an unpublished value is a runtime error. `SessionState.Publish` is public so the developer can prefill counts before writing.
@@ -93,8 +96,8 @@
 - [x] **Multiple Layout processors per field.** Done: every layout processor is a head; followers also implement `ILayoutWriter<ReadOnlySpan<byte>>` / `ILayoutReader<ReadOnlyMemory<byte>>` and the engine owns the buffers between stages (`ValidateLayoutChain`, `sys:align` is the first follower). Original note: Same limit: only one layout processor can write/read a field.
 - [x] **Variable-length integers (`sys:varint`).** Field processor with an `encoding` property: `leb128` (default, unsigned), `sleb128`, `zigzag`, `vlq` (MIDI) and `prefix` (UTF-8 style length prefix). One static codec class per algorithm in `Codecs`. Signed field types need `sleb128` or `zigzag`; `vlq` and `prefix` are unsigned only.
 - [x] **Open-width fields and result types.** `IFieldReader.Read` returns `FieldReadResult<T>` (status, value, bits consumed) and `IFieldWriter.Write` returns `FieldWriteResult<T>` (status, value, bits written); layout reads return `LayoutReadResult<T>`. With field processors, the default layout offers a window of up to `OpenWidthWindowBytes` (10) bytes and the engine rewinds the unused bytes. Layout writes and stream stages still return `WriteResult` / `ReadResult`.
-- [x] **Typed repeats and choices lose their type.** `InstantiateType` checks `SchemaGroup` before `SchemaRepeat` / `SchemaChoice`, so a repeat or choice that uses a typedef is instantiated as a plain group.
-- [x] **Field typedef processors replace instead of merge.** When a field references a typedef, the typedef's processors replace the field's own processors. They should be merged, with the field's own processors taking precedence.
+- [x] **Typed repeats and choices lose their type.** `InstantiateNodeDef` checks `SchemaGroup` before `SchemaRepeat` / `SchemaChoice`, so a repeat or choice that uses a nodeDef is instantiated as a plain group.
+- [x] **Field nodeDef processors replace instead of merge.** When a field references a nodeDef, the nodeDef's processors replace the field's own processors. They should be merged, with the field's own processors taking precedence.
 - [x] **Constant `Count` / `SelectedIndex` reported as unresolved.** In `SchemaSet.ResolveReferences` a literal count or selected index falls into the `_ => false` case, so a valid schema is reported as having unresolved references.
 
 ## Nice to Have

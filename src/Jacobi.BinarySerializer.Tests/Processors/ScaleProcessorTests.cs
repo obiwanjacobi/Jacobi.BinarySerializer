@@ -1,4 +1,4 @@
-using Jacobi.BinarySerializer.Processor;
+﻿using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 using static Jacobi.BinarySerializer.Tests.Processors.ProcessorTestHelpers;
 
@@ -39,7 +39,7 @@ public class ScaleProcessorTests
         {
             dataTypes.Register(dataType);
         }
-        dataTypes.RegisterDataTypeDefs([new SchemaDocument { Name = "Doc", DataTypeDefs = [def], TypeDefs = [], ProcessorDefs = [], Includes = [], Roots = [], Groups = [], Fields = [] }]);
+        dataTypes.RegisterDataTypeDefs([new SchemaDocument { Name = "Doc", DataTypeDefs = [def], NodeDefs = [], ProcessorDefs = [], Includes = [], Roots = [], Groups = [], Fields = [] }]);
 
         Assert.That(dataTypes.Get(new SchemaName("Doc.Celsius")).Scale, Is.EqualTo(100m));
         Assert.That(dataTypes.Get(new SchemaName("Doc.Celsius")).ClrType, Is.EqualTo(dataTypes.Get(new SchemaName("sys.int32")).ClrType));
@@ -56,7 +56,7 @@ public class ScaleProcessorTests
             Groups = [rootGroup],
             Fields = [],
             MemberList = [rootGroup],
-            TypeDefs = [],
+            NodeDefs = [],
             ProcessorDefs = [],
             Includes = [],
             DataTypeDefs = [new SchemaDataTypeDef { Name = "Celsius", BasedOn = "Int32", Scale = 100m, Processors = [Ref("scale")] }]

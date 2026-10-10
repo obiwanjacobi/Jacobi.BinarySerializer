@@ -1,4 +1,4 @@
-using Jacobi.BinarySerializer.Schema;
+﻿using Jacobi.BinarySerializer.Schema;
 using Jacobi.BinarySerializer.Schema.Xml;
 
 namespace Jacobi.BinarySerializer.Tests.Schema;
@@ -104,7 +104,7 @@ public class XmlSerializerTests
     }
 
     [Test]
-    public void Deserialize_TypeDefsAndProcessorDefs_ArePreservedWithoutResolution()
+    public void Deserialize_NodeDefsAndProcessorDefs_ArePreservedWithoutResolution()
     {
         var xml = """
             <schema name="TestSchema">
@@ -116,28 +116,28 @@ public class XmlSerializerTests
                   </properties>
                 </processor>
               </processorDefs>
-              <typeDefs>
-                <typeDef name="CommonField" datatype="Int32">
+              <nodeDefs>
+                <nodeDef name="CommonField" datatype="Int32">
                   <processors>
                     <processor name="ref:deltaProcessor" />
                   </processors>
                   <properties>
                     <property name="scale" value="100" />
                   </properties>
-                </typeDef>
-                <typeDef name="CommonGroup">
+                </nodeDef>
+                <nodeDef name="CommonGroup">
                   <processors>
                     <processor name="ref:rootProcessor" />
                   </processors>
-                </typeDef>
-              </typeDefs>
+                </nodeDef>
+              </nodeDefs>
               <members>
                 <group name="RootGroup">
                   <processors>
                     <processor name="ref:rootProcessor" />
                   </processors>
                   <members>
-                    <field name="Value" typeDef="CommonField" datatype="Int32">
+                    <field name="Value" nodeDef="CommonField" datatype="Int32">
                       <processor name="ref:deltaProcessor" />
                     </field>
                   </members>
@@ -153,9 +153,9 @@ public class XmlSerializerTests
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "rootProcessor" && p.Processor.ToString() == "sys.align"));
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "deltaProcessor" && p.Processor.ToString() == "sys.scale" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
-        Assert.That(document.TypeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == "Int32"));
-        Assert.That(document.TypeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType is null));
+        Assert.That(document.NodeDefs.Count, Is.EqualTo(2));
+        Assert.That(document.NodeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == "Int32"));
+        Assert.That(document.NodeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType is null));
 
         var rootGroup = document.Roots.Single();
         var rootField = rootGroup.Members.OfType<SchemaField>().Single();

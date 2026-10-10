@@ -1,4 +1,4 @@
-using Jacobi.BinarySerializer.Processor;
+﻿using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Tests;
@@ -99,7 +99,7 @@ public class SerializerTests
             Groups = roots,
             Fields = [],
             MemberList = [.. roots],
-            TypeDefs = [],
+            NodeDefs = [],
             ProcessorDefs = [],
             Includes = []
         };

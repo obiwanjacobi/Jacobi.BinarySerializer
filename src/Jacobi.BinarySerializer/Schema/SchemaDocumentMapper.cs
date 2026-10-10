@@ -1,4 +1,4 @@
-namespace Jacobi.BinarySerializer.Schema;
+﻿namespace Jacobi.BinarySerializer.Schema;
 
 internal static class SchemaDocumentMapper
 {
@@ -20,7 +20,7 @@ internal static class SchemaDocumentMapper
             Name = schema.Name,
             PropertyList = schema.Properties.ToList(),
             MemberList = schema.MemberList,
-            TypeDefs = schema.TypeDefs,
+            NodeDefs = schema.NodeDefs,
             DataTypeDefs = schema.DataTypeDefs,
             ProcessorDefs = schema.ProcessorDefs,
             Includes = schema.Includes,

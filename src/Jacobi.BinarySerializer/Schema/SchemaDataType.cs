@@ -1,15 +1,15 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Jacobi.BinarySerializer.Schema;
 
 /// <summary>
-/// The name of the (logical) data type of a field or typedef.
+/// The name of the (logical) data type of a field or nodeDef.
 /// It is resolved to a <see cref="Descriptors.DataTypeDescriptor"/> in the <see cref="Descriptors.DataTypeRegistry"/>.
 /// </summary>
 /// <remarks>
 /// A name without a namespace is a built-in type (case-insensitive): 'Int32' is 'sys.int32'.
-/// Use a nullable <c>SchemaDataType?</c> where a data type is optional (for group typedefs).
+/// Use a nullable <c>SchemaDataType?</c> where a data type is optional (for group nodeDefs).
 /// </remarks>
 [JsonConverter(typeof(SchemaDataTypeJsonConverter))]
 public readonly struct SchemaDataType : IEquatable<SchemaDataType>

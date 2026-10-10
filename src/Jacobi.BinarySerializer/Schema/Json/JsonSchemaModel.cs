@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Jacobi.BinarySerializer.Schema.Json;
@@ -7,7 +7,7 @@ internal sealed class JsonSchema
 {
     public required string Name { get; init; }
     public IReadOnlyList<JsonSchemaNode> Members { get; init; } = [];
-    public IReadOnlyList<JsonSchemaTypeDef> TypeDefs { get; init; } = [];
+    public IReadOnlyList<JsonSchemaNodeDef> NodeDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaDataTypeDef> DataTypeDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaProcessorDef> ProcessorDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaDocumentRef> Includes { get; init; } = [];
@@ -35,7 +35,7 @@ internal sealed class JsonSchemaDataTypeDef
     public IDictionary<string, JsonElement>? AdditionalData { get; init; }
 }
 
-internal sealed class JsonSchemaTypeDef : JsonSchemaNode
+internal sealed class JsonSchemaNodeDef : JsonSchemaNode
 {
     public required IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; }
     [JsonPropertyName("datatype")]
@@ -52,11 +52,11 @@ internal abstract class JsonSchemaNode
     public required string Name { get; init; }
 
     /// <summary>
-    /// Optional reference to a typeDef that defines the type and processors of the node.
+    /// Optional reference to a nodeDef that defines the type and processors of the node.
     /// </summary>
-    [JsonPropertyName("typeDef")]
+    [JsonPropertyName("nodeDef")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? TypeDef { get; init; }
+    public string? NodeDef { get; init; }
     public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
 
     [JsonExtensionData]
