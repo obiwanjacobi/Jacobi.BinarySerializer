@@ -51,7 +51,7 @@ internal static class BuiltInDataTypes
         };
 
     private static DataTypeDescriptor CreateBoolean()
-        => Fixed<bool>("boolean", 1,
+        => Fixed<bool>("bool", 1,
             (string? text, out object? value) =>
             {
                 value = null;

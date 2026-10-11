@@ -34,14 +34,12 @@ public class PngSchemaTests
         schemaSet.Compile();
         var manager = new ProcessorManager();
         manager.Register(new ProcessorFactory());
-        var serializer = new SerializerBuilder().AddSchemas(schemaSet).AddProcessors(manager).Build();
-        var plan = serializer.GetPlan(new SchemaName("Png.Png"));
+        var serializer = new SerializerBuilder().AddSchemas(schemaSet).AddProcessors(manager).UseModelForValueFields().Build();
         var bytes = PngBuilder.Grayscale8(2, 2);
         var sink = new Sink();
 
-        var result = new Execution.ReaderSession(plan, valueFieldsUseModel: true).Read(new System.Buffers.ReadOnlySequence<byte>(bytes), sink);
+        serializer.Deserialize(new SchemaName("Png.Png"), new System.Buffers.ReadOnlySequence<byte>(bytes), sink);
 
-        Assert.That(result, Is.EqualTo(ReadResult.Success), $"read {sink.Seen.Count}: {string.Join(", ", sink.Seen)}; bytes {bytes.Length}");
         Assert.That(sink.Types, Is.EqualTo(new[] { "IHDR", "IDAT", "IEND" }));
         Assert.That(sink.Values["Png.Signature"], Is.EqualTo(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }));
         Assert.That(((byte[])sink.Values["Png.Chunk.Body.Data.ImageData"]!).Length, Is.GreaterThan(0));
@@ -56,16 +54,14 @@ public class PngSchemaTests
         var manager = new ProcessorManager();
         manager.Register(new ProcessorFactory());
         var serializer = new SerializerBuilder().AddSchemas(schemaSet).AddProcessors(manager).Build();
-        var plan = serializer.GetPlan(new SchemaName("Png.Png"));
+        var schemaName = new SchemaName("Png.Png");
         var bytes = PngBuilder.Grayscale8(2, 2);
         var recorder = new Recorder();
-        var readResult = new Execution.ReaderSession(plan).Read(new System.Buffers.ReadOnlySequence<byte>(bytes), recorder);
-        Assert.That(readResult, Is.EqualTo(ReadResult.Success));
+        serializer.Deserialize(schemaName, new System.Buffers.ReadOnlySequence<byte>(bytes), recorder);
 
         var output = new System.Buffers.ArrayBufferWriter<byte>();
-        var writeResult = new Execution.WriterSession(plan, output).Write(recorder);
+        serializer.Serialize(schemaName, recorder, output);
 
-        Assert.That(writeResult, Is.EqualTo(WriteResult.Success));
         Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(bytes));
     }
 
@@ -78,7 +74,7 @@ public class PngSchemaTests
         var manager = new ProcessorManager();
         manager.Register(new ProcessorFactory());
         var serializer = new SerializerBuilder().AddSchemas(schemaSet).AddProcessors(manager).Build();
-        var plan = serializer.GetPlan(new SchemaName("Png.Png"));
+        var schemaName = new SchemaName("Png.Png");
         using var ms = new MemoryStream();
         ms.Write(PngBuilder.Signature);
         PngBuilder.WriteChunk(ms, "tEXt", "Comment\0hello"u8);
@@ -86,18 +82,28 @@ public class PngSchemaTests
         var bytes = ms.ToArray();
         var recorder = new Recorder();
 
-        var readResult = new Execution.ReaderSession(plan).Read(new System.Buffers.ReadOnlySequence<byte>(bytes), recorder);
-        Assert.That(readResult, Is.EqualTo(ReadResult.Success));
+        serializer.Deserialize(schemaName, new System.Buffers.ReadOnlySequence<byte>(bytes), recorder);
 
         var output = new System.Buffers.ArrayBufferWriter<byte>();
-        var writeResult = new Execution.WriterSession(plan, output).Write(recorder);
+        serializer.Serialize(schemaName, recorder, output);
 
-        Assert.That(writeResult, Is.EqualTo(WriteResult.Success));
         Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(bytes));
     }
 
-    private sealed class Recorder : IFieldSink, IFieldSource
+    // Flat recorder: all scopes share the one instance; the engine decides what is visited.
+    private sealed class Recorder : IValueSink, IValueSource
     {
+        public IValueSink EnterGroup(GroupContext context) => this;
+        public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
+        public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
+        public void Complete() { }
+
+        IValueSource IValueSource.EnterGroup(GroupContext context) => this;
+        IValueSource IValueSource.EnterItem(RepeatContext context, int index) => this;
+        IValueSource IValueSource.EnterChoice(ChoiceContext context) => this;
+        public int GetCount(RepeatContext context) => -1;
+        public int GetSelectedIndex(ChoiceContext context) => throw new NotSupportedException();
+
         private readonly Dictionary<string, LogicalField> _values = [];
 
         public void SetField(FieldContext context, LogicalField value) => _values[$"{context.Path}{context.Instance}"] = value;
@@ -112,8 +118,13 @@ public class PngSchemaTests
         }
     }
 
-    private sealed class Sink : IFieldSink
+    private sealed class Sink : IValueSink
     {
+        public IValueSink EnterGroup(GroupContext context) => this;
+        public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
+        public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
+        public void Complete() { }
+
         public List<string> Types { get; } = [];
         public List<string> Seen { get; } = [];
         public Dictionary<string, object?> Values { get; } = [];

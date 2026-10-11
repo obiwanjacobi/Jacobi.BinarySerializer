@@ -5,8 +5,7 @@ The built-in processors of namespace `sys`. Property names are short names as us
 | Key | Stage | Applies to | Purpose |
 |-----|-------|------------|---------|
 | `sys.scale` | Semantic | field, repeat/choice (`valueProcessors`) | Scales a raw integer to a decimal. |
-| `sys.enum` | Semantic | field, repeat/choice (`valueProcessors`) | Maps enum names to integers. |
-| `sys.map` | Semantic | field, repeat/choice (`valueProcessors`) | Maps logical values to physical values. |
+| `sys.map` | Semantic | field, repeat/choice (`valueProcessors`) | Maps source values to result values (enumerations, discriminators). |
 | `sys.nullable` | Semantic | field | Not implemented yet. |
 | `sys.bits` | Semantic | field, repeat/choice (`valueProcessors`) | Extracts a range of bits from an integer value. |
 | `sys.varint` | Representation | field | Variable-length integers. |
@@ -27,20 +26,17 @@ Converts between a raw integer and a scaled logical value: `logical = raw / scal
 |----------|----------|-------------|
 | `scale` | yes | Non-zero decimal factor. |
 
-### `sys.enum`
-
-Maps enumeration names to integers. Each property is one option: the name is the property name, the integer is its value. Writing converts a name to its integer; reading converts an integer back to its name. An unknown name or integer is an error. There are no fixed properties.
-
 ### `sys.map`
 
-Maps logical values to physical values of the field's data type. Each property maps a logical value (name) to a physical value (value), both parsed with their data types. Reading finds the entry by physical value; writing finds it by logical value. A property with a `null` value is the default: on read it catches unmapped physical values, but it cannot be written. Also usable as a `valueProcessor` to convert a referenced value to a repeat count or choice index. At least one mapping is required.
+Maps values in the read direction: each property maps a source value (the property name) to a result value (the property value). The source values are parsed with the data type of the field (or the value type of the repeat/choice); the result values with the `to` type. Reading finds the entry by source value; writing finds it by result value. A source value that is not mapped gives the `default` result; without a default it is an error (the default cannot be written). Also usable as a `valueProcessor` to convert a referenced value to a repeat count or choice index. At least one mapping is required. Replaces the former `sys.enum`.
 
 | Property | Required | Description |
 |----------|----------|-------------|
-| `logical` | no | The data type of the logical values (default `sys.string`; any registered data type). It is the type of the *name* side of every mapping. |
-| any other name | at least one | One mapping: the property name is the logical value, the property value is the physical value of the field's data type. Both are parsed with their data types. A property with no value (`null`) is the default: it catches unmapped physical values on read and cannot be written. |
+| `to` | no | The data type of the result values (default `sys.string`; any registered data type). |
+| `default` | no | The result for source values that are not mapped (parsed with the `to` type). |
+| any other name | at least one | One mapping: the property name is the source value, the property value is the result value. |
 
-Example (a status byte to a choice index): `logical` = `sys.int32`, then `0` = `8`, `1` = `9`, ... maps the physical value 8 to the index 0.
+Examples: an enumeration on an `int32` field: `1` = `Red`, `2` = `Green` reads 1 as `Red` and writes `Red` as 1. A status byte to a choice index: `to` = `sys.int32`, then `8` = `0`, `9` = `1`, ... maps the source value 8 to the index 0.
 
 ### `sys.bits`
 

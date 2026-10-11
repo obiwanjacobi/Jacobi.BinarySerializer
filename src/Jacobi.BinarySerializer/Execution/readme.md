@@ -40,6 +40,7 @@ read:   bytes -> (Stream, root only) -> Layout -> Representation -> Semantic -> 
 - **Truncated input is an error condition, not a mode.** The reader returns `NeedMoreData`; the caller supplies the complete message and reads again from the start. The writer returns `NeedMoreSpace`/failure results the same way. Nothing is streamed/resumed across calls.
 - **Results vs. exceptions.** Expected outcomes (`Success`, `NeedMoreData`, `EndOfData`, `Failure`) are result values. Schema/model/property mistakes found at runtime throw (via the engine logger's `Fail`).
 - **Fixed vs. open width.** A fixed-width field consumes exactly its width. An open-width field (e.g. varint) is offered a window and the engine returns the bytes that were not consumed.
+- **Count-less repeats on write.** A repeat without a `count` or `byteSize` is open. A flat field source (`IFieldSource`) always gives an open repeat. A value source (`IValueSource`) answers `GetCount` with `-1` (unknown) to get the same: the engine then calls `GetField` on the first field of each next item (on the same source, with the item instance) and ends the repeat when the model answers `EndOfData`. This only works for flat models; a hierarchical model must return the real count. A `-1` also skips the check of the model count against a schema count.
 - **Stream processors run on the root only** (whole message: framing, compression, encryption).
 - **Layout processors see bytes and positions** (`RootPosition`, `GroupPosition`); the engine measures widths itself.
 

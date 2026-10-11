@@ -87,7 +87,7 @@ public sealed class WriterSession : SessionState
         var cursor = new PlanCursor<IValueSource>(root, range);
         while (true)
         {
-            if (cursor.AtOpenRepeat && source is FieldSourceAdapter flat && ProbeEndOfData(flat, cursor))
+            if (cursor.AtOpenRepeat && ProbeEndOfData(source, cursor))
             {
                 cursor.CloseRepeat();
             }
@@ -108,7 +108,15 @@ public sealed class WriterSession : SessionState
                                 }
                                 else
                                 {
-                                    cursor.EnterRepeat(source, source.GetCount(new RepeatContext { Node = openRoot, Services = _services, Instance = _instance }));
+                                    var rootCount = source.GetCount(new RepeatContext { Node = openRoot, Services = _services, Instance = _instance });
+                                    if (rootCount < 0)
+                                    {
+                                        cursor.EnterOpenRepeat(source);
+                                    }
+                                    else
+                                    {
+                                        cursor.EnterRepeat(source, rootCount);
+                                    }
                                 }
                             }
                             else if (group is RepeatInfo rootRepeat)
@@ -135,7 +143,14 @@ public sealed class WriterSession : SessionState
                         {
                             var count = step.Scope.GetCount(new RepeatContext { Node = openRepeat, Services = _services, Instance = _instance });
                             EngineLogger.RepeatCount(openRepeat.Path.ToString(), count);
-                            cursor.EnterRepeat(step.Scope, count);
+                            if (count < 0)
+                            {
+                                cursor.EnterOpenRepeat(step.Scope);
+                            }
+                            else
+                            {
+                                cursor.EnterRepeat(step.Scope, count);
+                            }
                         }
                         else if (group is RepeatInfo repeat)
                         {
@@ -341,14 +356,14 @@ public sealed class WriterSession : SessionState
             return;     // flat models cannot tell
         }
 
-        if (modelCount != count)
+        if (modelCount >= 0 && modelCount != count)
         {
             throw EngineLogger.Fail(
                 $"'{repeat.Path}': the schema count is {count} but the value model has {modelCount} items.");
         }
     }
 
-    private bool ProbeEndOfData(FieldSourceAdapter source, PlanCursor<IValueSource> cursor)
+    private bool ProbeEndOfData(IValueSource source, PlanCursor<IValueSource> cursor)
     {
         GroupInfo node = cursor.CurrentGroup!;
         while (node is not RepeatInfo || ReferenceEquals(node, cursor.CurrentGroup))

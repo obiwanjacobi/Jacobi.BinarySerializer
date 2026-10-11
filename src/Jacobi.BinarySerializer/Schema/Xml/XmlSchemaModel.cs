@@ -43,8 +43,8 @@ public sealed class XmlSchema
     [XmlAnyAttribute]
     public XmlAttribute[]? AdditionalAttributes { get; set; }
 
-    [XmlAnyElement]
-    public XmlElement[]? AdditionalElements { get; set; }
+    //[XmlAnyElement]
+    //public XmlElement[]? AdditionalElements { get; set; }
 }
 
 /// <summary>

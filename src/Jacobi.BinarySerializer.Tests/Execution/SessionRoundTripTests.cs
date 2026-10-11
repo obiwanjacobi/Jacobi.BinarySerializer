@@ -18,7 +18,7 @@ public class SessionRoundTripTests
     [TestCase("sys.int64", long.MinValue)]
     [TestCase("sys.uint64", ulong.MaxValue)]
     [TestCase("sys.double", 3.14159d)]
-    [TestCase("sys.boolean", true)]
+    [TestCase("sys.bool", true)]
     public void RoundTrip_FixedWidthTypes_PreserveValueAndClrType(string type, object value)
     {
         var root = Group("Root", [], Field("A", new SchemaName(type)));

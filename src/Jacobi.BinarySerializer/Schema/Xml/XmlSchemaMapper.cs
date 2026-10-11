@@ -124,7 +124,7 @@ internal static class XmlSchemaMapper
             PropertyList = MergeProperties(
                 xmlSchema.Properties,
                 xmlSchema.AdditionalAttributes,
-                xmlSchema.AdditionalElements,
+                null, //xmlSchema.AdditionalElements,
                 SchemaKnownNames)
         };
 

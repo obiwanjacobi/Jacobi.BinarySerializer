@@ -340,6 +340,20 @@ public class SchemaSetTests
         Assert.That(processor.Key, Is.Null);
     }
 
+    [Test]
+    public void Compile_UnqualifiedNodeDef_OnlyResolvesInTheOwnDocument()
+    {
+        var shared = CreateDocument("Shared", nodeDefs: [new SchemaNodeDef { Name = "CommonField", DataType = "sys.int32", Processors = [] }]);
+        var rootGroup = CreateGroup("Root");
+        AddChild(rootGroup, new SchemaField { Name = "Value", DataType = "sys.uint8", NodeDef = new SchemaName("commonfield"), ProcessorsList = [] });
+        var main = CreateDocument("Main", roots: [rootGroup], includes: [new SchemaDocumentRef { Schema = "Shared" }]);
+
+        var schemaSet = new SchemaSet();
+        schemaSet.AddDocument(shared);
+        schemaSet.AddDocument(main);
+        Assert.That(() => schemaSet.Compile(), Throws.Exception);
+    }
+
     private static SchemaDocument CreateDocument(
         string name,
         IReadOnlyList<SchemaNode>? roots = null,

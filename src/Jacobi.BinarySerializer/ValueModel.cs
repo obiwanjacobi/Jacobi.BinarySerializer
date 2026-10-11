@@ -26,7 +26,11 @@ public interface IValueSource
     /// <summary>Enters a child group of this scope.</summary>
     IValueSource EnterGroup(GroupContext context);
 
-    /// <summary>Gets the number of items the model holds for a child repeat.</summary>
+    /// <summary>
+    /// Gets the number of items the model holds for a child repeat.
+    /// Answer -1 (unknown) for a count-less repeat: the engine then probes the first field of each item with GetField (on this source, with the item instance)
+    /// until it answers EndOfData. Only flat models can do that.
+    /// </summary>
     int GetCount(RepeatContext context);
 
     /// <summary>Enters one item of a child repeat. The scope holds the repeat's members.</summary>

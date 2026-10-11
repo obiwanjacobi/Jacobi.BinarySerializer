@@ -16,6 +16,13 @@ public sealed class SchemaSet
     {
         var extension = Path.GetExtension(path).ToLowerInvariant();
         var content = File.ReadAllText(path);
+        var document = LoadFileContent(content, extension);
+        AddDocument(document);
+        return document;
+    }
+
+    private SchemaDocument LoadFileContent(string content, string extension)
+    {
         var document = extension switch
         {
             ".xml" => LoadFromXml(content),
@@ -23,15 +30,13 @@ public sealed class SchemaSet
             ".yaml" or ".yml" => throw new NotSupportedException("YAML requires the Jacobi.BinarySerializer.Yaml package: use SchemaSet.LoadYaml()."),
             _ => throw new NotSupportedException($"File extension '{extension}' is not supported.")
         };
-
-        AddDocument(document);
         return document;
     }
 
-    public IEnumerable<SchemaDocument> LoadAssembly(string path, string resourcePath)
-        => LoadAssembly(Assembly.LoadFile(path), resourcePath);
+    public IEnumerable<SchemaDocument> LoadFromAssembly(string path, string resourcePath)
+        => LoadFromAssembly(Assembly.LoadFile(path), resourcePath);
 
-    public IEnumerable<SchemaDocument> LoadAssembly(Assembly assembly, string resourcePath)
+    public IEnumerable<SchemaDocument> LoadFromAssembly(Assembly assembly, string resourcePath)
     {
         ArgumentNullException.ThrowIfNull(assembly);
         var documents = new List<SchemaDocument>();
@@ -43,7 +48,7 @@ public sealed class SchemaSet
             {
                 using var stream = assembly.GetManifestResourceStream(name)
                     ?? throw new InvalidOperationException($"Resource '{name}' not found in assembly '{assembly.FullName}'.");
-                var document = LoadFromBinary(stream);
+                var document = LoadFromBinary(name, stream);
 
                 documents.Add(document);
                 AddDocument(document);
@@ -58,9 +63,11 @@ public sealed class SchemaSet
     public SchemaDocument LoadFromJson(string json)
         => JsonSerializer.Deserialize(json);
 
-    public SchemaDocument LoadFromBinary(Stream data)
+    public SchemaDocument LoadFromBinary(string name, Stream data)
     {
-        throw new NotImplementedException();
+        using var reader = new StreamReader(data);
+        var content = reader.ReadToEnd();
+        return LoadFileContent(content, Path.GetExtension(name));
     }
 
     public SchemaGroup FindRoot(SchemaName root)
@@ -712,7 +719,7 @@ internal static class SchemaDocumentExtensions
     {
         if (String.IsNullOrEmpty(schemaName.Namespace))
         {
-            node = document.NodeDefs.FirstOrDefault(n => n.Name == schemaName.Name);
+            node = document.NodeDefs.FirstOrDefault(n => String.Equals(n.Name, schemaName.Name, StringComparison.OrdinalIgnoreCase));
             return node != null;
         }
 

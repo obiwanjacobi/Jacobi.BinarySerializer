@@ -27,7 +27,7 @@ public class ValueProcessorParameterTests
     }
 
     private static SchemaProcessorRef TypeMap()
-        => Ref("map", ("logical", "sys.int32"), ("0", "IHDR"), ("1", "PLTE"));
+        => Ref("map", ("to", "sys.int32"), ("IHDR", "0"), ("PLTE", "1"));
 
     [TestCase("IHDR", "A", 5)]
     [TestCase("PLTE", "B", 7)]

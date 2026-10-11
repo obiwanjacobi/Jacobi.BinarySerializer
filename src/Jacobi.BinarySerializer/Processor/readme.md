@@ -10,7 +10,7 @@ Each processor belongs to exactly one stage (`IProcessor.Stage`). The `Processor
 
 | Stage | Interface | Converts | Called |
 |-------|-----------|----------|--------|
-| Semantic (value) | `IValueProcessor` | logical value <-> logical value (scale, enum, nullable, map) | Per field; also for the count/index of a repeat/choice (`valueProcessors`, read direction only). |
+(scale, nullable, map)
 | Representation (field) | `IFieldProcessor` | logical value <-> encoded field (varint, string) | Per field. Reports the bits written/consumed. |
 | Layout | `ILayoutProcessor` | encoded field <-> bytes in a group (packing, alignment, crc) | `BeginWrite/Read` when the group is entered, `Write/Read` per field, `EndWrite/Read` when the group is left. |
 | Stream | `IStreamProcessor` | whole message payload <-> transport bytes (framing, compression, encryption) | Once per message, on the root only. |
@@ -104,7 +104,7 @@ These properties are **managed by the engine**: they are defined by the schema (
 
 In general the processor key is to be used as a prefix to the property name when specifying properties for a processor.
 
-`sys:enum.map` - where `sys:enum` is the processor key and `map` is the property name.
+`sys:varint.encoding` - where `sys:varint` is the processor key and `encoding` is the property name.
 
 However when specifying properties inside the processor-definitions in a schema, the properties are alread listed under the processor key, so the prefix is not needed.
 

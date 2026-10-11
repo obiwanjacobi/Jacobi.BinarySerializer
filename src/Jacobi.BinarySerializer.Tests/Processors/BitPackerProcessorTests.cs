@@ -40,7 +40,7 @@ public class BitPackerProcessorTests
         var root = Group("Root", [Ref("bitpacker", ("bitorder", bitOrder))],
             Field("A", "sys.int8", null, ("bits", "4")),
             Field("B", "sys.int16", null, ("bits", "12")),
-            Field("C", "sys.boolean", null, ("bits", "1")));
+            Field("C", "sys.bool", null, ("bits", "1")));
         var values = new Dictionary<string, object?> { ["Root.A"] = (sbyte)-3, ["Root.B"] = (short)-1000, ["Root.C"] = true };
 
         var (bytes, read) = RoundTrip(root, values);

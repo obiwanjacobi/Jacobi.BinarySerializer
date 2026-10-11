@@ -28,8 +28,8 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     private static readonly PropertyDescriptor WidthProperty = new("width", "sys.int32", false, description: "Override: CRC width in bits (1-64).");
     private static readonly PropertyDescriptor PolyProperty = new("poly", "sys.string", false, description: "Override: polynomial.");
     private static readonly PropertyDescriptor InitProperty = new("init", "sys.string", false, description: "Override: initial value.");
-    private static readonly PropertyDescriptor RefInProperty = new("refin", "sys.boolean", false, description: "Override: reflect input bytes.");
-    private static readonly PropertyDescriptor RefOutProperty = new("refout", "sys.boolean", false, description: "Override: reflect the output.");
+    private static readonly PropertyDescriptor RefInProperty = new("refin", "sys.bool", false, description: "Override: reflect input bytes.");
+    private static readonly PropertyDescriptor RefOutProperty = new("refout", "sys.bool", false, description: "Override: reflect the output.");
     private static readonly PropertyDescriptor XorOutProperty = new("xorout", "sys.string", false, description: "Override: final XOR value.");
     private static readonly PropertyDescriptor ValueProperty = new(PublishedCrc, "sys.uint64", false, isReadOnly: true, isPublished: true, description: "Published: the calculated CRC value.");
 

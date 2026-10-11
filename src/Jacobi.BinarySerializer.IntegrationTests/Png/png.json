@@ -5,12 +5,12 @@
     {
       "name": "chunkType",
       "processor": "sys.map",
-      "logical": "sys.int32",
-      "0": "IHDR",
-      "1": "PLTE",
-      "2": "IDAT",
-      "3": "IEND",
-      "4": null
+      "to": "sys.int32",
+      "IHDR": "0",
+      "PLTE": "1",
+      "IDAT": "2",
+      "IEND": "3",
+      "default": "4"
     }
   ],
   "members": [

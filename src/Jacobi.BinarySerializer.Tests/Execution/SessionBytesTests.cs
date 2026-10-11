@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
-using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -94,7 +93,7 @@ public class SessionBytesTests
     [Test]
     public void Build_LengthOnBoolean_ReportsError()
     {
-        var field = new SchemaField { Name = "Flag", DataType = "sys.boolean", ByteLength = 1 };
+        var field = new SchemaField { Name = "Flag", DataType = "sys.bool", ByteLength = 1 };
 
         Assert.That(() => Build(Group("Root", [], field)), Throws.TypeOf<ExecutionPlanException>());
     }

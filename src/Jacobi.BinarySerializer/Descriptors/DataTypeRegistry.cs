@@ -66,8 +66,9 @@ public sealed class DataTypeRegistry : IDataTypeRegistry
         {
             baseDescriptor = Resolve(baseDocument, baseDef, all, visiting);
         }
-        else if (!TryGet(baseName, out baseDescriptor!))
+        else if (String.IsNullOrEmpty(baseName.Namespace) || !TryGet(baseName, out baseDescriptor!))
         {
+            baseDescriptor = null!;
             throw new InvalidOperationException($"The data type '{baseName}' that '{name}' is based on is not registered.");
         }
 

@@ -11,12 +11,12 @@ public class MapProcessorTests
 {
     private static SchemaGroup IntRoot()
         => Group("Root", [],
-            Field("Color", "sys.int32", [Ref("map", ("Red", "1"), ("Green", "2"), ("Blue", "4"))]));
+            Field("Color", "sys.int32", [Ref("map", ("1", "Red"), ("2", "Green"), ("4", "Blue"))]));
 
     private static SchemaGroup StringRoot()
         => Group("Root", [],
             Field("Type", "sys.string", [
-                Ref("map", ("logical", "sys.int32"), ("0", "IHDR"), ("1", "PLTE")),
+                Ref("map", ("to", "sys.int32"), ("IHDR", "0"), ("PLTE", "1")),
                 Ref("string", ("byteLength", "4"), ("encoding", "ascii"))]));
 
     [TestCase("Red", 1)]
@@ -47,10 +47,10 @@ public class MapProcessorTests
     }
 
     [Test]
-    public void Write_InvalidKeyForLogicalType_Throws()
+    public void Write_InvalidKeyForSourceType_Throws()
     {
         var root = Group("Root", [],
-            Field("A", "sys.int32", [Ref("map", ("logical", "sys.int32"), ("x", "1"))]));
+            Field("A", "sys.int32", [Ref("map", ("x", "1"))]));
 
         Assert.That(() => Write(root, new() { ["Root.A"] = 1 }, out _),
             Throws.InstanceOf<InvalidOperationException>());
@@ -58,14 +58,13 @@ public class MapProcessorTests
 
     private static SchemaGroup StringRootWithDefault()
     {
-        var map = Ref("map", ("logical", "sys.int32"), ("0", "IHDR"));
-        map.PropertyList.Add(new SchemaProperty { Name = new ProcessorKey("sys", "map").PropertyName("4"), Value = null });
+        var map = Ref("map", ("to", "sys.int32"), ("IHDR", "0"), ("default", "4"));
         return Group("Root", [],
             Field("Type", "sys.string", [map, Ref("string", ("byteLength", "4"), ("encoding", "ascii"))]));
     }
 
     [Test]
-    public void Read_UnmappedPhysicalValue_ReturnsTheDefaultsLogicalValue()
+    public void Read_UnmappedValue_ReturnsTheDefault()
     {
         var plan = Build(StringRootWithDefault());
         var sink = new DictSink();
@@ -77,7 +76,7 @@ public class MapProcessorTests
     }
 
     [Test]
-    public void Read_MappedPhysicalValue_IgnoresTheDefault()
+    public void Read_MappedValue_IgnoresTheDefault()
     {
         var plan = Build(StringRootWithDefault());
         var sink = new DictSink();
@@ -88,9 +87,19 @@ public class MapProcessorTests
     }
 
     [Test]
-    public void Write_DefaultsLogicalValue_Throws()
+    public void Write_TheDefaultValue_Throws()
     {
         Assert.That(() => Write(StringRootWithDefault(), new() { ["Root.Type"] = 4 }, out _),
+            Throws.InstanceOf<InvalidOperationException>());
+    }
+
+    [Test]
+    public void Read_UnmappedValueWithoutDefault_Fails()
+    {
+        var plan = Build(StringRoot());
+        var sink = new DictSink();
+
+        Assert.That(() => new ReaderSession(plan).Read(new ReadOnlySequence<byte>("ABCD"u8.ToArray()), sink),
             Throws.InstanceOf<InvalidOperationException>());
     }
 }

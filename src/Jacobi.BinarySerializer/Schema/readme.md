@@ -93,7 +93,7 @@ A reference to a value that is not available yet is an error at runtime. Plan bu
 - Properties given on the use override the properties of the definition.
 - Properties of a processor use or definition can be given explicitly (`"properties": [ { "name": "byteorder", "value": "big" } ]`) or inline: any key that is not mapped to the model is a property. `{ "name": "sys.bytepacker", "byteorder": "big" }` is the same as the explicit form; in XML use attributes or child elements (`<processor name="sys.bytepacker" byteorder="big" />`).
 - JSON documents may contain `//` and `/* */` comments and trailing commas.
-- Inside a processor entry the properties belong to that processor, so no prefix is needed. Elsewhere the full name is used (`sys.enum.map`). `Compile()` expands the short names to the full form.
+- Inside a processor entry the properties belong to that processor, so no prefix is needed. Elsewhere the full name is used (`sys.varint.encoding`). `Compile()` expands the short names to the full form.
 - Properties on fields and groups themselves are generic (e.g. `byteorder` on a group is read by the layout processors that care about it).
 - A property value is a string interpreted by the processor; `null` is a valid value that a processor may give meaning.
 A child node inherits the stages of its parent

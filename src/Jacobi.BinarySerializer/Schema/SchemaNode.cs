@@ -53,6 +53,9 @@ public sealed class SchemaField : SchemaNode
 
     public IReadOnlyList<SchemaProcessorRef> Processors => ProcessorsList;
     internal List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
+    /// <summary>
+    /// The logical data type of the field: a built-in type or a data type def.
+    /// </summary>
     public required SchemaName DataType { get; init; }
 
     /// <summary>

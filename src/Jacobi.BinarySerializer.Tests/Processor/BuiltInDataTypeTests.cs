@@ -15,7 +15,7 @@ public class BuiltInDataTypeTests
     private static bool Decode(string type, byte[] bytes, out object? value)
         => Get(type).Decode!(bytes, out value);
 
-    [TestCase("sys.boolean", 1)]
+    [TestCase("sys.bool", 1)]
     [TestCase("sys.int8", 1)]
     [TestCase("sys.uint8", 1)]
     [TestCase("sys.int16", 2)]
@@ -55,8 +55,8 @@ public class BuiltInDataTypeTests
         Assert.That(bytes, Is.EqualTo(new byte[] { 0xFE, 0xFF }));
     }
 
-    [TestCase("sys.boolean", true)]
-    [TestCase("sys.boolean", false)]
+    [TestCase("sys.bool", true)]
+    [TestCase("sys.bool", false)]
     [TestCase("sys.int8", (sbyte)-5)]
     [TestCase("sys.uint8", (byte)200)]
     [TestCase("sys.int16", (short)-1234)]

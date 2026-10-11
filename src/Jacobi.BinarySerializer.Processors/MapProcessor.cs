@@ -7,12 +7,14 @@ namespace Jacobi.BinarySerializer.Processors;
 
 internal sealed class MapProcessor : ProcessorBase, IValueProcessor
 {
-    private static readonly PropertyDescriptor LogicalProperty = new("logical", "sys.string", false);
+    private static readonly PropertyDescriptor ToProperty = new("to", "sys.string", false);
+    private static readonly PropertyDescriptor DefaultProperty = new("default", "sys.string", false);
 
-    // each property maps a logical value (name) to a physical value (value), parsed as the field type.
-    // a property without a value (null) is the default: on read, physical values that are not mapped give its logical value.
-    // the default has no physical value, so it cannot be written.
-    // the optional 'logical' property sets the data type of the logical values (default String).
+    // read direction: each property maps a source value (name) to a result value (value).
+    // the source value is parsed as the data type of the field (or the value type of the repeat/choice).
+    // the optional 'to' property sets the data type of the result values (default String).
+    // the optional 'default' property is the result for source values that are not mapped; without it an unmapped value is an error.
+    // the default has no source value, so it cannot be written.
 
     public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context)
     {
@@ -22,20 +24,14 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
         }
 
         var map = GetMap(context);
-        var logical = Normalize(logicalValue.Value, map.LogicalType, context);
-        var entries = map.Entries;
-        var index = entries.FindIndex(e => Equals(e.Logical, logical));
+        var result = Normalize(logicalValue.Value, map.ResultType, context);
+        var index = map.Entries.FindIndex(e => Equals(e.Result, result));
         if (index < 0)
         {
             throw context.Logger.Fail($"Value '{logicalValue.Value}' is not mapped.");
         }
-        var entry = entries[index];
-        if (entry.Physical is null)
-        {
-            throw context.Logger.Fail($"Value '{logicalValue.Value}' is the default of the map and has no physical value to write.");
-        }
 
-        return new(logicalValue.Name, map.PhysicalType.ClrType, entry.Physical);
+        return new(logicalValue.Name, map.SourceType.ClrType, map.Entries[index].Source);
     }
 
     public LogicalField Read(LogicalField logicalValue, ValueProcessorContext context)
@@ -46,27 +42,26 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
         }
 
         var map = GetMap(context);
-        var physical = Normalize(logicalValue.Value, map.PhysicalType, context);
-        var entries = map.Entries;
-        var index = entries.FindIndex(e => e.Physical is not null && Equals(e.Physical, physical));
-        if (index < 0)
+        var source = Normalize(logicalValue.Value, map.SourceType, context);
+        var index = map.Entries.FindIndex(e => Equals(e.Source, source));
+        if (index >= 0)
         {
-            index = entries.FindIndex(e => e.Physical is null);
+            return new(logicalValue.Name, map.ResultType.ClrType, map.Entries[index].Result);
         }
-        if (index < 0)
+        if (map.Default is not null)
         {
-            throw context.Logger.Fail($"Value '{logicalValue.Value}' is not mapped.");
+            return new(logicalValue.Name, map.ResultType.ClrType, map.Default);
         }
-        var entry = entries[index];
 
-        return new(logicalValue.Name, map.LogicalType.ClrType, entry.Logical);
+        throw context.Logger.Fail($"Value '{logicalValue.Value}' is not mapped and the map has no default.");
     }
 
     private sealed class MapState
     {
-        public DataTypeDescriptor LogicalType { get; set; } = null!;
-        public DataTypeDescriptor PhysicalType { get; set; } = null!;
-        public List<(object Logical, object? Physical)> Entries { get; } = [];
+        public DataTypeDescriptor SourceType { get; set; } = null!;
+        public DataTypeDescriptor ResultType { get; set; } = null!;
+        public object? Default { get; set; }
+        public List<(object Source, object Result)> Entries { get; } = [];
     }
 
     private static MapState GetMap(ValueProcessorContext context)
@@ -80,39 +75,43 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
 
     private static void ParseMap(MapState map, ValueProcessorContext context)
     {
-        var physicalType = context.DataType
-            ?? throw context.Logger.Fail("The map processor requires a field (or a reference to a field) to know the physical type.");
+        var sourceType = context.DataType
+            ?? throw context.Logger.Fail("The map processor requires a field (or a reference to a field) to know the type of the source values.");
 
-        var logicalType = context.DataTypes.Get(new SchemaName("sys.string"));
-        if (context.Properties.GetOrDefault<string>(LogicalProperty) is { } logicalName
-            && !context.DataTypes.TryGet(new SchemaName(logicalName), out logicalType!))
+        var resultType = context.DataTypes.Get(new SchemaName("sys.string"));
+        if (context.Properties.GetOrDefault<string>(ToProperty) is { } resultName
+            && !context.DataTypes.TryGet(new SchemaName(resultName), out resultType!))
         {
-            throw context.Logger.Fail($"Invalid logical type '{logicalName}'.");
+            throw context.Logger.Fail($"Invalid result type '{resultName}'.");
         }
 
-        var entries = new List<(object, object?)>();
+        object? defaultValue = null;
+        var entries = new List<(object, object)>();
         foreach (var property in context.Properties.ShortNames())
         {
-            if (property.Key.Equals(LogicalProperty.Name, StringComparison.OrdinalIgnoreCase))
+            if (property.Key.Equals(ToProperty.Name, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
-
-            if (!logicalType.Parse(property.Key, out var logical) || logical is null)
+            if (property.Key.Equals(DefaultProperty.Name, StringComparison.OrdinalIgnoreCase))
             {
-                throw context.Logger.Fail($"The map key '{property.Key}' is not a valid {logicalType} value.");
-            }
-            if (property.Value is null)
-            {
-                entries.Add((logical, null));
+                if (property.Value is null || !resultType.Parse(property.Value, out defaultValue) || defaultValue is null)
+                {
+                    throw context.Logger.Fail($"The map default '{property.Value}' is not a valid {resultType} value.");
+                }
                 continue;
             }
-            if (!physicalType.Parse(property.Value, out var physical) || physical is null)
+
+            if (!sourceType.Parse(property.Key, out var source) || source is null)
             {
-                throw context.Logger.Fail($"The map value '{property.Value}' is not a valid {physicalType} value.");
+                throw context.Logger.Fail($"The map key '{property.Key}' is not a valid {sourceType} value.");
+            }
+            if (property.Value is null || !resultType.Parse(property.Value, out var result) || result is null)
+            {
+                throw context.Logger.Fail($"The map value '{property.Value}' is not a valid {resultType} value.");
             }
 
-            entries.Add((logical, physical));
+            entries.Add((source, result));
         }
 
         if (entries.Count == 0)
@@ -120,8 +119,9 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
             throw context.Logger.Fail("The map processor requires at least one mapping.");
         }
 
-        map.LogicalType = logicalType;
-        map.PhysicalType = physicalType;
+        map.SourceType = sourceType;
+        map.ResultType = resultType;
+        map.Default = defaultValue;
         map.Entries.AddRange(entries);
     }
 
@@ -141,5 +141,5 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
     public ProcessorKey Key => new("sys.map");
     public string Name => "Map Processor";
     public PipelineStage Stage => PipelineStage.Semantic;
-    public IReadOnlyList<PropertyDescriptor> Properties => [LogicalProperty];
+    public IReadOnlyList<PropertyDescriptor> Properties => [ToProperty, DefaultProperty];
 }
