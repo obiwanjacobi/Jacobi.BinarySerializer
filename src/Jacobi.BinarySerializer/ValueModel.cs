@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer;
 
