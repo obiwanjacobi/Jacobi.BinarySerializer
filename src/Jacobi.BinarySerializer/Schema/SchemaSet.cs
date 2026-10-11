@@ -488,6 +488,23 @@ public sealed class SchemaSet
                 }
             }
 
+            if (node is SchemaChoice { MemberNodeDef: { } memberNodeDef })
+            {
+                if (document.TryFindNodeDef(memberNodeDef, out var memberDef) ||
+                    TryFindNodeDef(memberNodeDef, out memberDef))
+                {
+                    if (memberDef.NodeKind != SchemaNodeKind.Group)
+                    {
+                        throw new InvalidOperationException(
+                            $"The Choice '{node.Name}' references the member nodeDef '{memberDef.Name}' that defines a {memberDef.NodeKind}: it must be a Group.");
+                    }
+                }
+                else
+                {
+                    allResolved = false;
+                }
+            }
+
             if (node is SchemaGroup group)
             {
                 foreach (var processor in group.Processors.Concat(ValueProcessorsOf(group)))
@@ -633,6 +650,7 @@ public sealed class SchemaSet
                 ProcessorsList = MergeProcessors(nodeDef.Processors, choiceNode.Processors),
                 MemberList = [.. nodeDef.MemberList, .. choiceNode.MemberList],
                 SelectedIndex = choiceNode.SelectedIndex,
+                MemberNodeDef = choiceNode.MemberNodeDef,
                 ByteSize = choiceNode.ByteSize,
                 ValueProcessorsList = [.. choiceNode.ValueProcessors],
             };

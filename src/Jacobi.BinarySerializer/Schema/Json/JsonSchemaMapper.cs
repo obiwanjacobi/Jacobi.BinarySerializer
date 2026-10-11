@@ -193,6 +193,7 @@ internal static class JsonSchemaMapper
                 ProcessorsList = choice.Processors.Select(ToSchemaProcessorRef).ToList(),
                 MemberList = members,
                 SelectedIndex = ToSchemaValueOrRef(choice.SelectedIndex),
+                MemberNodeDef = ToNodeDefName(choice.MemberNodeDef),
                 ByteSize = ToSchemaValueOrRef(choice.ByteSize),
                 ValueProcessorsList = choice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(choice.Properties, choice.AdditionalData)
@@ -320,6 +321,7 @@ internal static class JsonSchemaMapper
                 Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
                 Members = choice.Members.Select(FromSchemaNode).ToList(),
                 SelectedIndex = FromSchemaValueOrRef(choice.SelectedIndex),
+                MemberNodeDef = choice.MemberNodeDef?.ToString(),
                 ByteSize = FromSchemaValueOrRef(choice.ByteSize),
                 ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()

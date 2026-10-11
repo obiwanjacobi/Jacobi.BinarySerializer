@@ -36,7 +36,7 @@ internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
     public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
     {
         Pad(writer, context);
-        return ProcessorDefaults.DefaultLayoutProcessor.Write(writer, encodedValue, context);
+        return DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
     }
 
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
@@ -52,7 +52,7 @@ internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
         {
             return LayoutReadResult<EncodedField>.NeedMoreData();
         }
-        return ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
+        return DefaultProcessors.LayoutProcessor.Read(ref reader, context);
     }
 
     public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)

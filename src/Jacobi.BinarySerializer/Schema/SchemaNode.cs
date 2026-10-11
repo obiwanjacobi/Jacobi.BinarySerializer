@@ -142,7 +142,12 @@ public sealed class SchemaChoice : SchemaGroup
         Kind = SchemaNodeKind.Choice;
     }
 
-    public required SchemaValueOrRef<int> SelectedIndex { get; init; }
+    public SchemaValueOrRef<int> SelectedIndex { get; init; }
+
+    /// <summary>
+    /// The nodeDef (a group) that the alternatives of this choice must conform to (the contract of an open choice).
+    /// </summary>
+    public SchemaName? MemberNodeDef { get; init; }
 
     /// <summary>
     /// Semantic (value) processors that convert the referenced value into the (int) selected index.

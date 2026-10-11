@@ -101,6 +101,11 @@ public sealed class RepeatInfo : GroupInfo
 
 public sealed class ChoiceInfo : GroupInfo
 {
+    /// <summary>
+    /// True for an open choice: it has no alternatives in the schema, the value model selects the group (see <see cref="SchemaChoice.MemberNodeDef"/>).
+    /// </summary>
+    public bool IsOpen => ((SchemaChoice)Group).MemberNodeDef is not null;
+
     public required ValueSource<int> SelectedIndex { get; init; }
 }
 

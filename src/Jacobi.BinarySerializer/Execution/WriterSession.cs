@@ -1,5 +1,4 @@
 using System.Buffers;
-using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Processor;
 
 namespace Jacobi.BinarySerializer.Execution;
@@ -13,13 +12,14 @@ namespace Jacobi.BinarySerializer.Execution;
 /// encodes the value fixed-width (<see cref="DataTypeCodec"/>), no Layout processors appends the encoded bytes, and no
 /// Stream processors writes straight to the output.
 /// </remarks>
-public sealed class WriterSession : SessionState
+internal sealed class WriterSession : SessionState
 {
     private readonly ExecutionPlan _plan;
     private readonly IBufferWriter<byte> _output;
     private readonly IServiceProvider _services;
     private readonly bool _valueFieldsUseModel;
     private InstancePath _instance;
+    private (GroupInfo Group, IValueSource Scope)? _openBody;
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
@@ -123,6 +123,10 @@ public sealed class WriterSession : SessionState
                             {
                                 cursor.EnterRepeat(source, Resolve(rootRepeat.Count, rootRepeat, _valueContext, _instance));
                             }
+                            else if (group is ChoiceInfo { IsOpen: true } openRootChoice)
+                            {
+                                throw EngineLogger.Fail($"'{openRootChoice.Path}': an open choice cannot be the root.");
+                            }
                             else if (group is ChoiceInfo rootChoice)
                             {
                                 var rootIndex = Resolve(rootChoice.SelectedIndex, rootChoice, _valueContext, _instance);
@@ -159,12 +163,26 @@ public sealed class WriterSession : SessionState
                             EngineLogger.RepeatCount(repeat.Path.ToString(), count);
                             cursor.EnterRepeat(step.Scope, count);
                         }
+                        else if (_openBody is { } openBody && ReferenceEquals(openBody.Group, group))
+                        {
+                            _openBody = null;
+                            cursor.Enter(openBody.Scope);
+                        }
+                        else if (group is ChoiceInfo { IsOpen: true } openChoice)
+                        {
+                            var openSource = step.Scope as IOpenChoiceSource
+                                ?? throw EngineLogger.Fail($"'{openChoice.Path}': the value model does not implement {nameof(IOpenChoiceSource)}, which an open choice requires.");
+                            var selected = openSource.EnterOpenChoice(new OpenChoiceContext { Node = openChoice, Services = _services, Instance = _instance });
+                            var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Group);
+                            _openBody = (body, selected.Scope);
+                            cursor.EnterOpenChoice(step.Scope, body);
+                        }
                         else if (group is ChoiceInfo choice)
                         {
                             var index = Resolve(choice.SelectedIndex, choice, _valueContext, _instance);
                             EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
                             _choiceIndexes.Push(index);
-                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance });                            cursor.Enter(choiceScope, index);
+                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }); cursor.Enter(choiceScope, index);
                         }
                         else
                         {
@@ -174,7 +192,7 @@ public sealed class WriterSession : SessionState
                         {
                             _sizeStarts.Push(_counter.Written);
                         }
-                        if (group is not RepeatInfo)
+                        if (group is not RepeatInfo and not ChoiceInfo { IsOpen: true })
                         {
                             BeginLayout(group);
                         }
@@ -197,11 +215,11 @@ public sealed class WriterSession : SessionState
                 case CursorStepKind.ExitGroup:
                     {
                         var group = (GroupInfo)step.Node!;
-                        if (group is not RepeatInfo)
+                        if (group is not RepeatInfo and not ChoiceInfo { IsOpen: true })
                         {
                             EndLayout(group);
                         }
-                        if (group is ChoiceInfo)
+                        if (group is ChoiceInfo { IsOpen: false })
                         {
                             _choiceIndexes.Pop();
                         }
@@ -518,7 +536,7 @@ public sealed class WriterSession : SessionState
             case 0:
                 Prepare(_layoutContext, null);
                 SetPosition();
-                return ProcessorDefaults.DefaultLayoutProcessor.Write(_target, encoded, _layoutContext);
+                return DefaultProcessors.LayoutProcessor.Write(_target, encoded, _layoutContext);
             case 1:
                 var layoutBinding = pipeline.LayoutProcessors[0];
                 Prepare(_layoutContext, layoutBinding);

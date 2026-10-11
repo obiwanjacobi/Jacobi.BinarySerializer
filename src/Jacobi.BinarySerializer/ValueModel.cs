@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -66,4 +65,36 @@ public interface IValueSink
     /// Models that build immutable/typed instances create the instance here and hand it to their parent.
     /// </summary>
     void Complete();
+}
+
+/// <summary>
+/// The group the model selected for an open choice and the scope that holds (or receives) its values.
+/// </summary>
+public readonly record struct OpenChoiceSourceResult(IValueSource Scope, SchemaName Group);
+
+/// <summary>
+/// <inheritdoc cref="OpenChoiceSourceResult"/>
+/// </summary>
+public readonly record struct OpenChoiceSinkResult(IValueSink Scope, SchemaName Group);
+
+/// <summary>
+/// Optional extension of <see cref="IValueSource"/> for models that support open choices.
+/// </summary>
+public interface IOpenChoiceSource : IValueSource
+{
+    /// <summary>
+    /// Selects the group for a child open choice and enters its scope.
+    /// </summary>
+    OpenChoiceSourceResult EnterOpenChoice(OpenChoiceContext context);
+}
+
+/// <summary>
+/// Optional extension of <see cref="IValueSink"/> for models that support open choices.
+/// </summary>
+public interface IOpenChoiceSink : IValueSink
+{
+    /// <summary>
+    /// Selects the group for a child open choice (based on values already seen) and enters its scope.
+    /// </summary>
+    OpenChoiceSinkResult EnterOpenChoice(OpenChoiceContext context);
 }

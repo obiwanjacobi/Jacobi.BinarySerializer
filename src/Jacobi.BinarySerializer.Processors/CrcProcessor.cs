@@ -55,7 +55,7 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     // head
     public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
     {
-        var result = ProcessorDefaults.DefaultLayoutProcessor.Write(writer, encodedValue, context);
+        var result = DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
         if (result == WriteResult.Success && encodedValue.Value is byte[] bytes)
         {
             Update(context, bytes);
@@ -86,7 +86,7 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     }
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        => ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
+        => DefaultProcessors.LayoutProcessor.Read(ref reader, context);
 
     LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         => LayoutReadResult<ReadOnlyMemory<byte>>.Success(LayoutChain.Unread(reader));

@@ -1,7 +1,5 @@
 using System.Buffers;
-using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Processor;
-using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Execution;
 
@@ -14,12 +12,13 @@ namespace Jacobi.BinarySerializer.Execution;
 /// When the input does not (yet) hold a complete value, <see cref="ReadResult.NeedMoreData"/> is returned;
 /// the caller then reads again with more data (from the start of the message).
 /// </remarks>
-public sealed class ReaderSession : SessionState
+internal sealed class ReaderSession : SessionState
 {
     private readonly ExecutionPlan _plan;
     private readonly IServiceProvider _services;
     private readonly bool _valueFieldsUseModel;
     private InstancePath _instance;
+    private (GroupInfo Group, IValueSink Scope)? _openBody;
     private readonly Stack<long> _groupStarts = new();
     private readonly Stack<int> _choiceIndexes = new();
     private readonly Stack<(GroupInfo Group, long End)> _windows = new();
@@ -101,6 +100,10 @@ public sealed class ReaderSession : SessionState
                             {
                                 cursor.EnterRepeat(sink, Resolve(rootRepeat.Count, rootRepeat, _valueContext, _instance));
                             }
+                            else if (group is ChoiceInfo { IsOpen: true } openRoot)
+                            {
+                                throw EngineLogger.Fail($"'{openRoot.Path}': an open choice cannot be the root.");
+                            }
                             else if (group is ChoiceInfo rootChoice)
                             {
                                 var rootIndex = Resolve(rootChoice.SelectedIndex, rootChoice, _valueContext, _instance);
@@ -123,12 +126,26 @@ public sealed class ReaderSession : SessionState
                             EngineLogger.RepeatCount(repeat.Path.ToString(), count);
                             cursor.EnterRepeat(step.Scope, count);
                         }
+                        else if (_openBody is { } openBody && ReferenceEquals(openBody.Group, group))
+                        {
+                            _openBody = null;
+                            cursor.Enter(openBody.Scope);
+                        }
+                        else if (group is ChoiceInfo { IsOpen: true } openChoice)
+                        {
+                            var openSink = step.Scope as IOpenChoiceSink
+                                ?? throw EngineLogger.Fail($"'{openChoice.Path}': the value model does not implement {nameof(IOpenChoiceSink)}, which an open choice requires.");
+                            var selected = openSink.EnterOpenChoice(new OpenChoiceContext { Node = openChoice, Services = _services, Instance = _instance });
+                            var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Group);
+                            _openBody = (body, selected.Scope);
+                            cursor.EnterOpenChoice(step.Scope, body);
+                        }
                         else if (group is ChoiceInfo choice)
                         {
                             var index = Resolve(choice.SelectedIndex, choice, _valueContext, _instance);
                             EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
                             _choiceIndexes.Push(index);
-                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index);                            cursor.Enter(choiceScope, index);
+                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index); cursor.Enter(choiceScope, index);
                         }
                         else
                         {
@@ -148,7 +165,7 @@ public sealed class ReaderSession : SessionState
                             }
                             _windows.Push((group, reader.Consumed + size));
                         }
-                        if (group is not RepeatInfo)
+                        if (group is not RepeatInfo and not ChoiceInfo { IsOpen: true })
                         {
                             BeginLayout(group, ref reader);
                         }
@@ -187,12 +204,12 @@ public sealed class ReaderSession : SessionState
                     break;
 
                 case CursorStepKind.ExitGroup:
-                    if (step.Node is not RepeatInfo)
+                    if (step.Node is not RepeatInfo and not ChoiceInfo { IsOpen: true })
                     {
                         EndLayout((GroupInfo)step.Node!, ref reader);
                         step.Scope!.Complete();
                     }
-                    if (step.Node is ChoiceInfo)
+                    if (step.Node is ChoiceInfo { IsOpen: false })
                     {
                         _choiceIndexes.Pop();
                     }
@@ -321,7 +338,7 @@ public sealed class ReaderSession : SessionState
             case 0:
                 Prepare(_layoutContext, null);
                 SetPosition(reader.Consumed);
-                layoutRead = ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, _layoutContext);
+                layoutRead = DefaultProcessors.LayoutProcessor.Read(ref reader, _layoutContext);
                 break;
             case 1:
                 var layoutBinding = pipeline.LayoutProcessors[0];

@@ -96,6 +96,10 @@ internal sealed class JsonSchemaRepeat : JsonSchemaGroup
 internal sealed class JsonSchemaChoice : JsonSchemaGroup
 {
     public JsonSchemaValueOrRef<int> SelectedIndex { get; init; }
+
+    [JsonPropertyName("memberNodeDef")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MemberNodeDef { get; init; }
     public IReadOnlyList<JsonSchemaProcessorRef> ValueProcessors { get; init; } = [];
 }
 

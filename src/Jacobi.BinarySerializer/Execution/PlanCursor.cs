@@ -44,6 +44,7 @@ internal sealed class PlanCursor<TScope>
         public TScope Scope { get; } = scope;
         public int NextChild { get; set; } = firstChild;
         public int EndChild { get; } = endChild;
+        public IReadOnlyList<NodeInfo> Members { get; init; } = group.Members;
 
         /// <summary>Repeat frame: the number of items (null for group, choice and item frames).</summary>
         public int? Count { get; set; }
@@ -141,7 +142,7 @@ internal sealed class PlanCursor<TScope>
         if (_range is not null)
         {
             var instance = Instance;
-            while (frame.NextChild < frame.EndChild && !_range.Includes(frame.Group.Members[frame.NextChild], instance))
+            while (frame.NextChild < frame.EndChild && !_range.Includes(frame.Members[frame.NextChild], instance))
             {
                 frame.NextChild++;
             }
@@ -149,7 +150,7 @@ internal sealed class PlanCursor<TScope>
 
         if (frame.NextChild < frame.EndChild)
         {
-            var child = frame.Group.Members[frame.NextChild++];
+            var child = frame.Members[frame.NextChild++];
             switch (child)
             {
                 case FieldInfo:
@@ -245,6 +246,21 @@ internal sealed class PlanCursor<TScope>
         }
 
         _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = Int32.MaxValue, Open = true });
+        _pendingEnter = null;
+        _pendingAnnounced = false;
+    }
+
+    /// <summary>
+    /// Completes an EnterGroup step for an open choice: the selected body group is the only member of the choice.
+    /// </summary>
+    public void EnterOpenChoice(TScope scope, GroupInfo body)
+    {
+        if (_pendingEnter is not ChoiceInfo { IsOpen: true } choice || !_pendingAnnounced || _pendingItemIndex >= 0)
+        {
+            throw new InvalidOperationException("EnterOpenChoice can only be called after an EnterGroup step for an open choice.");
+        }
+
+        _frames.Push(new Frame(choice, scope, 0, 1) { Members = [body] });
         _pendingEnter = null;
         _pendingAnnounced = false;
     }

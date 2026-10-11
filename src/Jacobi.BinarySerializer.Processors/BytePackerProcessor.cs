@@ -15,7 +15,7 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor
     private static readonly PropertyDescriptor EndianProperty = new("byteorder", "sys.endianness", false, description: "Group: 'little' (default) or 'big' byte order of fixed-width values.");
 
     public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
-        => ProcessorDefaults.DefaultLayoutProcessor.BeginWrite(writer, context);
+        => DefaultProcessors.LayoutProcessor.BeginWrite(writer, context);
 
     public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
     {
@@ -26,18 +26,18 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor
             context.Logger.ByteOrderConverted(context.Field?.Path ?? String.Empty, GetEndianness(context).ToString());
         }
 
-        return ProcessorDefaults.DefaultLayoutProcessor.Write(writer, encodedValue, context);
+        return DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
     }
 
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
-        => ProcessorDefaults.DefaultLayoutProcessor.EndWrite(writer, context);
+        => DefaultProcessors.LayoutProcessor.EndWrite(writer, context);
 
     public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        => ProcessorDefaults.DefaultLayoutProcessor.BeginRead(ref reader, context);
+        => DefaultProcessors.LayoutProcessor.BeginRead(ref reader, context);
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
-        var result = ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
+        var result = DefaultProcessors.LayoutProcessor.Read(ref reader, context);
         if (result.Status == ReadResult.Success && result.Value.Value is byte[] bytes && IsFixedWidth(context))
         {
             var converted = EndianCodec.Convert(bytes, GetEndianness(context), Endianness.Little);
@@ -49,7 +49,7 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor
     }
 
     public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        => ProcessorDefaults.DefaultLayoutProcessor.EndRead(ref reader, context);
+        => DefaultProcessors.LayoutProcessor.EndRead(ref reader, context);
 
     private static bool IsFixedWidth(LayoutProcessorContext context)
         => context.Field is not null && context.Field.DataType.FixedSize is > 1;

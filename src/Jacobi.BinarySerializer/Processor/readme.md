@@ -10,7 +10,7 @@ Each processor belongs to exactly one stage (`IProcessor.Stage`). The `Processor
 
 | Stage | Interface | Converts | Called |
 |-------|-----------|----------|--------|
-(scale, nullable, map)
+| Value | `IValueProcessor` | logical value <-> encoded value (scaled, mapped, compressed) | Per field. Reports the bits written/consumed. |
 | Representation (field) | `IFieldProcessor` | logical value <-> encoded field (varint, string) | Per field. Reports the bits written/consumed. |
 | Layout | `ILayoutProcessor` | encoded field <-> bytes in a group (packing, alignment, crc) | `BeginWrite/Read` when the group is entered, `Write/Read` per field, `EndWrite/Read` when the group is left. |
 | Stream | `IStreamProcessor` | whole message payload <-> transport bytes (framing, compression, encryption) | Once per message, on the root only. |

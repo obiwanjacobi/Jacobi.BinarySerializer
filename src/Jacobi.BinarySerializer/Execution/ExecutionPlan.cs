@@ -19,6 +19,39 @@ public sealed class ExecutionPlan
     /// </summary>
     public DataTypeRegistry DataTypes { get; init; } = DataTypeRegistry.CreateDefault();
 
+    private IReadOnlyDictionary<ChoiceInfo, IReadOnlyDictionary<SchemaName, GroupInfo>> _openChoiceBodies
+        = new Dictionary<ChoiceInfo, IReadOnlyDictionary<SchemaName, GroupInfo>>();
+
+    internal void SetOpenChoiceBodies(IReadOnlyDictionary<ChoiceInfo, IReadOnlyDictionary<SchemaName, GroupInfo>> bodies)
+        => _openChoiceBodies = bodies;
+
+    /// <summary>
+    /// Finds the plan of the group a value model selected for an open choice.
+    /// The group must be a schema root that conforms to the nodeDef of the open choice.
+    /// </summary>
+    internal GroupInfo ResolveOpenChoiceBody(ChoiceInfo choice, SchemaName selected)
+    {
+        if (_openChoiceBodies.TryGetValue(choice, out var bodies))
+        {
+            if (bodies.TryGetValue(selected, out var exact))
+            {
+                return exact;
+            }
+            if (String.IsNullOrEmpty(selected.Namespace))
+            {
+                var matches = bodies.Where(b => String.Equals(b.Key.Name, selected.Name, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (matches.Count == 1)
+                {
+                    return matches[0].Value;
+                }
+            }
+        }
+
+        var contract = ((SchemaChoice)choice.Group).MemberNodeDef;
+        throw new InvalidOperationException(
+            $"'{choice.Path}': the group '{selected}' is not a known group that conforms to the nodeDef '{contract}' of the open choice.");
+    }
+
     /// <summary>Finds a node by its path (e.g. 'Root.Header.Length'); null when there is none.</summary>
     public NodeInfo? Find(SchemaPath path)
         => Find(Root, path);
@@ -71,7 +104,9 @@ public sealed class ExecutionPlan
         dataTypes.RegisterDataTypeDefs(schemas.Documents);
         var builder = new ExecutionPlanBuilder(processorProvider, dataTypes);
         var root = schemas.FindRoot(schemaName);
-        return builder.Build(root);
+        var plan = builder.Build(root);
+        plan.SetOpenChoiceBodies(builder.BuildOpenChoiceBodies(plan.Root, schemas, schemaName.Namespace));
+        return plan;
     }
 
     public static ExecutionPlan Create(SchemaGroup root, IProcessorProvider processorProvider, DataTypeRegistry? dataTypes = null)
@@ -109,6 +144,77 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         }
 
         return new ExecutionPlan { Root = rootInfo, DataTypes = _dataTypes };
+    }
+
+    /// <summary>
+    /// Builds the plans of all schema roots that conform (declare the nodeDef) to each open choice, including nested open choices.
+    /// </summary>
+    internal IReadOnlyDictionary<ChoiceInfo, IReadOnlyDictionary<SchemaName, GroupInfo>> BuildOpenChoiceBodies(
+        GroupInfo root, SchemaSet schemas, string? rootNamespace)
+    {
+        var result = new Dictionary<ChoiceInfo, IReadOnlyDictionary<SchemaName, GroupInfo>>();
+        var built = new Dictionary<SchemaName, GroupInfo>();
+        var work = new Queue<(GroupInfo Group, string? Namespace)>();
+        work.Enqueue((root, rootNamespace));
+
+        while (work.Count > 0)
+        {
+            var (group, ns) = work.Dequeue();
+            foreach (var choice in FindOpenChoices(group))
+            {
+                var contract = Qualify(((SchemaChoice)choice.Group).MemberNodeDef!.Value, ns);
+                var bodies = new Dictionary<SchemaName, GroupInfo>();
+                foreach (var document in schemas.Documents)
+                {
+                    foreach (var candidate in document.Roots)
+                    {
+                        if (candidate.NodeDef is not { } nodeDef || Qualify(nodeDef, document.Name) != contract)
+                        {
+                            continue;
+                        }
+
+                        var name = new SchemaName($"{document.Name}{SchemaName.Separator}{candidate.Name}");
+                        if (!built.TryGetValue(name, out var body))
+                        {
+                            body = Build(candidate).Root;
+                            if (body is RepeatInfo or ChoiceInfo)
+                            {
+                                throw new InvalidOperationException(
+                                    $"'{choice.Path}': the group '{name}' must be a plain group to be used in an open choice.");
+                            }
+                            built[name] = body;
+                            work.Enqueue((body, document.Name));
+                        }
+                        bodies[name] = body;
+                    }
+                }
+                result[choice] = bodies;
+            }
+        }
+        return result;
+    }
+
+    private static SchemaName Qualify(SchemaName name, string? ns)
+        => String.IsNullOrEmpty(name.Namespace) && !String.IsNullOrEmpty(ns)
+            ? new SchemaName($"{ns}{SchemaName.Separator}{name.Name}")
+            : name;
+
+    private static IEnumerable<ChoiceInfo> FindOpenChoices(GroupInfo group)
+    {
+        foreach (var member in group.Members)
+        {
+            if (member is ChoiceInfo { IsOpen: true } open)
+            {
+                yield return open;
+            }
+            else if (member is GroupInfo child)
+            {
+                foreach (var nested in FindOpenChoices(child))
+                {
+                    yield return nested;
+                }
+            }
+        }
     }
 
     internal static SchemaGroup FindRoot(SchemaDocument document, SchemaName root)

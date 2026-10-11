@@ -1,4 +1,5 @@
 using Jacobi.BinarySerializer.Execution;
+using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer;
 
@@ -39,4 +40,17 @@ public sealed class RepeatContext : ValueContext
 public sealed class ChoiceContext : ValueContext
 {
     public ChoiceInfo Choice => (ChoiceInfo)Node;
+}
+
+/// <summary>
+/// Describes an open choice: a choice without alternatives in the schema, only a nodeDef contract the chosen group must conform to.
+/// </summary>
+public sealed class OpenChoiceContext : ValueContext
+{
+    public ChoiceInfo Choice => (ChoiceInfo)Node;
+
+    /// <summary>
+    /// The nodeDef (contract) the selected group must conform to.
+    /// </summary>
+    public SchemaName? MemberNodeDef => ((SchemaChoice)Choice.Group).MemberNodeDef;
 }

@@ -59,6 +59,28 @@ The members below are part of the schema model itself (as opposed to the free-fo
 | `valueProcessors` | repeat, choice | Semantic processors that convert the referenced value to the count/index (read direction). | Convert a discriminator that is not a number (`sys.map` of a FourCC string, `sys.bits` of a status byte) to the index. |
 | `processors` | group, repeat, choice | Layout/stream processors; child nodes inherit them unless they specify their own for that stage. | Bit/byte packing, alignment, CRC over a whole group. |
 
+#### Open choice
+
+A choice with `memberNodeDef` (instead of `members`) is *open*: an envelope with a body slot whose group is selected by the value model, not by the schema. The nodeDef is the contract.
+
+Rules:
+- `memberNodeDef` names a nodeDef of kind `group` (same document, or qualified `document.name`). The compiler rejects a missing nodeDef or one of another kind.
+- `selectedIndex` is optional and not used by an open choice.
+- A body is a schema root (a plain group) that declares `"nodeDef": "<name>"`. Repeat and choice roots are rejected.
+- The value model must implement `IOpenChoiceSink` (read) / `IOpenChoiceSource` (write) and return the scope plus the name of the selected group. Without the interface the engine fails, naming the choice path.
+- The group name is matched by full name (`document.name`), or by short name when exactly one conforming root has that name. An unknown or non-conforming group throws an `InvalidOperationException` naming the choice path and the nodeDef.
+- The engine builds the plans of all conforming roots when the envelope plan is created (also for nested open choices).
+- An open choice cannot be the root of a schema.
+- Open choice nodes can be nested.
+
+Limitations:
+- Body paths are relative to the body root (e.g. `BodyA.Id`).
+- The processors/pipeline of the envelope are not inherited by the body.
+- `byteSize` and `processors` on the open choice itself are ignored.
+- Body roots are not merged with the members of their nodeDef (nested nodes are); a body must list all its own members.
+- Only plans created from a `SchemaSet` have bodies; plans created from a single group or document cannot resolve an open choice.
+- Bodies are built when the envelope plan is created, not at schema compile time.
+
 ### Shared members
 
 | Member | Meaning | Use it to |

@@ -1,27 +1,26 @@
 using System.Buffers;
-using Jacobi.BinarySerializer.Codecs;
 
 namespace Jacobi.BinarySerializer.Processor;
 
-public static class ProcessorDefaults
+public static class DefaultProcessors
 {
     public static IProcessor For(PipelineStage stage)
         => stage switch
         {
-            PipelineStage.Semantic => DefaultValueProcessor,
-            PipelineStage.Representation => DefaultFieldProcessor,
-            PipelineStage.Layout => DefaultLayoutProcessor,
-            PipelineStage.Stream => DefaultStreamProcessor,
+            PipelineStage.Semantic => ValueProcessor,
+            PipelineStage.Representation => FieldProcessor,
+            PipelineStage.Layout => LayoutProcessor,
+            PipelineStage.Stream => StreamProcessor,
             _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "Unknown pipeline stage.")
         };
 
-    public static readonly DefaultValueProcessor DefaultValueProcessor = new();
-    public static readonly DefaultFieldProcessor DefaultFieldProcessor = new();
-    public static readonly DefaultLayoutProcessor DefaultLayoutProcessor = new();
-    public static readonly DefaultStreamProcessor DefaultStreamProcessor = new();
+    public static readonly IValueProcessor ValueProcessor = new DefaultValueProcessor();
+    public static readonly IFieldProcessor FieldProcessor = new DefaultFieldProcessor();
+    public static readonly ILayoutProcessor LayoutProcessor = new DefaultLayoutProcessor();
+    public static readonly IStreamProcessor StreamProcessor = new DefaultStreamProcessor();
 }
 
-public sealed class DefaultValueProcessor : IValueProcessor
+internal sealed class DefaultValueProcessor : IValueProcessor
 {
     public ProcessorKey Key => new("default", "value");
     public string Name => "Default Value Processor";
@@ -37,7 +36,7 @@ public sealed class DefaultValueProcessor : IValueProcessor
 }
 
 /// <summary>Fixed-width (little-endian) representation of the field's schema data type, see <see cref="DataTypeCodec"/>.</summary>
-public sealed class DefaultFieldProcessor : IFieldProcessor
+internal sealed class DefaultFieldProcessor : IFieldProcessor
 {
     public ProcessorKey Key => new("default", "field");
     public string Name => "Default Field Processor";
@@ -71,7 +70,7 @@ public sealed class DefaultFieldProcessor : IFieldProcessor
 }
 
 /// <summary>Pass-through: forwards already-encoded bytes unchanged. The session skips empty stages, so this is only used when asked for explicitly.</summary>
-public sealed class DefaultLayoutProcessor : ILayoutProcessor
+internal sealed class DefaultLayoutProcessor : ILayoutProcessor
 {
     /// <summary>The most bytes offered to a field processor that decides its own width (enough for a 64-bit varint).</summary>
     public const int OpenWidthWindowBytes = 10;
@@ -162,7 +161,7 @@ public sealed class DefaultLayoutProcessor : ILayoutProcessor
 }
 
 /// <summary>Pass-through: copies the unread input to the output unchanged.
-public sealed class DefaultStreamProcessor : IStreamProcessor
+internal sealed class DefaultStreamProcessor : IStreamProcessor
 {
     public ProcessorKey Key => new("default", "stream");
     public string Name => "Default Stream Processor";

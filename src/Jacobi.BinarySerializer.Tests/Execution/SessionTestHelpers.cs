@@ -68,7 +68,7 @@ internal static class SessionTestHelpers
             log.Add($"Write:{context.Field!.Path}");
             return fail
                 ? WriteResult.Failure
-                : ProcessorDefaults.DefaultLayoutProcessor.Write(writer, encodedValue, context);
+                : DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
         }
 
         public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
@@ -84,7 +84,7 @@ internal static class SessionTestHelpers
             {
                 return LayoutReadResult<EncodedField>.Failure();
             }
-            return ProcessorDefaults.DefaultLayoutProcessor.Read(ref reader, context);
+            return DefaultProcessors.LayoutProcessor.Read(ref reader, context);
         }
 
         public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
