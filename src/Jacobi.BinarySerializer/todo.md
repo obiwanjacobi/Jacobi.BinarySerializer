@@ -1,8 +1,5 @@
 ﻿# TODOs
 
-- [ ] **NodeDef for Groups include members** Should the nodeDef for groups also include members? And how do these members merge with the members of the group that references the nodeDef?
-  - [ ] Refactor `SchemaNode` into `SchemaObject` (name+kind). SchemaNode derives from SchemaObject. SchemaNodeDef derives from SchemaObject.
-  - [ ] Refactor nodeDefs (dataTypeDefs?) into custom dataTypeDescruptors and a new section (nodeNodeDefs?) for predefined nodes.
   - [ ] rename the namespace for datatypes (dt?). Short names are no longer supported.
 - [ ] **Freeze `SchemaSet` and `ProcessorProvider` once handed to a `Serializer`.** Cached `ExecutionPlan`s go stale if a schema is loaded/recompiled or a processor is registered after `SerializerBuilder.Build()`. Fix: add an `IsFrozen`/`Freeze()` to `SchemaSet` (after `Compile`) and to the processor provider (`ProcessorManager`), call it in `Build()`, and throw `InvalidOperationException` on later modification. Add tests.
   For `SchemaSet` use a builder pattern: `SchemaSetBuilder` loads then `Build()` (Compile) returns a frozen `SchemaSet`.
@@ -38,9 +35,22 @@
   - [ ] running status (a first byte below 0x80 reuses the previous status); 
   - [ ] the status peek must be supplied by the model on write (not derived from the chosen alternative); 
   - [ ] the repeated `Status` group cannot be reused (nodeDef/group reuse); no test parses `Midi.xml` yet. See item on Group NodeDef to include members.
+- [ ] **Open choice** (a common envelope with a message body that can be any of a closed set of groups, not known to the envelope schema). Decisions:
+  - [ ] Schema: a choice is marked open and references a `nodeDef` (the contract). A body group declares that nodeDef as its type (similar to `dataType`). An open choice has no members/alternatives in the schema. Update the JSON/XML models, mappers and schemas and the `SchemaSet.Compile` validation (nodeDef exists, body group conforms to the nodeDef).
+  - [ ] The generic engine is not extended with a binding/mapping document. The mapping (discriminator value to body group) lives in the value model; the engine only asks the model. A binding document (value to group table, validated by `Compile`) remains a possible later addition as one more resolver.
+  - [ ] No discriminator handling in the engine: the value model has already seen the discriminator field (it is read/written as a normal field of the envelope) and knows which group to choose. The model does not return a discriminator value; the engine neither derives nor writes one for the open choice.
+  - [ ] New optional value model interfaces (extend `IValueSource`/`IValueSink`, existing interfaces and helpers stay unchanged): `IOpenChoiceSource.EnterOpenChoice(OpenChoiceContext)` and `IOpenChoiceSink.EnterOpenChoice(OpenChoiceContext)`. Selecting the group and entering its scope is one call (no separate Select call), unless the engine turns out to need them separate. The call returns the body scope plus the selected group (by name). `OpenChoiceContext` identifies the node (Name/Path) and the nodeDef contract.
+  - [ ] The engine queries the existing value model reference when it reaches an open choice. If the model does not implement the interface: error naming the node path.
+  - [ ] The engine resolves the plan for the selected group (by name from the `SchemaSet`; plans compiled up front for the groups that have the nodeDef as type, no lazy compile), checks that the group conforms to the nodeDef (runtime error otherwise) and pushes it on the session frame stack (resumable, no call-stack state).
+  - [ ] Static (compile-time) selection first; dynamic selection (a different body per received message, closed list) uses the same model-driven path.
+  - [ ] Dropped for v1: opaque/unknown body fallback (an unknown group is an error), engine-derived discriminator, multiple bindings per schema, constraints on the slot (e.g. required byte length).
+  - [ ] Check whether `PlanCursor` can address a plan by group name (it may assume one static plan).
 
 ---
 
+- [x] **Implement and test nodeDefs.** NodeDefs can be defined, but using them (group and field instantiation, processors, name resolution, cross-document) is not covered by tests yet. Verify the behavior and add tests; prerequisite for the open choice.
+- [x] **NodeDef for Groups include members** Should the nodeDef for groups also include members? And how do these members merge with the members of the group that references the nodeDef?
+  - [x] Refactor nodeDefs (dataTypeDefs?) into custom dataTypeDescruptors and a new section (nodeNodeDefs?) for predefined nodes.
 - [x] **Tests for field `Value`.** Parsing, JSON/XML round-trip, reader mismatch/match, writer derivation and mismatch, `ref:`/`pub:` values, nodeDef instantiation.
 - [x] **CRC follow-ups.** 
   - [x] Missing processor-level tests (corrupt CRC, truncated input, bad properties, other algorithms); 

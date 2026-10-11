@@ -83,7 +83,7 @@ internal static class JsonSchemaMapper
             Name = jsonField.Name,
             NodeDef = ToNodeDefName(jsonField.NodeDef),
             ProcessorsList = jsonField.Processors.Select(ToSchemaProcessorRef).ToList(),
-            DataType = new SchemaName(jsonField.DataType),
+            DataType = jsonField.DataType is { } dataType ? new SchemaName(dataType) : (SchemaName?)null,
             Value = ToSchemaValueOrRef(jsonField.Value),
             ByteLength = ToSchemaValueOrRef(jsonField.ByteLength),
             ByteOffset = jsonField.ByteOffset,
@@ -105,8 +105,10 @@ internal static class JsonSchemaMapper
         return new SchemaNodeDef
         {
             Name = jsonNodeDef.Name,
+            NodeKind = ParseNodeDefKind(jsonNodeDef.Name, jsonNodeDef.Kind),
             DataType = jsonNodeDef.DataType is { } dataType ? new SchemaName(dataType) : (SchemaName?)null,
             Processors = jsonNodeDef.Processors.Select(ToSchemaProcessorRef).ToList(),
+            MemberList = jsonNodeDef.Members.Select(m => ToSchemaNode(m, true)).ToList(),
             PropertyList = MergeProperties(jsonNodeDef.Properties, jsonNodeDef.AdditionalData)
         };
     }
@@ -198,13 +200,12 @@ internal static class JsonSchemaMapper
         }
         else
         {
-            group = new SchemaRepeat
+            group = new SchemaGroup
             {
                 Name = jsonGroup.Name,
                 NodeDef = ToNodeDefName(jsonGroup.NodeDef),
                 ProcessorsList = jsonGroup.Processors.Select(ToSchemaProcessorRef).ToList(),
                 MemberList = members,
-                Count = 1,
                 ByteSize = ToSchemaValueOrRef(jsonGroup.ByteSize),
                 PropertyList = MergeProperties(jsonGroup.Properties, jsonGroup.AdditionalData)
             };
@@ -253,7 +254,7 @@ internal static class JsonSchemaMapper
                 Name = field.Name,
                 NodeDef = field.NodeDef?.ToString(),
                 Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
-                DataType = field.DataType.FullName,
+                DataType = field.DataType?.FullName,
                 Value = FromSchemaValueOrRef(field.Value),
                 ByteLength = FromSchemaValueOrRef(field.ByteLength),
                 ByteOffset = field.ByteOffset,
@@ -264,13 +265,31 @@ internal static class JsonSchemaMapper
         };
     }
 
+    private static SchemaNodeKind ParseNodeDefKind(string name, string? kind)
+    {
+        if (String.IsNullOrWhiteSpace(kind))
+        {
+            throw new InvalidOperationException($"The nodeDef '{name}' must specify its kind (field, group, repeat or choice).");
+        }
+
+        if (Enum.TryParse<SchemaNodeKind>(kind, ignoreCase: true, out var parsed) &&
+            parsed is SchemaNodeKind.Field or SchemaNodeKind.Group or SchemaNodeKind.Repeat or SchemaNodeKind.Choice)
+        {
+            return parsed;
+        }
+
+        throw new InvalidOperationException($"The nodeDef '{name}' has an unknown kind '{kind}' (field, group, repeat or choice).");
+    }
+
     private static JsonSchemaNodeDef FromSchemaNodeDef(SchemaNodeDef nodeDef)
     {
         return new JsonSchemaNodeDef
         {
             Name = nodeDef.Name,
+            Kind = nodeDef.NodeKind.ToString().ToLowerInvariant(),
             DataType = nodeDef.DataType?.FullName,
             Processors = nodeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
+            Members = nodeDef.Members.Select(FromSchemaNode).ToList(),
             Properties = nodeDef.Properties.Select(FromSchemaProperty).ToList()
         };
     }
@@ -304,6 +323,19 @@ internal static class JsonSchemaMapper
                 ByteSize = FromSchemaValueOrRef(choice.ByteSize),
                 ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()
+            };
+        }
+
+        if (group.GetType() == typeof(SchemaGroup))
+        {
+            return new JsonSchemaGroup
+            {
+                Name = group.Name,
+                NodeDef = group.NodeDef?.ToString(),
+                Processors = group.Processors.Select(FromSchemaProcessorRef).ToList(),
+                Members = group.Members.Select(FromSchemaNode).ToList(),
+                ByteSize = FromSchemaValueOrRef(group.ByteSize),
+                Properties = group.Properties.Select(FromSchemaProperty).ToList()
             };
         }
 

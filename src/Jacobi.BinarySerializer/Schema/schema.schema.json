@@ -95,11 +95,13 @@
     "nodeDef": {
       "description": "A reusable type: an optional data type plus processors.",
       "type": "object",
-      "required": [ "name" ],
+      "required": [ "name", "kind" ],
       "properties": {
         "name": { "type": "string" },
+        "kind": { "enum": [ "field", "group", "repeat", "choice" ], "description": "The kind of node the nodeDef defines." },
         "datatype": { "type": "string" },
         "processors": { "$ref": "#/$defs/processors" },
+        "members": { "type": "array", "items": { "$ref": "#/$defs/node" }, "description": "The members of a group, repeat or choice nodeDef. They precede the members of the referencing node." },
         "properties": { "type": "array", "items": { "$ref": "#/$defs/property" } }
       },
       "additionalProperties": true

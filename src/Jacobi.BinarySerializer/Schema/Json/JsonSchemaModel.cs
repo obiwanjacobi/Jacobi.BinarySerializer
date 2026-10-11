@@ -37,7 +37,14 @@ internal sealed class JsonSchemaDataTypeDef
 
 internal sealed class JsonSchemaNodeDef : JsonSchemaNode
 {
-    public required IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; }
+    /// <summary>
+    /// The kind of node the nodeDef defines: field, group, repeat or choice.
+    /// </summary>
+    [JsonPropertyName("kind")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Kind { get; init; }
+    public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
+    public IReadOnlyList<JsonSchemaNode> Members { get; init; } = [];
     [JsonPropertyName("datatype")]
     public string? DataType { get; init; }
 }
@@ -67,7 +74,7 @@ internal sealed class JsonSchemaField : JsonSchemaNode
 {
     public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
     [JsonPropertyName("datatype")]
-    public required string DataType { get; init; }
+    public string? DataType { get; init; }
     public JsonSchemaValueOrRef<string> Value { get; init; }
     public JsonSchemaValueOrRef<int> ByteLength { get; init; }
     public int? ByteOffset { get; init; }

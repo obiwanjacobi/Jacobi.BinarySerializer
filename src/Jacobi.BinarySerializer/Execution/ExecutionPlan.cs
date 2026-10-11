@@ -154,9 +154,14 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
     private FieldInfo? BuildFieldInfo(SchemaField field, SchemaPath path, ProcessorPipeline fieldPipeline, BuildState state)
     {
         var length = BindValueSource(field.ByteLength, path, state);
-        if (!_dataTypes.TryGet(field.DataType, out var dataType))
+        if (field.DataType is not { } fieldDataType)
         {
-            state.Error(path, $"The data type '{field.DataType}' is not registered.");
+            state.Error(path, "The field has no data type (and no nodeDef that defines one).");
+            return null;
+        }
+        if (!_dataTypes.TryGet(fieldDataType, out var dataType))
+        {
+            state.Error(path, $"The data type '{fieldDataType}' is not registered.");
             return null;
         }
         if (!dataType.SupportsLength && length is int or PublishedValueKey)

@@ -117,7 +117,7 @@ public class XmlSerializerTests
                 </processor>
               </processorDefs>
               <nodeDefs>
-                <nodeDef name="CommonField" datatype="sys.int32">
+                <nodeDef name="CommonField" kind="field" datatype="sys.int32">
                   <processors>
                     <processor name="ref:deltaProcessor" />
                   </processors>
@@ -125,7 +125,7 @@ public class XmlSerializerTests
                     <property name="scale" value="100" />
                   </properties>
                 </nodeDef>
-                <nodeDef name="CommonGroup">
+                <nodeDef name="CommonGroup" kind="group">
                   <processors>
                     <processor name="ref:rootProcessor" />
                   </processors>

@@ -314,7 +314,10 @@ public sealed class SchemaSet
 
             if (node is SchemaField field)
             {
-                AddDataTypeDependency(field.DataType, documentName, dependencies);
+                if (field.DataType is { } fieldDataType)
+                {
+                    AddDataTypeDependency(fieldDataType, documentName, dependencies);
+                }
                 foreach (var processor in field.Processors)
                 {
                     AddSchemaDependency(processor, documentName, dependencies);
@@ -459,6 +462,12 @@ public sealed class SchemaSet
                 if (document.TryFindNodeDef(node.NodeDef.Value, out var nodeDef) ||
                     TryFindNodeDef(node.NodeDef.Value, out nodeDef))
                 {
+                    if (nodeDef.NodeKind != node.Kind)
+                    {
+                        throw new InvalidOperationException(
+                            $"The {node.Kind} '{node.Name}' references the nodeDef '{nodeDef.Name}' that defines a {nodeDef.NodeKind}: the kinds must match.");
+                    }
+
                     var replacementNode = InstantiateNodeDef(node, nodeDef);
                     resolvedNodes.Replace(node, replacementNode);
                 }
@@ -501,8 +510,8 @@ public sealed class SchemaSet
 
         for (var i = 0; i < schemaNodes.Count; i++)
         {
-            if (schemaNodes[i] is SchemaField dataTypeField &&
-                TryFindDataTypeDef(document, dataTypeField.DataType, out var defDocument, out var dataTypeDef))
+            if (schemaNodes[i] is SchemaField { DataType: { } fieldDataType } dataTypeField &&
+                TryFindDataTypeDef(document, fieldDataType, out var defDocument, out var dataTypeDef))
             {
                 schemaNodes[i] = InstantiateDataType(dataTypeField, defDocument, dataTypeDef);
             }
@@ -594,7 +603,7 @@ public sealed class SchemaSet
             return new SchemaField
             {
                 Name = node.Name,
-                DataType = nodeDef.DataType ?? throw new InvalidOperationException($"The nodeDef '{nodeDef.Name}' has no data type and cannot be applied to the field '{node.Name}'."),
+                DataType = nodeDef.DataType ?? fieldNode.DataType ?? throw new InvalidOperationException($"The nodeDef '{nodeDef.Name}' has no data type and cannot be applied to the field '{node.Name}'."),
                 Value = fieldNode.Value,
                 ByteLength = fieldNode.ByteLength,
                 ByteOffset = fieldNode.ByteOffset,
@@ -609,7 +618,7 @@ public sealed class SchemaSet
                 Name = node.Name,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(nodeDef.Processors, repeatNode.Processors),
-                MemberList = [.. repeatNode.MemberList],
+                MemberList = [.. nodeDef.MemberList, .. repeatNode.MemberList],
                 Count = repeatNode.Count,
                 ByteSize = repeatNode.ByteSize,
                 ValueProcessorsList = [.. repeatNode.ValueProcessors],
@@ -622,7 +631,7 @@ public sealed class SchemaSet
                 Name = node.Name,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(nodeDef.Processors, choiceNode.Processors),
-                MemberList = [.. choiceNode.MemberList],
+                MemberList = [.. nodeDef.MemberList, .. choiceNode.MemberList],
                 SelectedIndex = choiceNode.SelectedIndex,
                 ByteSize = choiceNode.ByteSize,
                 ValueProcessorsList = [.. choiceNode.ValueProcessors],
@@ -635,7 +644,7 @@ public sealed class SchemaSet
                 Name = node.Name,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(nodeDef.Processors, groupNode.Processors),
-                MemberList = [.. groupNode.MemberList],
+                MemberList = [.. nodeDef.MemberList, .. groupNode.MemberList],
                 ByteSize = groupNode.ByteSize,
             };
         }

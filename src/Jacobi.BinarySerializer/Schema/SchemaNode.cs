@@ -16,8 +16,26 @@ public closed class SchemaNode
 
 public sealed class SchemaNodeDef : SchemaNode
 {
-    public required IReadOnlyList<SchemaProcessorRef> Processors { get; init; }
+    public SchemaNodeDef()
+    {
+        Kind = SchemaNodeKind.NodeDef;
+    }
+
+    /// <summary>
+    /// The kind of node this nodeDef defines: field, group, repeat or choice.
+    /// A node can only reference a nodeDef of its own kind.
+    /// </summary>
+    public required SchemaNodeKind NodeKind { get; init; }
+
+    public IReadOnlyList<SchemaProcessorRef> Processors { get; init; } = [];
     public SchemaName? DataType { get; init; }
+
+    /// <summary>
+    /// The members of a group, repeat or choice nodeDef.
+    /// They are placed before the members of the node that references the nodeDef.
+    /// </summary>
+    public IReadOnlyList<SchemaNode> Members => MemberList;
+    internal List<SchemaNode> MemberList { get; init; } = [];
 }
 
 /// <summary>
@@ -55,8 +73,9 @@ public sealed class SchemaField : SchemaNode
     internal List<SchemaProcessorRef> ProcessorsList { get; init; } = [];
     /// <summary>
     /// The logical data type of the field: a built-in type or a data type def.
+    /// Optional when the field references a nodeDef that defines the data type.
     /// </summary>
-    public required SchemaName DataType { get; init; }
+    public SchemaName? DataType { get; init; }
 
     /// <summary>
     /// Optional constant (a literal parsed by <see cref="DataType"/>) or a reference to another value that this field must have.
