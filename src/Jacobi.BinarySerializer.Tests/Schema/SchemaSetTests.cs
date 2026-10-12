@@ -6,6 +6,43 @@ namespace Jacobi.BinarySerializer.Tests.Schema;
 public class SchemaSetTests
 {
     [Test]
+    public void FindNode_NestedPath_ReturnsNode()
+    {
+        var root = CreateGroup("Root");
+        var inner = CreateGroup("Inner");
+        var leaf = CreateGroup("Leaf");
+        AddChild(inner, leaf);
+        AddChild(root, inner);
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(CreateDocument("Main", roots: [root]));
+        var schemaSet = schemaBuilder.Compile();
+
+        Assert.That(schemaSet.FindNode(new SchemaPath("Main.Root.Inner.Leaf")), Is.SameAs(leaf));
+        Assert.That(schemaSet.FindNode<SchemaGroup>(new SchemaPath("main.root.inner")), Is.SameAs(inner));
+        Assert.That(schemaSet.TryFindNode(new SchemaPath("Main.Root.Missing"), out _), Is.False);
+        Assert.Throws<InvalidOperationException>(() => schemaSet.FindNode(new SchemaPath("Main.Root.Missing")));
+    }
+
+    [Test]
+    public void FindNode_NestedName_ReturnsNode()
+    {
+        var root = CreateGroup("Root");
+        var inner = CreateGroup("Inner");
+        var leaf = CreateGroup("Leaf");
+        AddChild(inner, leaf);
+        AddChild(root, inner);
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(CreateDocument("Main", roots: [root]));
+        var schemaSet = schemaBuilder.Compile();
+
+        Assert.That(schemaSet.FindNode(new SchemaName("Main.Leaf")), Is.SameAs(leaf));
+        Assert.That(schemaSet.FindNode<SchemaGroup>(new SchemaName("main.inner")), Is.SameAs(inner));
+        Assert.That(schemaSet.TryFindNode(new SchemaName("Main.Missing"), out _), Is.False);
+        Assert.That(schemaSet.TryFindNode(new SchemaName("Other.Leaf"), out _), Is.False);
+        Assert.Throws<InvalidOperationException>(() => schemaSet.FindNode(new SchemaName("Main.Missing")));
+    }
+
+    [Test]
     public void Compile_WithoutDependencies_MarksDocumentAsCompiled()
     {
         var schemaBuilder = new SchemaSetBuilder();
