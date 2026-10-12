@@ -88,7 +88,20 @@ public sealed class ExecutionPlan
     }
 
     /// <summary>
-    /// Creates a range whose bounds are inside repeats: <paramref name="fromInstance"/> / <paramref name="toInstance"/> hold the item index
+    /// Creates a range that covers all fields of the group at <paramref name="groupPath"/>.
+    /// </summary>
+    public PlanRange CreateRange(SchemaPath groupPath)
+    {
+        var node = Find(groupPath) ?? throw new ArgumentException($"There is no node '{groupPath}' in the plan.", nameof(groupPath));
+        if (node is not GroupInfo)
+        {
+            throw new ArgumentException($"Node '{groupPath}' is not a group.", nameof(groupPath));
+        }
+        return new PlanRange(this, node, node);
+    }
+
+    /// <summary>
+    /// Creates a range whose bounds are inside repeats: 
     /// of each repeat on the way (outermost first). Missing indices mean the first (from) or last (to) item.
     /// </summary>
     public PlanRange CreateRange(SchemaPath fromPath, InstancePath fromInstance, SchemaPath toPath, InstancePath toInstance)

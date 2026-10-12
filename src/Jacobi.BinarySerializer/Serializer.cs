@@ -68,6 +68,12 @@ public sealed class Serializer
         session.Write(valueSource);
     }
 
+    public void Serialize(PlanRange planRange, IValueSource valueSource, IBufferWriter<byte> writer)
+    {
+        var session = new WriterSession(planRange.ExecutionPlan, writer, _serviceProvider, _valueFieldsUseModel);
+        session.Write(valueSource, planRange);
+    }
+
     public void Serialize(PlanRange planRange, IFieldSource valueSource, IBufferWriter<byte> writer)
     {
         var session = new WriterSession(planRange.ExecutionPlan, writer, _serviceProvider, _valueFieldsUseModel);
@@ -85,5 +91,17 @@ public sealed class Serializer
     {
         var session = new ReaderSession(plan, _serviceProvider, _valueFieldsUseModel);
         session.Read(reader, valueSink);
+    }
+
+    public void Deserialize(PlanRange planRange, ReadOnlySequence<byte> reader, IValueSink valueSink)
+    {
+        var session = new ReaderSession(planRange.ExecutionPlan, _serviceProvider, _valueFieldsUseModel);
+        session.Read(reader, valueSink, planRange);
+    }
+
+    public void Deserialize(PlanRange planRange, ReadOnlySequence<byte> reader, IFieldSink fieldSink)
+    {
+        var session = new ReaderSession(planRange.ExecutionPlan, _serviceProvider, _valueFieldsUseModel);
+        session.Read(reader, fieldSink, planRange);
     }
 }
