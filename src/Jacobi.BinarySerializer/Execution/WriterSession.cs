@@ -84,7 +84,7 @@ internal sealed class WriterSession : SessionState
         _deferred.Clear();
         EngineLogger.WriteStarted(root.Path.ToString());
 
-        var cursor = new PlanCursor<IValueSource>(root, range);
+        var cursor = new PlanCursor<IValueSource>(root, range, EngineLogger);
         while (true)
         {
             if (cursor.AtOpenRepeat && ProbeEndOfData(source, cursor))
@@ -92,7 +92,11 @@ internal sealed class WriterSession : SessionState
                 cursor.CloseRepeat();
             }
             var step = cursor.Next();
-            SetInstance(cursor.Instance);
+            SetInstance(step.Kind == CursorStepKind.ExitItem ? cursor.Instance.Append(step.Index) : cursor.Instance);
+            if (step.Node is not null)
+            {
+                EngineLogger.Navigating(step.Kind, step.Node.Path.ToString(), StepInstance(step.Kind, step.Index).ToLogString());
+            }
             switch (step.Kind)
             {
                 case CursorStepKind.EnterGroup:
@@ -202,7 +206,7 @@ internal sealed class WriterSession : SessionState
                 case CursorStepKind.Field:
                     {
                         var fieldNode = (FieldInfo)step.Node!;
-                        EngineLogger.WritingField(fieldNode.Path.ToString(), _instance.ToString());
+                        EngineLogger.WritingField(fieldNode.Path.ToString(), _instance.ToLogString());
                         var result = WriteField(fieldNode, step.Scope!);
                         if (result != WriteResult.Success)
                         {
@@ -720,6 +724,9 @@ internal sealed class WriterSession : SessionState
         return WriteResult.Success;
     }
 
+    private InstancePath StepInstance(CursorStepKind kind, int index)
+        => kind == CursorStepKind.EnterItem ? _instance.Append(index) : _instance;
+
     private void SetInstance(InstancePath instance)
     {
         _instance = instance;
@@ -729,11 +736,15 @@ internal sealed class WriterSession : SessionState
         _streamContext.Instance = instance;
     }
 
-    private static void Prepare(ProcessorContext context, ProcessorBinding? binding)
+    private void Prepare(ProcessorContext context, ProcessorBinding? binding)
     {
         // a null binding is an empty stage that was short-circuited: there is no processor-private state.
         context.Current = binding!;
         context.ProcessorProperties = binding?.Properties ?? [];
+        if (binding is not null)
+        {
+            EngineLogger.ProcessorExecuting(context.Stage, binding.LogCategory, "write", context.NodePath, _instance.ToLogString());
+        }
     }
 
     internal sealed class EmptyServiceProvider : IServiceProvider

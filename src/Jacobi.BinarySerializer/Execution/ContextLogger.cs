@@ -65,7 +65,7 @@ internal readonly struct ProcessorScope : IReadOnlyList<KeyValuePair<string, obj
         1 => new("ProcessorKey", _binding.Processor.Key.ToString()),
         2 => new("Stage", _stage),
         3 => new("Path", _path),
-        4 => new("Instance", _instance.ToString()),
+        4 => new("Instance", _instance.ToLogString()),
         5 => new("Direction", _direction),
         6 when _rootPosition is not null => new("RootPosition", _rootPosition),
         7 when _groupPosition is not null => new("GroupPosition", _groupPosition),

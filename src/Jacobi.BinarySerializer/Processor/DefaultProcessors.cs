@@ -1,4 +1,5 @@
 using System.Buffers;
+using Jacobi.BinarySerializer.Execution;
 
 namespace Jacobi.BinarySerializer.Processor;
 
@@ -49,7 +50,7 @@ internal sealed class DefaultFieldProcessor : IFieldProcessor
         var type = context.Field.DataType;
         if (type.Encode is not { } encode || !encode(field.Value, out var bytes))
         {
-            throw new InvalidOperationException(
+            throw context.EngineLogger.Fail(
                 $"'{context.Field.Path}': cannot encode value '{field.Value ?? "null"}' as {type}.");
         }
 
@@ -61,7 +62,7 @@ internal sealed class DefaultFieldProcessor : IFieldProcessor
         var type = context.Field.DataType;
         if (field.Value is not byte[] bytes || type.Decode is not { } decode || !decode(bytes, out var value))
         {
-            throw new InvalidOperationException($"'{context.Field.Path}': cannot decode the encoded value as {type}.");
+            throw context.EngineLogger.Fail($"'{context.Field.Path}': cannot decode the encoded value as {type}.");
         }
 
         return FieldReadResult<LogicalField>.Consumed(

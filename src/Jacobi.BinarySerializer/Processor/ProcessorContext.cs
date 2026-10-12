@@ -54,6 +54,9 @@ public closed class ProcessorContext
     /// </summary>
     public ILogger Logger => _state.GetLogger(Current, this);
 
+    /// <summary>The logger of the engine itself (usable when no processor binding is current).</summary>
+    internal ILogger EngineLogger => _state.EngineLogger;
+
     /// <summary>The schema path of the node being processed (for the log scope).</summary>
     internal virtual string NodePath => String.Empty;
 

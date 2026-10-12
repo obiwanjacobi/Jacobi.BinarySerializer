@@ -76,7 +76,7 @@ internal sealed class ReaderSession : SessionState
         _groupStarts.Clear();
         _windows.Clear();
         EngineLogger.ReadStarted(root.Path.ToString());
-        var cursor = new PlanCursor<IValueSink>(root, range);
+        var cursor = new PlanCursor<IValueSink>(root, range, EngineLogger);
         while (true)
         {
             if (cursor.AtOpenRepeat && AtWindowEnd(ref reader))
@@ -84,7 +84,11 @@ internal sealed class ReaderSession : SessionState
                 cursor.CloseRepeat();
             }
             var step = cursor.Next();
-            SetInstance(cursor.Instance);
+            SetInstance(step.Kind == CursorStepKind.ExitItem ? cursor.Instance.Append(step.Index) : cursor.Instance);
+            if (step.Node is not null)
+            {
+                EngineLogger.Navigating(step.Kind, step.Node.Path.ToString(), StepInstance(step.Kind, step.Index).ToLogString());
+            }
             switch (step.Kind)
             {
                 case CursorStepKind.EnterGroup:
@@ -175,7 +179,7 @@ internal sealed class ReaderSession : SessionState
                 case CursorStepKind.Field:
                     {
                         var fieldNode = (FieldInfo)step.Node!;
-                        EngineLogger.ReadingField(fieldNode.Path.ToString(), _instance.ToString());
+                        EngineLogger.ReadingField(fieldNode.Path.ToString(), _instance.ToLogString());
                         var result = fieldNode.ByteOffset is { } byteOffset
                             ? ReadVirtualField(fieldNode, byteOffset, step.Scope!, ref reader)
                             : ReadField(fieldNode, step.Scope!, ref reader);
@@ -559,6 +563,9 @@ internal sealed class ReaderSession : SessionState
         return ReadResult.Success;
     }
 
+    private InstancePath StepInstance(CursorStepKind kind, int index)
+        => kind == CursorStepKind.EnterItem ? _instance.Append(index) : _instance;
+
     private void SetInstance(InstancePath instance)
     {
         _instance = instance;
@@ -568,9 +575,13 @@ internal sealed class ReaderSession : SessionState
         _streamContext.Instance = instance;
     }
 
-    private static void Prepare(ProcessorContext context, ProcessorBinding? binding)
+    private void Prepare(ProcessorContext context, ProcessorBinding? binding)
     {
         context.Current = binding!;
         context.ProcessorProperties = binding?.Properties ?? [];
+        if (binding is not null)
+        {
+            EngineLogger.ProcessorExecuting(context.Stage, binding.LogCategory, "read", context.NodePath, _instance.ToLogString());
+        }
     }
 }

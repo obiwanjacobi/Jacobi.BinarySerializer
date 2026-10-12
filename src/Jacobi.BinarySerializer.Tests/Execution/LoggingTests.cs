@@ -156,6 +156,23 @@ public class LoggingTests
     }
 
     [Test]
+    public void Read_InsideRepeat_LogsTheInstance()
+    {
+        var capture = new CaptureProvider();
+        using var factory = LoggerFactory.Create(b => b.AddProvider(capture).SetMinimumLevel(LogLevel.Trace));
+        var repeat = new SchemaRepeat { Name = "Rows", Count = 2 };
+        repeat.MemberList.Add(Field("A", "sys.uint32", [Ref("varint")]));
+        var root = Group("Root", [], repeat);
+
+        new ReaderSession(Build(root), new Services(factory))
+            .Read(new ReadOnlySequence<byte>(new byte[] { 1, 2 }), new DictSink());
+
+        var messages = capture.Entries.Select(e => e.Message).ToList();
+        Assert.That(messages, Has.Some.Contain("at instance [1]"));
+        Assert.That(capture.Entries.Any(e => e.Scope.TryGetValue("Instance", out var i) && (string?)i == "[1]"), Is.True);
+    }
+
+    [Test]
     public void Read_FilterOnProcessorCategory_HidesOnlyThatCategory()
     {
         var entries = ReadWithLogging(b => b

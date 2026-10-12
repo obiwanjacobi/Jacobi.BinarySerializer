@@ -1,7 +1,8 @@
 using Jacobi.BinarySerializer.Schema;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jacobi.BinarySerializer.Execution;
-
 internal enum CursorStepKind
 {
     /// <summary>All nodes were visited.</summary>
@@ -57,17 +58,20 @@ internal sealed class PlanCursor<TScope>
 
     private readonly Stack<Frame> _frames = new();
     private readonly PlanRange? _range;
+    private readonly ILogger _logger;
     private GroupInfo? _pendingEnter;
     private bool _pendingAnnounced;
     private int _pendingItemIndex = -1;
 
     /// <param name="root">The root group of the plan.</param>
     /// <param name="range">Optional: only the fields of the range (and the groups leading to them) are visited.</param>
-    public PlanCursor(GroupInfo root, PlanRange? range = null)
+    /// <param name="logger">Optional: receives the errors before they are thrown.</param>
+    public PlanCursor(GroupInfo root, PlanRange? range = null, ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(root);
         _pendingEnter = root;
         _range = range;
+        _logger = logger ?? NullLogger.Instance;
     }
 
     /// <summary>Number of groups currently entered.</summary>
@@ -100,7 +104,7 @@ internal sealed class PlanCursor<TScope>
         {
             if (_pendingAnnounced)
             {
-                throw new InvalidOperationException(
+                throw _logger.Fail(
                     $"Enter(scope) must be called for group '{_pendingEnter.Path}' before advancing the cursor.");
             }
 
@@ -163,7 +167,7 @@ internal sealed class PlanCursor<TScope>
                     return new(CursorStepKind.EnterGroup, child, frame.Scope);
 
                 default:
-                    throw new NotSupportedException($"'{child.Path}': unsupported node type {child.GetType().Name}.");
+                    throw _logger.Fail(new NotSupportedException($"'{child.Path}': unsupported node type {child.GetType().Name}."));
             }
         }
 
@@ -182,12 +186,12 @@ internal sealed class PlanCursor<TScope>
     {
         if (_pendingEnter is null || !_pendingAnnounced)
         {
-            throw new InvalidOperationException("Enter(scope) can only be called after an EnterGroup step.");
+            throw _logger.Fail("Enter(scope) can only be called after an EnterGroup step.");
         }
 
         if (_pendingEnter is RepeatInfo && _pendingItemIndex < 0)
         {
-            throw new InvalidOperationException($"'{_pendingEnter.Path}': use EnterRepeat(scope, count) to enter a repeat.");
+            throw _logger.Fail($"'{_pendingEnter.Path}': use EnterRepeat(scope, count) to enter a repeat.");
         }
 
         var first = 0;
@@ -196,7 +200,7 @@ internal sealed class PlanCursor<TScope>
         {
             if (selectedIndex is not { } index || index < 0 || index >= end)
             {
-                throw new InvalidOperationException(
+                throw _logger.Fail(
                     $"'{_pendingEnter.Path}': choice index {selectedIndex?.ToString() ?? "(none)"} is out of range (0..{end - 1}).");
             }
             first = index;
@@ -222,12 +226,12 @@ internal sealed class PlanCursor<TScope>
     {
         if (_pendingEnter is not RepeatInfo repeat || !_pendingAnnounced || _pendingItemIndex >= 0)
         {
-            throw new InvalidOperationException("EnterRepeat can only be called after an EnterGroup step for a repeat.");
+            throw _logger.Fail("EnterRepeat can only be called after an EnterGroup step for a repeat.");
         }
 
         if (count < 0)
         {
-            throw new InvalidOperationException($"'{repeat.Path}': the repeat count {count} cannot be negative.");
+            throw _logger.Fail($"'{repeat.Path}': the repeat count {count} cannot be negative.");
         }
 
         _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = count });
@@ -242,7 +246,7 @@ internal sealed class PlanCursor<TScope>
     {
         if (_pendingEnter is not RepeatInfo repeat || !_pendingAnnounced || _pendingItemIndex >= 0)
         {
-            throw new InvalidOperationException("EnterOpenRepeat can only be called after an EnterGroup step for a repeat.");
+            throw _logger.Fail("EnterOpenRepeat can only be called after an EnterGroup step for a repeat.");
         }
 
         _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = Int32.MaxValue, Open = true });
@@ -257,7 +261,7 @@ internal sealed class PlanCursor<TScope>
     {
         if (_pendingEnter is not ChoiceInfo { IsOpen: true } choice || !_pendingAnnounced || _pendingItemIndex >= 0)
         {
-            throw new InvalidOperationException("EnterOpenChoice can only be called after an EnterGroup step for an open choice.");
+            throw _logger.Fail("EnterOpenChoice can only be called after an EnterGroup step for an open choice.");
         }
 
         _frames.Push(new Frame(choice, scope, 0, 1) { Members = [body] });
@@ -276,7 +280,7 @@ internal sealed class PlanCursor<TScope>
     {
         if (!AtOpenRepeat)
         {
-            throw new InvalidOperationException("CloseRepeat can only be called at a repeat without a count.");
+            throw _logger.Fail("CloseRepeat can only be called at a repeat without a count.");
         }
         var frame = _frames.Peek();
         frame.Count = frame.Iteration + 1;

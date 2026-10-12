@@ -118,4 +118,7 @@ public readonly struct InstancePath : IEquatable<InstancePath>
         }
         return sb.ToString();
     }
+
+    /// <summary>Like <see cref="ToString"/>, but '-' when there are no indices (so the log entry still shows the instance).</summary>
+    public string ToLogString() => Length == 0 ? "-" : ToString();
 }

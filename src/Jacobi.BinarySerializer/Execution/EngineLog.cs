@@ -38,6 +38,12 @@ internal static partial class EngineLog
     [LoggerMessage(EventId = 121, Level = LogLevel.Debug, Message = "Choice '{Path}' selected option {Index}.")]
     public static partial void ChoiceSelected(this ILogger logger, string path, int index);
 
+    [LoggerMessage(EventId = 130, Level = LogLevel.Trace, Message = "Navigating {Step} '{Path}' at instance {Instance}.")]
+    public static partial void Navigating(this ILogger logger, CursorStepKind step, string path, string instance);
+
+    [LoggerMessage(EventId = 140, Level = LogLevel.Trace, Message = "Executing {Stage} processor '{Processor}' ({Direction}) on '{Path}' at instance {Instance}.")]
+    public static partial void ProcessorExecuting(this ILogger logger, PipelineStage stage, string processor, string direction, string path, string instance);
+
     [LoggerMessage(EventId = 190, Level = LogLevel.Error, Message = "{Message}")]
     private static partial void Failed(this ILogger logger, Exception? exception, string message);
 
@@ -48,5 +54,15 @@ internal static partial class EngineLog
     {
         logger.Failed(inner, message);
         return new InvalidOperationException(message, inner);
+    }
+
+    /// <summary>
+    /// Logs the exception as an error and returns it to throw (<c>throw logger.Fail(new XException(...))</c>).
+    /// </summary>
+    public static TException Fail<TException>(this ILogger logger, TException exception)
+        where TException : Exception
+    {
+        logger.Failed(exception, exception.Message);
+        return exception;
     }
 }
