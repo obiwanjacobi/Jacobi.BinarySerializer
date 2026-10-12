@@ -15,7 +15,7 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
 
         Assert.AreEqual("TestSchema", document.Name);
     }
@@ -40,7 +40,7 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
         var group = document.Groups.Single();
 
         Assert.That(group.Properties.Any(p => p.Name == "endianness" && p.Value == "little"));
@@ -63,7 +63,7 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
         var processor = document.Groups.Single().Processors.Single();
 
         Assert.That(processor.PublishNamespace, Is.EqualTo("hdr"));
@@ -91,7 +91,7 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
         var group = document.Groups.Single();
         var field = (SchemaField)group.Members.Single();
 
@@ -147,7 +147,7 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
 
         Assert.That(document.ProcessorDefs.Count, Is.EqualTo(2));
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "rootProcessor" && p.Processor.ToString() == "sys.align"));
@@ -198,7 +198,7 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
         var serialized = XmlSerializer.Serialize(document);
 
         Assert.That(serialized, Does.Contain("processorDefs"));
@@ -208,7 +208,7 @@ public class XmlSerializerTests
         Assert.That(serialized, Does.Not.Contain("codec"));
         Assert.That(serialized, Does.Not.Contain("pipeline"));
 
-        var roundTripped = new SchemaSet().LoadFromXml(serialized);
+        var roundTripped = new SchemaSetBuilder().LoadFromXml(serialized);
         var repeat = roundTripped.Roots.OfType<SchemaRepeat>().Single();
         var choice = roundTripped.Roots.OfType<SchemaChoice>().Single();
 
@@ -234,8 +234,8 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
-        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
+        var roundTripped = new SchemaSetBuilder().LoadFromXml(XmlSerializer.Serialize(document));
 
         foreach (var properties in new[] { document.Groups.Single().Properties, roundTripped.Groups.Single().Properties })
         {
@@ -262,8 +262,8 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
-        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
+        var roundTripped = new SchemaSetBuilder().LoadFromXml(XmlSerializer.Serialize(document));
 
         foreach (var def in new[] { document.DataTypeDefs.Single(), roundTripped.DataTypeDefs.Single() })
         {
@@ -292,8 +292,8 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
-        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
+        var roundTripped = new SchemaSetBuilder().LoadFromXml(XmlSerializer.Serialize(document));
         var fields = roundTripped.Groups.Single().Members.OfType<SchemaField>().ToDictionary(f => f.Name);
 
         Assert.That(fields["Constant"].Value is string text && text == "0x89504E47");
@@ -319,8 +319,8 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
-        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
+        var roundTripped = new SchemaSetBuilder().LoadFromXml(XmlSerializer.Serialize(document));
         var members = roundTripped.Groups.Single(g => g.Name == "Root").Members;
         var repeat = members.OfType<SchemaRepeat>().Single();
         var choice = members.OfType<SchemaChoice>().Single();
@@ -345,8 +345,8 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
-        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
+        var roundTripped = new SchemaSetBuilder().LoadFromXml(XmlSerializer.Serialize(document));
         var members = roundTripped.Groups.Single(g => g.Name == "Root").Members.OfType<SchemaGroup>().ToList();
 
         Assert.That(members[0], Is.InstanceOf<SchemaRepeat>());
@@ -371,8 +371,8 @@ public class XmlSerializerTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
-        var roundTripped = new SchemaSet().LoadFromXml(XmlSerializer.Serialize(document));
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
+        var roundTripped = new SchemaSetBuilder().LoadFromXml(XmlSerializer.Serialize(document));
         var fields = roundTripped.Groups.Single(g => g.Name == "Root").Members.OfType<SchemaField>().ToList();
 
         Assert.That(fields[1].DataType, Is.EqualTo(new SchemaName("sys.bytes")));
@@ -382,3 +382,4 @@ public class XmlSerializerTests
         Assert.That(fields[3].ByteLength is not (int or SchemaNodeRef or SchemaPubRef), Is.True);
     }
 }
+

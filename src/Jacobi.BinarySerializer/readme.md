@@ -6,11 +6,11 @@ How to setup and interface with the binary serializer.
 
 ```csharp
 // load the schema definitions of the binary formats you wish to serialize.
-SchemaSet schemas = new();
+SchemaSetBuilder schemas = new();
 schemas.LoadFile(".json|.xml|.yml|.yaml");
 schemas.LoadFromAssembly(Asembly|"*.dll|*.exe");
 ...
-schemas.Compile(); // resolve references, validate
+var schemaSet = schemas.Compile(); // resolve references, validate
 
 // load the processors (code) that perform transformation and other logic.
 ProcessorManager processors = new();
@@ -34,7 +34,7 @@ IServiceProvider services = ...;
 
 // bring it together in the serializer (immutable, thread-safe, owns the ExecutionPlan cache)
 Serializer serializer = new SerializerBuilder()
-    .AddSchemas(schemas)
+    .AddSchemas(schemaSet)
     .AddProcessors(processors) // or .AddServices(services)
     .AddServices(services)
     .AddDataTypes(dataTypes) // optional

@@ -105,9 +105,9 @@ public class ValueReferenceTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
         var serialized = XmlSerializer.Serialize(document);
-        var root = new SchemaSet().LoadFromXml(serialized).Roots.OfType<SchemaGroup>().Single();
+        var root = new SchemaSetBuilder().LoadFromXml(serialized).Roots.OfType<SchemaGroup>().Single();
         var repeat = root.Members.OfType<SchemaRepeat>().Single();
 
         Assert.That(serialized, Does.Contain("ref=\"Root.Length\""));

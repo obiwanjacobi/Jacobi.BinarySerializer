@@ -1,4 +1,4 @@
-﻿using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Tests;
@@ -72,7 +72,7 @@ public class SerializerTests
     [Test]
     public void Builder_WithoutProcessors_Throws()
     {
-        var builder = new SerializerBuilder().AddSchemas(new SchemaSet());
+        var builder = new SerializerBuilder().AddSchemas(new SchemaSetBuilder().Compile());
 
         Assert.Throws<InvalidOperationException>(() => builder.Build());
     }
@@ -81,11 +81,11 @@ public class SerializerTests
     public void Builder_AfterBuild_CannotBeModified()
     {
         var builder = new SerializerBuilder()
-            .AddSchemas(new SchemaSet())
+            .AddSchemas(new SchemaSetBuilder().Compile())
             .AddProcessors(new ProcessorManager());
         builder.Build();
 
-        Assert.Throws<InvalidOperationException>(() => builder.AddSchemas(new SchemaSet()));
+        Assert.Throws<InvalidOperationException>(() => builder.AddSchemas(new SchemaSetBuilder().Compile()));
         Assert.Throws<InvalidOperationException>(() => builder.Build());
     }
 
@@ -104,9 +104,9 @@ public class SerializerTests
             Includes = []
         };
 
-        var schemas = new SchemaSet();
-        schemas.AddDocument(document);
-        schemas.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(document);
+        var schemas = schemaBuilder.Compile();
 
         return new SerializerBuilder()
             .AddSchemas(schemas)
@@ -114,3 +114,4 @@ public class SerializerTests
             .Build();
     }
 }
+

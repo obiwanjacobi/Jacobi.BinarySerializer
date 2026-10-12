@@ -5,12 +5,9 @@ using Jacobi.BinarySerializer.Schema.Xml;
 
 namespace Jacobi.BinarySerializer.Schema;
 
-public sealed class SchemaSet
+public sealed class SchemaSetBuilder
 {
     private readonly Dictionary<string, SchemaDocument> _documents = new(StringComparer.OrdinalIgnoreCase);
-
-    public IReadOnlyCollection<SchemaDocument> Documents
-        => _documents.Values;
 
     public void AddDocument(SchemaDocument document)
     {
@@ -43,7 +40,7 @@ public sealed class SchemaSet
         {
             ".xml" => LoadFromXml(content),
             ".json" => LoadFromJson(content),
-            ".yaml" or ".yml" => throw new NotSupportedException("YAML requires the Jacobi.BinarySerializer.Yaml package: use SchemaSet.LoadYaml()."),
+            ".yaml" or ".yml" => throw new NotSupportedException("YAML requires the Jacobi.BinarySerializer.Yaml package: use SchemaSetBuilder.LoadYaml()."),
             _ => throw new NotSupportedException($"File extension '{extension}' is not supported.")
         };
         return document;
@@ -86,27 +83,7 @@ public sealed class SchemaSet
         return LoadFileContent(content, Path.GetExtension(name));
     }
 
-    public SchemaGroup FindRoot(SchemaName root)
-    {
-        if (!_documents.TryGetValue(root.Namespace, out var document))
-        {
-            throw new InvalidOperationException($"Schema root '{root}' not found.");
-        }
-
-        var match = document.Roots
-            .Where(r => String.Equals(r.Name, root.Name, StringComparison.OrdinalIgnoreCase))
-            .FirstOrDefault();
-
-        if (match == null)
-            throw new InvalidOperationException($"Schema root '{root}' not found in document '{document.Name}'.");
-
-        if (!document.IsCompiled)
-            throw new InvalidOperationException($"Schema document '{document.Name}' is not compiled.");
-
-        return match;
-    }
-
-    public void Compile()
+    public SchemaSet Compile()
     {
         foreach (var document in _documents.Values)
         {
@@ -195,6 +172,8 @@ public sealed class SchemaSet
             throw new InvalidOperationException(
                 $"Circular schema dependencies detected: {String.Join(", ", cyclicDocuments)}");
         }
+
+        return new SchemaSet(_documents);
     }
 
     /// <summary>

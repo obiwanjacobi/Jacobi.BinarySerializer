@@ -197,9 +197,9 @@ public class InstanceReferenceTests
             </schema>
             """;
 
-        var document = new SchemaSet().LoadFromXml(xml);
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
         var serialized = Jacobi.BinarySerializer.Schema.Xml.XmlSerializer.Serialize(document);
-        var repeat = new SchemaSet().LoadFromXml(serialized).Roots.OfType<SchemaGroup>().Single()
+        var repeat = new SchemaSetBuilder().LoadFromXml(serialized).Roots.OfType<SchemaGroup>().Single()
             .Members.OfType<SchemaRepeat>().Single();
 
         Assert.That(serialized, Does.Contain("ref=\"Root.Lens[].Len\""));

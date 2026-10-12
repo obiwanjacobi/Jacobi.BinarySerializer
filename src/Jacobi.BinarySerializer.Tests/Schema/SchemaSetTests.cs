@@ -8,11 +8,11 @@ public class SchemaSetTests
     [Test]
     public void Compile_WithoutDependencies_MarksDocumentAsCompiled()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
         var document = CreateDocument("Main");
-        schemaSet.AddDocument(document);
+        schemaBuilder.AddDocument(document);
 
-        schemaSet.Compile();
+        var schemaSet = schemaBuilder.Compile();
 
         Assert.That(document.IsCompiled, Is.True);
     }
@@ -20,16 +20,16 @@ public class SchemaSetTests
     [Test]
     public void Compile_WithInclude_ResolvesIncludedDocumentReference()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
         var shared = CreateDocument("Shared");
         var main = CreateDocument(
             "Main",
             includes: [new SchemaDocumentRef { Schema = "Shared" }]);
 
-        schemaSet.AddDocument(shared);
-        schemaSet.AddDocument(main);
+        schemaBuilder.AddDocument(shared);
+        schemaBuilder.AddDocument(main);
 
-        schemaSet.Compile();
+        var schemaSet = schemaBuilder.Compile();
 
         Assert.That(shared.IsCompiled, Is.True);
         Assert.That(main.IsCompiled, Is.True);
@@ -39,7 +39,7 @@ public class SchemaSetTests
     [Test]
     public void Compile_WithLocalNodeDef_ReplacesReferencedFieldDefinition()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
 
         var commonNodeDef = new SchemaNodeDef
         {
@@ -60,9 +60,9 @@ public class SchemaSetTests
 
         var main = CreateDocument("Main", roots: [rootGroup], nodeDefs: [commonNodeDef]);
 
-        schemaSet.AddDocument(main);
+        schemaBuilder.AddDocument(main);
 
-        schemaSet.Compile();
+        var schemaSet = schemaBuilder.Compile();
 
         var resolvedField = rootGroup.Members.OfType<SchemaField>().Single();
         Assert.That(main.IsCompiled, Is.True);
@@ -72,7 +72,7 @@ public class SchemaSetTests
     [Test]
     public void Compile_FieldWithDataTypeDef_QualifiesDataTypeAndMergesProcessors()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
         var dataTypeDef = new SchemaDataTypeDef
         {
             Name = "Celsius",
@@ -88,8 +88,8 @@ public class SchemaSetTests
             ProcessorsList = []
         });
 
-        schemaSet.AddDocument(CreateDocument("Main", roots: [rootGroup], dataTypeDefs: [dataTypeDef]));
-        schemaSet.Compile();
+        schemaBuilder.AddDocument(CreateDocument("Main", roots: [rootGroup], dataTypeDefs: [dataTypeDef]));
+        var schemaSet = schemaBuilder.Compile();
 
         var field = rootGroup.Members.OfType<SchemaField>().Single();
         Assert.That(field.DataType!.Value.FullName, Is.EqualTo("Main.Celsius").IgnoreCase);
@@ -99,7 +99,7 @@ public class SchemaSetTests
     [Test]
     public void Compile_DataTypeDefBasedOnDef_MergesProcessorsAlongTheChain()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
         var a = new SchemaDataTypeDef
         {
             Name = "A",
@@ -115,8 +115,8 @@ public class SchemaSetTests
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField { Name = "Value", DataType = "Main.B", ProcessorsList = [] });
 
-        schemaSet.AddDocument(CreateDocument("Main", roots: [rootGroup], dataTypeDefs: [a, b]));
-        schemaSet.Compile();
+        schemaBuilder.AddDocument(CreateDocument("Main", roots: [rootGroup], dataTypeDefs: [a, b]));
+        var schemaSet = schemaBuilder.Compile();
 
         var field = rootGroup.Members.OfType<SchemaField>().Single();
         Assert.That(field.DataType!.Value.FullName, Is.EqualTo("Main.B").IgnoreCase);
@@ -126,21 +126,21 @@ public class SchemaSetTests
     [Test]
     public void Compile_CircularDataTypeDefs_Throws()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
         var a = new SchemaDataTypeDef { Name = "A", BasedOn = "Main.B" };
         var b = new SchemaDataTypeDef { Name = "B", BasedOn = "Main.A" };
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField { Name = "Value", DataType = "Main.A", ProcessorsList = [] });
 
-        schemaSet.AddDocument(CreateDocument("Main", roots: [rootGroup], dataTypeDefs: [a, b]));
+        schemaBuilder.AddDocument(CreateDocument("Main", roots: [rootGroup], dataTypeDefs: [a, b]));
 
-        Assert.Throws<InvalidOperationException>(() => schemaSet.Compile());
+        Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
     }
 
     [Test]
     public void Compile_DataTypeDefFromIncludedDocument_IsResolved()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
         var celsius = new SchemaDataTypeDef
         {
             Name = "Celsius",
@@ -152,9 +152,9 @@ public class SchemaSetTests
         AddChild(rootGroup, new SchemaField { Name = "Temp", DataType = "Shared.Celsius", ProcessorsList = [] });
         var main = CreateDocument("Main", roots: [rootGroup], includes: [new SchemaDocumentRef { Schema = "Shared" }]);
 
-        schemaSet.AddDocument(shared);
-        schemaSet.AddDocument(main);
-        schemaSet.Compile();
+        schemaBuilder.AddDocument(shared);
+        schemaBuilder.AddDocument(main);
+        var schemaSet = schemaBuilder.Compile();
 
         var field = rootGroup.Members.OfType<SchemaField>().Single();
         Assert.That(field.DataType!.Value.FullName, Is.EqualTo("Shared.Celsius").IgnoreCase);
@@ -164,7 +164,7 @@ public class SchemaSetTests
     [Test]
     public void Compile_NodeDefInstantiation_KeepsTheFieldValue()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
         var nodeDef = new SchemaNodeDef { Name = "CommonField", Kind = SchemaNodeKind.Field, DataType = "sys.int32", Processors = [] };
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField
@@ -175,9 +175,9 @@ public class SchemaSetTests
             NodeDef = new SchemaName("CommonField"),
             ProcessorsList = []
         });
-        schemaSet.AddDocument(CreateDocument("Main", roots: [rootGroup], nodeDefs: [nodeDef]));
+        schemaBuilder.AddDocument(CreateDocument("Main", roots: [rootGroup], nodeDefs: [nodeDef]));
 
-        schemaSet.Compile();
+        var schemaSet = schemaBuilder.Compile();
 
         Assert.That(rootGroup.Members.OfType<SchemaField>().Single().Value is "0x2A", Is.True);
     }
@@ -185,14 +185,14 @@ public class SchemaSetTests
     [Test]
     public void Compile_WithMissingDependency_ThrowsInvalidOperationException()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
         var main = CreateDocument(
             "Main",
             includes: [new SchemaDocumentRef { Schema = "Missing" }]);
 
-        schemaSet.AddDocument(main);
+        schemaBuilder.AddDocument(main);
 
-        var ex = Assert.Throws<InvalidOperationException>(() => schemaSet.Compile());
+        var ex = Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
 
         Assert.That(ex!.Message, Does.Contain("Missing schema dependencies"));
         Assert.That(main.IsCompiled, Is.False);
@@ -201,7 +201,7 @@ public class SchemaSetTests
     [Test]
     public void Compile_WithCircularIncludes_ThrowsInvalidOperationException()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
 
         var docA = CreateDocument(
             "A",
@@ -210,10 +210,10 @@ public class SchemaSetTests
             "B",
             includes: [new SchemaDocumentRef { Schema = "A" }]);
 
-        schemaSet.AddDocument(docA);
-        schemaSet.AddDocument(docB);
+        schemaBuilder.AddDocument(docA);
+        schemaBuilder.AddDocument(docB);
 
-        var ex = Assert.Throws<InvalidOperationException>(() => schemaSet.Compile());
+        var ex = Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
 
         Assert.That(ex!.Message, Does.Contain("Circular schema dependencies"));
         Assert.That(docA.IsCompiled, Is.False);
@@ -223,7 +223,7 @@ public class SchemaSetTests
     [Test]
     public void Compile_ProcessorRefProperties_AreExpandedToFullNames()
     {
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
         var root = CreateGroup("Root");
         var processor = new SchemaProcessorRef { Processor = new SchemaName("sys.align") };
         processor.PropertyList.Add(new SchemaProperty { Name = "bytes", Value = "4" });
@@ -240,10 +240,10 @@ public class SchemaSetTests
         };
         AddChild(root, field);
 
-        schemaSet.AddDocument(CreateDocument("sys"));
-        schemaSet.AddDocument(CreateDocument("Main", roots: [root]));
+        schemaBuilder.AddDocument(CreateDocument("sys"));
+        schemaBuilder.AddDocument(CreateDocument("Main", roots: [root]));
 
-        schemaSet.Compile();
+        var schemaSet = schemaBuilder.Compile();
 
         Assert.That(processor.Properties.Select(p => p.Name),
             Is.EqualTo(new[] { "sys.align.bytes", "sys.align.relative" }));
@@ -258,9 +258,9 @@ public class SchemaSetTests
         root.ProcessorsList.Add(processor);
         var def = new SchemaProcessorDef { Name = "aligned", Processor = new ProcessorKey("sys.align") };
 
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(CreateDocument("Main", roots: [root], processorDefs: [def]));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(CreateDocument("Main", roots: [root], processorDefs: [def]));
+        var schemaSet = schemaBuilder.Compile();
 
         Assert.That(processor.Definition, Is.SameAs(def));
         Assert.That(processor.Key, Is.EqualTo(new ProcessorKey("sys.align")));
@@ -277,10 +277,10 @@ public class SchemaSetTests
         root.ProcessorsList.Add(processor);
         var main = CreateDocument("Main", roots: [root], includes: [new SchemaDocumentRef { Schema = "Shared" }]);
 
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(shared);
-        schemaSet.AddDocument(main);
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(shared);
+        schemaBuilder.AddDocument(main);
+        var schemaSet = schemaBuilder.Compile();
 
         Assert.That(processor.Definition, Is.SameAs(def));
         Assert.That(processor.Key, Is.EqualTo(new ProcessorKey("sys.align")));
@@ -298,9 +298,9 @@ public class SchemaSetTests
         processor.PropertyList.Add(new SchemaProperty { Name = "bytes", Value = "8" });
         root.ProcessorsList.Add(processor);
 
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(CreateDocument("Main", roots: [root], processorDefs: [def]));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(CreateDocument("Main", roots: [root], processorDefs: [def]));
+        var schemaSet = schemaBuilder.Compile();
 
         var effective = processor.EffectiveProperties.ToDictionary(p => p.Name, p => p.Value);
         Assert.That(effective["sys.align.bytes"], Is.EqualTo("8"));
@@ -320,9 +320,9 @@ public class SchemaSetTests
             Processors = [processor]
         };
 
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(CreateDocument("Main", nodeDefs: [nodeDef], processorDefs: [def]));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(CreateDocument("Main", nodeDefs: [nodeDef], processorDefs: [def]));
+        var schemaSet = schemaBuilder.Compile();
 
         Assert.That(processor.Definition, Is.SameAs(def));
     }
@@ -334,11 +334,11 @@ public class SchemaSetTests
         var processor = new SchemaProcessorRef { Processor = new SchemaName("ref:missing") };
         root.ProcessorsList.Add(processor);
 
-        var schemaSet = new SchemaSet();
+        var schemaBuilder = new SchemaSetBuilder();
         var main = CreateDocument("Main", roots: [root]);
-        schemaSet.AddDocument(main);
+        schemaBuilder.AddDocument(main);
 
-        Assert.Throws<InvalidOperationException>(() => schemaSet.Compile());
+        Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
         Assert.That(processor.Key, Is.Null);
     }
 
@@ -350,10 +350,10 @@ public class SchemaSetTests
         AddChild(rootGroup, new SchemaField { Name = "Value", DataType = "sys.uint8", NodeDef = new SchemaName("commonfield"), ProcessorsList = [] });
         var main = CreateDocument("Main", roots: [rootGroup], includes: [new SchemaDocumentRef { Schema = "Shared" }]);
 
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(shared);
-        schemaSet.AddDocument(main);
-        Assert.That(() => schemaSet.Compile(), Throws.Exception);
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(shared);
+        schemaBuilder.AddDocument(main);
+        Assert.That(() => schemaBuilder.Compile(), Throws.Exception);
     }
 
     private static SchemaDocument CreateDocument(
@@ -412,3 +412,4 @@ public class SchemaSetTests
         }
     }
 }
+

@@ -106,19 +106,19 @@ public class NodeDefTests
               ]
             }
             """;
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(JsonSerializer.Deserialize(json));
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(JsonSerializer.Deserialize(json));
 
-        var ex = Assert.Throws<InvalidOperationException>(() => schemaSet.Compile());
+        var ex = Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
 
         Assert.That(ex.Message, Does.Contain("'A'").And.Contain("'Word'").And.Contain("kinds must match"));
     }
 
     private static Serializer CreateSerializer(string json)
     {
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(JsonSerializer.Deserialize(json));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(JsonSerializer.Deserialize(json));
+        var schemaSet = schemaBuilder.Compile();
 
         var manager = new ProcessorManager();
         manager.Register(new ProcessorFactory());

@@ -61,9 +61,9 @@ public class ScaleProcessorTests
             Includes = [],
             DataTypeDefs = [new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 100m, Processors = [Ref("scale")] }]
         };
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(document);
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(document);
+        var schemaSet = schemaBuilder.Compile();
 
         var manager = new ProcessorManager();
         manager.Register(new Jacobi.BinarySerializer.Processors.ProcessorFactory());

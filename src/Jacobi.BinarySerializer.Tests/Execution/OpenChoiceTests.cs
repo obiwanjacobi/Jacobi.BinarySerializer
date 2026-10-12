@@ -112,20 +112,20 @@ public class OpenChoiceTests
     public void Compile_OpenChoiceWithMissingNodeDef_IsUnresolved()
     {
         var json = OpenChoiceSchema.Replace("\"memberNodeDef\": \"Body\"", "\"memberNodeDef\": \"Missing\"");
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(JsonSerializer.Deserialize(json));
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(JsonSerializer.Deserialize(json));
 
-        Assert.Throws<InvalidOperationException>(() => schemaSet.Compile());
+        Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
     }
 
     [Test]
     public void Compile_OpenChoiceWithNonGroupNodeDef_Throws()
     {
         var json = OpenChoiceSchema.Replace("\"name\": \"Body\", \"kind\": \"group\"", "\"name\": \"Body\", \"kind\": \"field\"");
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(JsonSerializer.Deserialize(json));
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(JsonSerializer.Deserialize(json));
 
-        var ex = Assert.Throws<InvalidOperationException>(() => schemaSet.Compile());
+        var ex = Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
 
         Assert.That(ex.Message, Does.Contain("'Msg'").And.Contain("must be a Group"));
     }
@@ -144,9 +144,9 @@ public class OpenChoiceTests
 
     private static Serializer CreateSerializer(string json)
     {
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(JsonSerializer.Deserialize(json));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(JsonSerializer.Deserialize(json));
+        var schemaSet = schemaBuilder.Compile();
 
         var manager = new ProcessorManager();
         manager.Register(new ProcessorFactory());

@@ -9,9 +9,9 @@ public class PngSchemaTests
     [Test]
     public void Schema_LoadsCompilesAndBuildsPlan()
     {
-        var schemaSet = new SchemaSet();
-        schemaSet.LoadFile(TestFiles.Path("Png/png.json"));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.LoadFile(TestFiles.Path("Png/png.json"));
+        var schemaSet = schemaBuilder.Compile();
 
         var manager = new ProcessorManager();
         manager.Register(new ProcessorFactory());
@@ -29,9 +29,9 @@ public class PngSchemaTests
     [Test]
     public void Read_Grayscale8_ReadsEveryChunk()
     {
-        var schemaSet = new SchemaSet();
-        schemaSet.LoadFile(TestFiles.Path("Png/png.json"));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.LoadFile(TestFiles.Path("Png/png.json"));
+        var schemaSet = schemaBuilder.Compile();
         var manager = new ProcessorManager();
         manager.Register(new ProcessorFactory());
         var serializer = new SerializerBuilder().AddSchemas(schemaSet).AddProcessors(manager).UseModelForValueFields().Build();
@@ -48,9 +48,9 @@ public class PngSchemaTests
     [Test]
     public void RoundTrip_Grayscale8_WritesTheSameBytes()
     {
-        var schemaSet = new SchemaSet();
-        schemaSet.LoadFile(TestFiles.Path("Png/png.json"));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.LoadFile(TestFiles.Path("Png/png.json"));
+        var schemaSet = schemaBuilder.Compile();
         var manager = new ProcessorManager();
         manager.Register(new ProcessorFactory());
         var serializer = new SerializerBuilder().AddSchemas(schemaSet).AddProcessors(manager).Build();
@@ -68,9 +68,9 @@ public class PngSchemaTests
     [Test]
     public void RoundTrip_UnknownChunk_KeepsTypeAndBytes()
     {
-        var schemaSet = new SchemaSet();
-        schemaSet.LoadFile(TestFiles.Path("Png/png.json"));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.LoadFile(TestFiles.Path("Png/png.json"));
+        var schemaSet = schemaBuilder.Compile();
         var manager = new ProcessorManager();
         manager.Register(new ProcessorFactory());
         var serializer = new SerializerBuilder().AddSchemas(schemaSet).AddProcessors(manager).Build();

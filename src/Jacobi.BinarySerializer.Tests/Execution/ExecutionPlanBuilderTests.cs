@@ -229,9 +229,9 @@ public class ExecutionPlanBuilderTests
     [Test]
     public void Build_FromSchemaSet_FindsRootByName()
     {
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(CreateDocument("Main", CreateGroup("Root")));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(CreateDocument("Main", CreateGroup("Root")));
+        var schemaSet = schemaBuilder.Compile();
 
         var root = schemaSet.FindRoot(new SchemaName("Main.Root"));
         var plan = CreateBuilder().Build(root);
@@ -242,10 +242,10 @@ public class ExecutionPlanBuilderTests
     [Test]
     public void Build_FromSchemaSet_QualifiedName_FindsRootInDocument()
     {
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(CreateDocument("One", CreateGroup("Root")));
-        schemaSet.AddDocument(CreateDocument("Two", CreateGroup("Root")));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(CreateDocument("One", CreateGroup("Root")));
+        schemaBuilder.AddDocument(CreateDocument("Two", CreateGroup("Root")));
+        var schemaSet = schemaBuilder.Compile();
 
         var plan = CreateBuilder().Build(schemaSet.FindRoot(new SchemaName("Two.Root")));
 
@@ -255,9 +255,9 @@ public class ExecutionPlanBuilderTests
     [Test]
     public void Build_FromSchemaSet_UnknownRoot_Throws()
     {
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(CreateDocument("Main", CreateGroup("Root")));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(CreateDocument("Main", CreateGroup("Root")));
+        var schemaSet = schemaBuilder.Compile();
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => CreateBuilder().Build(schemaSet.FindRoot(new SchemaName("Main.Missing"))));
@@ -268,27 +268,15 @@ public class ExecutionPlanBuilderTests
     [Test]
     public void Build_FromSchemaSet_UnqualifiedName_Throws()
     {
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(CreateDocument("One", CreateGroup("Root")));
-        schemaSet.AddDocument(CreateDocument("Two", CreateGroup("Root")));
-        schemaSet.Compile();
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(CreateDocument("One", CreateGroup("Root")));
+        schemaBuilder.AddDocument(CreateDocument("Two", CreateGroup("Root")));
+        var schemaSet = schemaBuilder.Compile();
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => CreateBuilder().Build(schemaSet.FindRoot(new SchemaName("Root"))));
 
         Assert.That(ex!.Message, Does.Contain("not found"));
-    }
-
-    [Test]
-    public void Build_FromSchemaSet_NotCompiled_Throws()
-    {
-        var schemaSet = new SchemaSet();
-        schemaSet.AddDocument(CreateDocument("Main", CreateGroup("Root")));
-
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => CreateBuilder().Build(schemaSet.FindRoot(new SchemaName("Main.Root"))));
-
-        Assert.That(ex!.Message, Does.Contain("not compiled"));
     }
 
     // ---- helpers ----

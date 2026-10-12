@@ -9,7 +9,7 @@ The schema holds structure only. Transformations such as varints, alignment, sca
 ## How it works
 
 ```
-schema (JSON/XML/YML) -> SchemaSet.Compile -> ExecutionPlan -> engine (reader/writer session)
+schema (JSON/XML/YML) -> SchemaSetBuilder.Compile (-> SchemaSet) -> ExecutionPlan -> engine (reader/writer session)
                                                               |-> processors -> codecs
 ```
 
@@ -48,12 +48,12 @@ A schema for a simple message: a magic number, a count and a list of 16-bit valu
 Using it:
 
 ```csharp
-SchemaSet schemas = new();
+SchemaSetBuilder schemas = new();
 schemas.LoadFile("sample.json");
-schemas.Compile();
+var schemaSet = schemas.Compile();
 
 Serializer serializer = new SerializerBuilder()
-    .AddSchemas(schemas)
+    .AddSchemas(schemaSet)
     .Build();
 
 ExecutionPlan plan = serializer.GetPlan("Message");
