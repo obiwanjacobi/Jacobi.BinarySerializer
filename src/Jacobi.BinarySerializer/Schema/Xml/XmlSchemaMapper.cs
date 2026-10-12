@@ -112,7 +112,7 @@ internal static class XmlSchemaMapper
     {
         var members = new List<SchemaNode>();
 
-        var schema = new Schema
+        var schema = new SchemaDocument
         {
             Name = xmlSchema.Name,
             MemberList = members,
@@ -128,7 +128,11 @@ internal static class XmlSchemaMapper
                 xmlSchema.Properties,
                 xmlSchema.AdditionalAttributes,
                 null, //xmlSchema.AdditionalElements,
-                SchemaKnownNames)
+                SchemaKnownNames),
+
+            Roots = [],
+            Fields = [],
+            Groups = [],
         };
 
         foreach (var child in xmlSchema.Members)

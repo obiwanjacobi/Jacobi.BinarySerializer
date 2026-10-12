@@ -1,6 +1,6 @@
 ﻿namespace Jacobi.BinarySerializer.Schema;
 
-public class Schema : SchemaGroup
+public closed class Schema : SchemaGroup
 {
     public Schema()
     {

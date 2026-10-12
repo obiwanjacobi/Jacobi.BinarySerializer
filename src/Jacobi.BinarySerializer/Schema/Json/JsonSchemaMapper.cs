@@ -9,7 +9,7 @@ internal static class JsonSchemaMapper
     public static Schema ToSchema(JsonSchema jsonSchema)
     {
         var members = new List<SchemaNode>();
-        var schema = new Schema
+        var schema = new SchemaDocument
         {
             Name = jsonSchema.Name,
             MemberList = members,
@@ -21,7 +21,12 @@ internal static class JsonSchemaMapper
                 Schema = include.Schema,
                 Path = include.Path
             }).ToList(),
-            PropertyList = MergeProperties(jsonSchema.Properties, jsonSchema.AdditionalData)
+            PropertyList = MergeProperties(jsonSchema.Properties, jsonSchema.AdditionalData),
+
+            // dummies
+            Roots = [],
+            Fields = [],
+            Groups = []
         };
 
         foreach (var jsonNode in jsonSchema.Members)
