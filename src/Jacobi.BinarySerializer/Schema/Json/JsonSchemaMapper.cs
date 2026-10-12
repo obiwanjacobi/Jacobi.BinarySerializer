@@ -105,7 +105,7 @@ internal static class JsonSchemaMapper
         return new SchemaNodeDef
         {
             Name = jsonNodeDef.Name,
-            NodeKind = ParseNodeDefKind(jsonNodeDef.Name, jsonNodeDef.Kind),
+            Kind = ParseNodeKind(jsonNodeDef.Name, jsonNodeDef.Kind),
             DataType = jsonNodeDef.DataType is { } dataType ? new SchemaName(dataType) : (SchemaName?)null,
             Processors = jsonNodeDef.Processors.Select(ToSchemaProcessorRef).ToList(),
             MemberList = jsonNodeDef.Members.Select(m => ToSchemaNode(m, true)).ToList(),
@@ -266,7 +266,7 @@ internal static class JsonSchemaMapper
         };
     }
 
-    private static SchemaNodeKind ParseNodeDefKind(string name, string? kind)
+    private static SchemaNodeKind ParseNodeKind(string name, string? kind)
     {
         if (String.IsNullOrWhiteSpace(kind))
         {
@@ -287,7 +287,7 @@ internal static class JsonSchemaMapper
         return new JsonSchemaNodeDef
         {
             Name = nodeDef.Name,
-            Kind = nodeDef.NodeKind.ToString().ToLowerInvariant(),
+            Kind = nodeDef.Kind.ToString().ToLowerInvariant(),
             DataType = nodeDef.DataType?.FullName,
             Processors = nodeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
             Members = nodeDef.Members.Select(FromSchemaNode).ToList(),

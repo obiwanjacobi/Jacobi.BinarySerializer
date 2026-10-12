@@ -4,6 +4,9 @@ using System.Text;
 
 namespace Jacobi.BinarySerializer.Schema;
 
+/// <summary>A constant, a reference to a field value ('ref:') or a reference to a published value ('pub:').</summary>
+public union SchemaValueOrRef<T>(SchemaNodeRef, SchemaPubRef, T) { }
+
 /// <summary>
 /// The instance of a repeat that a <see cref="SchemaNodeRef"/> targets: 'ref:Root.Items[2].Length' (the third item)
 /// or 'ref:Root.Items[].Length' (the same item as the referring node).

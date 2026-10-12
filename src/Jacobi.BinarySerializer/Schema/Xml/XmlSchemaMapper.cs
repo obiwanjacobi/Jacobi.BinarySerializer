@@ -255,7 +255,7 @@ internal static class XmlSchemaMapper
         return new SchemaNodeDef
         {
             Name = xmlNodeDef.Name,
-            NodeKind = ParseNodeDefKind(xmlNodeDef.Name, xmlNodeDef.Kind),
+            Kind = ParseNodeDefKind(xmlNodeDef.Name, xmlNodeDef.Kind),
             DataType = dataType,
             Processors = xmlNodeDef.Processors.Select(ToSchemaProcessorRef).ToList(),
             MemberList = xmlNodeDef.Members.Select(m => ToSchemaNode(m, true)).ToList(),
@@ -481,7 +481,7 @@ internal static class XmlSchemaMapper
         return new XmlSchemaNodeDef
         {
             Name = nodeDef.Name,
-            Kind = nodeDef.NodeKind.ToString().ToLowerInvariant(),
+            Kind = nodeDef.Kind.ToString().ToLowerInvariant(),
             DataType = nodeDef.DataType?.FullName,
             Processors = nodeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
             Members = nodeDef.Members.Select(FromSchemaNode).ToList(),

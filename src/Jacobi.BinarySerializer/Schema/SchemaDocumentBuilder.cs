@@ -31,9 +31,9 @@ public sealed class SchemaDocumentBuilder
         return this;
     }
 
-    public SchemaDocumentBuilder Group(string name, Action<GroupBuilder>? configure = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
+    public SchemaDocumentBuilder Group(string name, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
     {
-        _root.Group(name, configure, nodeDef, processors);
+        _root.Group(name, members, nodeDef, processors);
         return this;
     }
 
@@ -57,7 +57,7 @@ public sealed class SchemaDocumentBuilder
         var nodeDef = new SchemaNodeDef
         {
             Name = name,
-            NodeKind = kind,
+            Kind = kind,
             DataType = SchemaName(dataType),
             Processors = CreateProcessorRefs(processors),
         };
@@ -198,25 +198,25 @@ public sealed class SchemaDocumentBuilder
             return this;
         }
 
-        public GroupBuilder Group(string name, Action<GroupBuilder>? configure = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
-            => Add(new SchemaGroup { Name = name, NodeDef = SchemaName(nodeDef) }, configure, processors);
+        public GroupBuilder Group(string name, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
+            => Add(new SchemaGroup { Name = name, NodeDef = SchemaName(nodeDef) }, members, processors);
 
-        public GroupBuilder Repeat(string name, SchemaValueOrRef<int> count, Action<GroupBuilder>? configure = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
-            => Add(new SchemaRepeat { Name = name, Count = count, NodeDef = SchemaName(nodeDef) }, configure, processors);
+        public GroupBuilder Repeat(string name, SchemaValueOrRef<int> count, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
+            => Add(new SchemaRepeat { Name = name, Count = count, NodeDef = SchemaName(nodeDef) }, members, processors);
 
         /// <summary>
         /// The members of a choice are its alternatives (typically groups).
         /// </summary>
-        public GroupBuilder Choice(string name, SchemaValueOrRef<int> selectedIndex, Action<GroupBuilder>? configure = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
-            => Add(new SchemaChoice { Name = name, SelectedIndex = selectedIndex, NodeDef = SchemaName(nodeDef) }, configure, processors);
+        public GroupBuilder Choice(string name, SchemaValueOrRef<int> selectedIndex, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
+            => Add(new SchemaChoice { Name = name, SelectedIndex = selectedIndex, NodeDef = SchemaName(nodeDef) }, members, processors);
 
-        private GroupBuilder Add(SchemaGroup group, Action<GroupBuilder>? configure, Action<ProcessorBuilder>? processors = null)
+        private GroupBuilder Add(SchemaGroup group, Action<GroupBuilder>? members, Action<ProcessorBuilder>? processors = null)
         {
             group.ProcessorsList.AddRange(CreateProcessorRefs(processors));
-            if (configure is not null)
+            if (members is not null)
             {
                 var builder = new GroupBuilder();
-                configure(builder);
+                members(builder);
                 group.MemberList.AddRange(builder.Members);
             }
             Members.Add(group);

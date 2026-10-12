@@ -1,6 +1,6 @@
 ﻿# TODOs
 
-- [ ] **Chain interface support for Field Processors** Are they supported?
+- [ ] **Open Repeat as an optional IOpenRepeatValue interface?** We have specific IOpenChoiceSource and IOpenChoiceSink interfaces for open choice, but no open repeat. The engine currently handles a repeat with no count as an open repeat, but the model has no way to signal that it can produce/consume an open repeat. Should we add an IOpenRepeatValue interface to the value model - and keep it symetrical with open-choice? Or is this covered by the fact that a flat source can return SourceResult.EndOfData?
 - [ ] **Freeze `SchemaSet` and `ProcessorProvider` once handed to a `Serializer`.** Cached `ExecutionPlan`s go stale if a schema is loaded/recompiled or a processor is registered after `SerializerBuilder.Build()`. Fix: add an `IsFrozen`/`Freeze()` to `SchemaSet` (after `Compile`) and to the processor provider (`ProcessorManager`), call it in `Build()`, and throw `InvalidOperationException` on later modification. Add tests.
   For `SchemaSet` use a builder pattern: `SchemaSetBuilder` loads then `Build()` (Compile) returns a frozen `SchemaSet`.
 - [ ] **Consume the `options` facet of a `dataTypeDef`.** `DataTypeDescriptor.Options` (allowed physical values mapped to names) is stored and round-tripped but no built-in processor uses it yet. Make e.g. `sys.map` fall back to it and/or validate values against it; add tests.
@@ -44,6 +44,7 @@
 
 ---
 
+- [x] **Chain interface support for Field Processors** Are they supported?
 - [x] **Implement and test nodeDefs.** NodeDefs can be defined, but using them (group and field instantiation, processors, name resolution, cross-document) is not covered by tests yet. Verify the behavior and add tests; prerequisite for the open choice.
 - [x] **NodeDef for Groups include members** Should the nodeDef for groups also include members? And how do these members merge with the members of the group that references the nodeDef?
   - [x] Refactor nodeDefs (dataTypeDefs?) into custom dataTypeDescruptors and a new section (nodeNodeDefs?) for predefined nodes.

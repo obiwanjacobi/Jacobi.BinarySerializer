@@ -462,10 +462,10 @@ public sealed class SchemaSet
                 if (document.TryFindNodeDef(node.NodeDef.Value, out var nodeDef) ||
                     TryFindNodeDef(node.NodeDef.Value, out nodeDef))
                 {
-                    if (nodeDef.NodeKind != node.Kind)
+                    if (nodeDef.Kind != node.Kind)
                     {
                         throw new InvalidOperationException(
-                            $"The {node.Kind} '{node.Name}' references the nodeDef '{nodeDef.Name}' that defines a {nodeDef.NodeKind}: the kinds must match.");
+                            $"The {node.Kind} '{node.Name}' references the nodeDef '{nodeDef.Name}' that defines a {nodeDef.Kind}: the kinds must match.");
                     }
 
                     var replacementNode = InstantiateNodeDef(node, nodeDef);
@@ -493,10 +493,10 @@ public sealed class SchemaSet
                 if (document.TryFindNodeDef(memberNodeDef, out var memberDef) ||
                     TryFindNodeDef(memberNodeDef, out memberDef))
                 {
-                    if (memberDef.NodeKind != SchemaNodeKind.Group)
+                    if (memberDef.Kind != SchemaNodeKind.Group)
                     {
                         throw new InvalidOperationException(
-                            $"The Choice '{node.Name}' references the member nodeDef '{memberDef.Name}' that defines a {memberDef.NodeKind}: it must be a Group.");
+                            $"The Choice '{node.Name}' references the member nodeDef '{memberDef.Name}' that defines a {memberDef.Kind}: it must be a Group.");
                     }
                 }
                 else

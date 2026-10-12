@@ -44,7 +44,7 @@ public class SchemaSetTests
         var commonNodeDef = new SchemaNodeDef
         {
             Name = "CommonField",
-            NodeKind = SchemaNodeKind.Field,
+            Kind = SchemaNodeKind.Field,
             DataType = "sys.int32",
             Processors = []
         };
@@ -165,7 +165,7 @@ public class SchemaSetTests
     public void Compile_NodeDefInstantiation_KeepsTheFieldValue()
     {
         var schemaSet = new SchemaSet();
-        var nodeDef = new SchemaNodeDef { Name = "CommonField", NodeKind = SchemaNodeKind.Field, DataType = "sys.int32", Processors = [] };
+        var nodeDef = new SchemaNodeDef { Name = "CommonField", Kind = SchemaNodeKind.Field, DataType = "sys.int32", Processors = [] };
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField
         {
@@ -315,7 +315,7 @@ public class SchemaSetTests
         var nodeDef = new SchemaNodeDef
         {
             Name = "CommonField",
-            NodeKind = SchemaNodeKind.Field,
+            Kind = SchemaNodeKind.Field,
             DataType = "sys.int32",
             Processors = [processor]
         };
@@ -345,7 +345,7 @@ public class SchemaSetTests
     [Test]
     public void Compile_UnqualifiedNodeDef_OnlyResolvesInTheOwnDocument()
     {
-        var shared = CreateDocument("Shared", nodeDefs: [new SchemaNodeDef { Name = "CommonField", NodeKind = SchemaNodeKind.Field, DataType = "sys.int32", Processors = [] }]);
+        var shared = CreateDocument("Shared", nodeDefs: [new SchemaNodeDef { Name = "CommonField", Kind = SchemaNodeKind.Field, DataType = "sys.int32", Processors = [] }]);
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField { Name = "Value", DataType = "sys.uint8", NodeDef = new SchemaName("commonfield"), ProcessorsList = [] });
         var main = CreateDocument("Main", roots: [rootGroup], includes: [new SchemaDocumentRef { Schema = "Shared" }]);
