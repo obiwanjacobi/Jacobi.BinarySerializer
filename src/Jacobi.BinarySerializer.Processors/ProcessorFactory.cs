@@ -8,7 +8,7 @@ public sealed class ProcessorFactory : IProcessorFactory
     private readonly static Dictionary<string, ProcessorBase> Processors = new()
     {
         // Value Processors
-        { "sys.nullable", new NullableProcessor() },
+        { "sys.null", new NullProcessor() },
         { "sys.scale", new ScaleProcessor() },
         { "sys.map", new MapProcessor() },
         { "sys.bits", new BitsProcessor() },

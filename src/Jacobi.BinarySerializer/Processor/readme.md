@@ -11,7 +11,7 @@ Each processor belongs to exactly one stage (`IProcessor.Stage`). The `Processor
 | Stage | Interface | Converts | Called |
 |-------|-----------|----------|--------|
 | Value | `IValueProcessor` | logical value <-> encoded value (scaled, mapped, compressed) | Per field. Reports the bits written/consumed. |
-| Representation (field) | `IFieldProcessor` | logical value <-> encoded field (varint, string) | Per field. Reports the bits written/consumed. |
+| Field | `IFieldProcessor` | logical value <-> encoded field (varint, string) | Per field. Reports the bits written/consumed. |
 | Layout | `ILayoutProcessor` | encoded field <-> bytes in a group (packing, alignment, crc) | `BeginWrite/Read` when the group is entered, `Write/Read` per field, `EndWrite/Read` when the group is left. |
 | Stream | `IStreamProcessor` | whole message payload <-> transport bytes (framing, compression, encryption) | Once per message, on the root only. |
 
@@ -25,6 +25,13 @@ read:  input -> (stream, whole message) -> layout -> field -> value
 - Several processors in one stage form a **chain** in declaration order. Value processors are applied in order when writing; the reverse is the engine's concern when reading. For layout chains the first is the head (field <-> bytes) and followers work byte-to-byte; the last one talks to the actual stream. The plan builder validates chains.
 - A stage without processors is skipped; the engine uses a default (fixed-width codec, bytes appended as is).
 - The engine owns the buffers between the stages.
+
+| Stage | Read Interface | Write Interface | Description |
+|-------|----------------|-----------------|-------------|
+| Value | `IValueReader<LogicalField, LogicalField>` | `IValueWriter<LogicalField, LogicalField>` | Does not require any special implementation, these interfaces are implemented by IValueProcessor. |
+| Field | `IFieldReader<EncodedField, EncodedField>` | `IFieldWriter<EncodedField, EncodedField>` | Allows the field processor to be chained after the 'head' processor. |
+| Layout | `ILayoutReader<ReadOnlyMemory<byte>>` | `ILayoutWriter<ReadOnlySpan<byte>>` | Allows the layout processor to be chained after the 'head' processor. |
+| Stream | - | - | Not available yet. |
 
 ## Implementing a processor
 

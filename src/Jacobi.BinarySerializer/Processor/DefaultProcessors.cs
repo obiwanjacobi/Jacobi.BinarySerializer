@@ -87,6 +87,7 @@ internal sealed class DefaultLayoutProcessor : ILayoutProcessor
         switch (encodedValue.Value)
         {
             case null:
+                // TODO: skip or write a null byte?
                 return WriteResult.Success;
             case byte[] bytes:
                 writer.Write(bytes);

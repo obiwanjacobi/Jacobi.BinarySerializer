@@ -1,6 +1,6 @@
 ﻿# TODOs
 
-  - [ ] rename the namespace for datatypes (dt?). Short names are no longer supported.
+- [ ] **Chain interface support for Field Processors** Are they supported?
 - [ ] **Freeze `SchemaSet` and `ProcessorProvider` once handed to a `Serializer`.** Cached `ExecutionPlan`s go stale if a schema is loaded/recompiled or a processor is registered after `SerializerBuilder.Build()`. Fix: add an `IsFrozen`/`Freeze()` to `SchemaSet` (after `Compile`) and to the processor provider (`ProcessorManager`), call it in `Build()`, and throw `InvalidOperationException` on later modification. Add tests.
   For `SchemaSet` use a builder pattern: `SchemaSetBuilder` loads then `Build()` (Compile) returns a frozen `SchemaSet`.
 - [ ] **Consume the `options` facet of a `dataTypeDef`.** `DataTypeDescriptor.Options` (allowed physical values mapped to names) is stored and round-tripped but no built-in processor uses it yet. Make e.g. `sys.map` fall back to it and/or validate values against it; add tests.

@@ -12,6 +12,22 @@ public sealed class SchemaSet
     public IReadOnlyCollection<SchemaDocument> Documents
         => _documents.Values;
 
+    public void AddDocument(SchemaDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (String.IsNullOrEmpty(document.Name))
+        {
+            throw new ArgumentException("Document name cannot be null or empty.", nameof(document));
+        }
+        if (_documents.ContainsKey(document.Name))
+        {
+            throw new InvalidOperationException($"A document with the name '{document.Name}' already exists.");
+        }
+
+        _documents[document.Name] = document;
+    }
+
     public SchemaDocument LoadFile(string path)
     {
         var extension = Path.GetExtension(path).ToLowerInvariant();
@@ -369,22 +385,6 @@ public sealed class SchemaSet
         }
     }
 
-    internal void AddDocument(SchemaDocument document)
-    {
-        ArgumentNullException.ThrowIfNull(document);
-
-        if (String.IsNullOrEmpty(document.Name))
-        {
-            throw new ArgumentException("Document name cannot be null or empty.", nameof(document));
-        }
-        if (_documents.ContainsKey(document.Name))
-        {
-            throw new InvalidOperationException($"A document with the name '{document.Name}' already exists.");
-        }
-
-        _documents[document.Name] = document;
-    }
-
     private bool ResolveReferences(SchemaDocument document)
     {
         bool allResolved = ResolveIncludes(document);
@@ -559,7 +559,8 @@ public sealed class SchemaSet
             defDocument = null;
             return false;
         }
-        return true;
+
+        return defDocument is not null;
     }
 
     private SchemaField InstantiateDataType(SchemaField field, SchemaDocument defDocument, SchemaDataTypeDef dataTypeDef)

@@ -76,7 +76,7 @@ internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
         {
             return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData();
         }
-        return LayoutReadResult<ReadOnlyMemory<byte>>.Success(LayoutChain.Unread(reader));
+        return LayoutChain.PassThroughRead(ref reader);
     }
 
     private static bool TrySkip(ref SequenceReader<byte> reader, LayoutProcessorContext context)
