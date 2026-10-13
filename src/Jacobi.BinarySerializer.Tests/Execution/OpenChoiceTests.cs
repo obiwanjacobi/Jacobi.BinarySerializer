@@ -375,6 +375,151 @@ public class OpenChoiceTests
         Assert.That(read, Is.EqualTo(4));
     }
 
+    private const string RepeatOfOpenChoiceSchema = """
+        {
+          "name": "RepeatChoiceTest",
+          "nodeDefs": [
+            { "name": "Body", "kind": "group" }
+          ],
+          "members": [
+            {
+              "name": "Root",
+              "kind": "group",
+              "members": [
+                {
+                  "name": "Items", "kind": "repeat",
+                  "members": [
+                    { "name": "Msg", "kind": "choice", "memberNodeDef": "Body" }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "BodyA", "kind": "group", "nodeDef": "Body",
+              "members": [ { "name": "Id", "kind": "field", "datatype": "sys.uint8" } ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Read_OpenRepeatOfOpenChoice_ReadsAllItems()
+    {
+        var serializer = CreateSerializer(RepeatOfOpenChoiceSchema);
+        var sink = new OpenSink();
+
+        var read = serializer.Deserialize(new SchemaName("RepeatChoiceTest.Root"), new ReadOnlySequence<byte>([1, 2, 3]), sink);
+
+        Assert.That(sink.Fields, Has.Count.EqualTo(3));
+        Assert.That(read, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void Read_OpenRepeatOfSizedOpenChoice_ReadsAllItems()
+    {
+        var serializer = CreateSerializer(RepeatOfOpenChoiceSchema.Replace("\"memberNodeDef\": \"Body\"", "\"memberNodeDef\": \"Body\", \"byteSize\": 1"));
+        var sink = new OpenSink();
+
+        var read = serializer.Deserialize(new SchemaName("RepeatChoiceTest.Root"), new ReadOnlySequence<byte>([1, 2, 3]), sink);
+
+        Assert.That(sink.Fields, Has.Count.EqualTo(3));
+        Assert.That(read, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void Read_SizedOpenRepeatOfRecordsInBody_ReadsAllRecords()
+    {
+        var json = OpenRepeatBodySchema.Replace(
+            "\"name\": \"Items\", \"kind\": \"repeat\",",
+            "\"name\": \"Items\", \"kind\": \"repeat\", \"byteSize\": 4,");
+        var serializer = CreateSerializer(json);
+        var sink = new OpenSink();
+
+        var read = serializer.Deserialize(new SchemaName("RepeatTest.Root"), new ReadOnlySequence<byte>([1, 2, 3, 4]), sink);
+
+        Assert.That(sink.Fields, Has.Count.EqualTo(4));
+        Assert.That(read, Is.EqualTo(4));
+    }
+
+    private const string PipelineSchema = """
+        {
+          "name": "PipeTest",
+          "nodeDefs": [
+            { "name": "Body", "kind": "group" }
+          ],
+          "members": [
+            {
+              "name": "Root",
+              "kind": "group",
+              "processors": [ { "name": "sys.align", "bytes": 2 } ],
+              "members": [
+                { "name": "Head", "kind": "field", "datatype": "sys.uint8" },
+                { "name": "Msg", "kind": "choice", "memberNodeDef": "Body" }
+              ]
+            },
+            {
+              "name": "BodyA", "kind": "group", "nodeDef": "Body",
+              "members": [ { "name": "Id", "kind": "field", "datatype": "sys.uint8" } ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Read_OpenChoiceIntegrate_BodyInheritsTheLayoutOfTheChoice()
+    {
+        var serializer = CreateSerializer(PipelineSchema.Replace("\"memberNodeDef\": \"Body\"", "\"memberNodeDef\": \"Body\", \"pipeline\": \"integrate\""));
+        var sink = new OpenSink();
+
+        serializer.Deserialize(new SchemaName("PipeTest.Root"), new ReadOnlySequence<byte>([5, 0, 7, 0]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "Root.Head=5", "BodyA.Id=7" }));
+    }
+
+    [Test]
+    public void Read_OpenChoiceIsolate_BodyHasItsOwnPipeline()
+    {
+        var serializer = CreateSerializer(PipelineSchema.Replace("\"memberNodeDef\": \"Body\"", "\"memberNodeDef\": \"Body\", \"pipeline\": \"isolate\""));
+        var sink = new OpenSink();
+
+        serializer.Deserialize(new SchemaName("PipeTest.Root"), new ReadOnlySequence<byte>([5, 0, 7, 0]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "Root.Head=5", "BodyA.Id=0" }));
+    }
+
+    [Test]
+    public void Json_OpenChoice_RoundTripsPipeline()
+    {
+        var json = PipelineSchema.Replace("\"memberNodeDef\": \"Body\"", "\"memberNodeDef\": \"Body\", \"pipeline\": \"integrate\"");
+
+        var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(JsonSerializer.Deserialize(json)));
+
+        var root = (SchemaGroup)roundTripped.Members.First();
+        Assert.That(((SchemaChoice)root.Members.Last()).Pipeline, Is.EqualTo(SchemaPipelineMode.Integrate));
+    }
+
+    [Test]
+    public void Compile_PipelineOnClosedChoice_Throws()
+    {
+        var json = """
+            {
+              "name": "ClosedTest",
+              "members": [
+                { "name": "Root", "kind": "group", "members": [
+                  { "name": "Pick", "kind": "choice", "selectedIndex": 0, "pipeline": "isolate",
+                    "members": [ { "name": "A", "kind": "field", "datatype": "sys.uint8" } ] }
+                ] }
+              ]
+            }
+            """;
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(JsonSerializer.Deserialize(json));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
+
+        Assert.That(ex.Message, Does.Contain("Pick").And.Contain("open choice"));
+    }
+
     private static Serializer CreateSerializer(string json)
     {
         var schemaBuilder = new SchemaSetBuilder();

@@ -100,10 +100,14 @@ internal sealed class JsonSchemaChoice : JsonSchemaGroup
     [JsonPropertyName("memberNodeDef")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? MemberNodeDef { get; init; }
+
+    [JsonPropertyName("pipeline")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Pipeline { get; init; }
     public IReadOnlyList<JsonSchemaProcessorRef> ValueProcessors { get; init; } = [];
 }
 
-/// <summary>A value reference object ({ "ref": "path" } or { "pub": "namespace.name" }) or a constant.</summary>
+/// <summary>A value reference
 public union JsonSchemaValueOrRef<T>(JsonSchemaValueRef, T) { }
 
 internal sealed class JsonSchemaValueRef

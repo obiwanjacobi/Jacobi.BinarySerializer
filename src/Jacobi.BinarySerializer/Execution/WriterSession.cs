@@ -648,7 +648,7 @@ internal sealed class WriterSession : SessionState
         _layoutContext.FieldData.ByteLength = null;
         _layoutContext.GroupData.ByteSize = null;
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
-        var chain = group.Pipeline.LayoutProcessors;
+        var chain = group.Pipeline.OwnLayoutProcessors;
         var buffers = RentBuffers(chain.Count - 1);
         for (var i = chain.Count - 1; i >= 0; i--)
         {
@@ -673,7 +673,7 @@ internal sealed class WriterSession : SessionState
         _layoutContext.GroupData.ByteSize = group is not RepeatInfo && group.HasByteSize && _sizeStarts.Count > 0
             ? checked((int)(_counter.Written - _sizeStarts.Peek()))
             : null;
-        var chain = group.Pipeline.LayoutProcessors;
+        var chain = group.Pipeline.OwnLayoutProcessors;
         var buffers = RentBuffers(chain.Count - 1);
         for (var i = 0; i < chain.Count; i++)
         {
@@ -686,12 +686,12 @@ internal sealed class WriterSession : SessionState
     }
 
     /// <summary>
-    /// A group begins/ends the layout processors it declares itself. A group that inherits the layout stage
-    /// (the same list instance as its parent's pipeline) continues in the parent's layout.
+    /// A group begins/ends the layout processors it adds itself. The processors inherited from its parent
+    /// are already active in the parent's layout scope.
     /// </summary>
     internal static bool OwnsLayout(GroupInfo group)
-        => group.Pipeline.LayoutProcessors.Count > 0
-            && group.Pipeline.LayoutProcessors != group.Parent?.Pipeline.LayoutProcessors;
+        => group.Pipeline.OwnLayoutProcessors.Count > 0
+            && (group.Parent is null || group.Pipeline != group.Parent.Pipeline);
 
     /// <summary>Runs the stream stage over the buffered root payload (chained) into the output.</summary>
     private WriteResult WriteStream(GroupInfo root, ArrayBufferWriter<byte> payload)

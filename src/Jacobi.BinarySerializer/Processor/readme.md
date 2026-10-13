@@ -22,7 +22,7 @@ write: value -> field -> layout -> (stream, whole message) -> output
 read:  input -> (stream, whole message) -> layout -> field -> value
 ```
 
-- Several processors in one stage form a **chain** in declaration order. Value processors are applied in order when writing; the reverse is the engine's concern when reading. For layout chains the first is the head (field <-> bytes) and followers work byte-to-byte; the last one talks to the actual stream. The plan builder validates chains.
+- Several processors in one stage form a **chain** in declaration order. Value processors are applied in order when writing; the reverse is the engine's concern when reading. For layout chains the first is the head (field <-> bytes) and followers work byte-to-byte; the last one talks to the actual stream. The plan builder validates chains. A layout chain also spans nested groups: the layout processors declared on the ancestors come first (the outermost is the head), followed by the ones the group declares. Each group still calls `BeginWrite/Read` and `EndWrite/Read` only for the layout processors it declares itself.
 - A stage without processors is skipped; the engine uses a default (fixed-width codec, bytes appended as is).
 - The engine owns the buffers between the stages.
 

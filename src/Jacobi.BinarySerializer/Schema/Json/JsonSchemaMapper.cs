@@ -199,6 +199,7 @@ internal static class JsonSchemaMapper
                 MemberList = members,
                 SelectedIndex = ToSchemaValueOrRef(choice.SelectedIndex),
                 MemberNodeDef = ToNodeDefName(choice.MemberNodeDef),
+                Pipeline = SchemaPipelineModes.Parse(choice.Pipeline, choice.Name),
                 ByteSize = ToSchemaValueOrRef(choice.ByteSize),
                 ValueProcessorsList = choice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(choice.Properties, choice.AdditionalData)
@@ -327,6 +328,7 @@ internal static class JsonSchemaMapper
                 Members = choice.Members.Select(FromSchemaNode).ToList(),
                 SelectedIndex = FromSchemaValueOrRef(choice.SelectedIndex),
                 MemberNodeDef = choice.MemberNodeDef?.ToString(),
+                Pipeline = choice.Pipeline == SchemaPipelineMode.Integrate ? null : choice.Pipeline.ToString().ToLowerInvariant(),
                 ByteSize = FromSchemaValueOrRef(choice.ByteSize),
                 ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()

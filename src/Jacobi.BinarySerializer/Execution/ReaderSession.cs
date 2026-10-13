@@ -497,7 +497,7 @@ internal sealed class ReaderSession : SessionState
         _layoutContext.ReservedTail = 0;
         _layoutContext.CanReserveTail = true;
         SetGroupData(group, itemIndex, itemCount);
-        var chain = group.Pipeline.LayoutProcessors;
+        var chain = group.Pipeline.OwnLayoutProcessors;
         for (var i = chain.Count - 1; i >= 0; i--)
         {
             Prepare(_layoutContext, chain[i], "BeginRead");
@@ -520,7 +520,7 @@ internal sealed class ReaderSession : SessionState
         _layoutContext.Group = group;
         _layoutContext.Field = null;
         SetGroupData(group, itemIndex, itemCount);
-        foreach (var binding in group.Pipeline.LayoutProcessors)
+        foreach (var binding in group.Pipeline.OwnLayoutProcessors)
         {
             Prepare(_layoutContext, binding, "EndRead");
             SetPosition(reader.Consumed);

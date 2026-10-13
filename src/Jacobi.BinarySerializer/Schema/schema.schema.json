@@ -175,6 +175,7 @@
         "processors": { "$ref": "#/$defs/processors" },
         "selectedIndex": { "$ref": "#/$defs/valueOrRef" },
         "memberNodeDef": { "type": "string" },
+        "pipeline": { "enum": ["isolate", "integrate"] },
         "valueProcessors": { "$ref": "#/$defs/processors" }
       },
       "unevaluatedProperties": true

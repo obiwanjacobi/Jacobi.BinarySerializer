@@ -13,7 +13,7 @@ public sealed class ProcessorPipeline
     public ProcessorPipeline(IEnumerable<ProcessorBinding> processors)
         : this(parent: null, processors) { }
 
-    /// <summary>Child pipeline: stages specified by <paramref name="processors"/> replace the parent's, the rest are reused.</summary>
+    /// <summary>Child pipeline: value, field and stream stages specified by <paramref name="processors"/> replace the parent's; layout accumulates; the rest are reused.</summary>
     public ProcessorPipeline(ProcessorPipeline? parent, IEnumerable<ProcessorBinding> processors)
     {
         List<ProcessorBinding>? value = null, field = null, layout = null, stream = null;
@@ -39,6 +39,21 @@ public sealed class ProcessorPipeline
         // reuse parent stage instances when not replaced
         ValueProcessors = value ?? parent?.ValueProcessors ?? [];
         FieldProcessors = field ?? parent?.FieldProcessors ?? [];
+        OwnLayoutProcessors = layout ?? [];
+        if (layout is not null && parent is { LayoutProcessors.Count: > 0 })
+        {
+            // a field reads through every layout processor declared from the root down: the outermost is the head, inner ones follow it.
+            // a processor that is already in the chain is not added again.
+            var accumulated = new List<ProcessorBinding>(parent.LayoutProcessors);
+            foreach (var binding in layout)
+            {
+                if (!accumulated.Exists(b => b.Processor.Key == binding.Processor.Key))
+                {
+                    accumulated.Add(binding);
+                }
+            }
+            layout = accumulated;
+        }
         LayoutProcessors = layout ?? parent?.LayoutProcessors ?? [];
         StreamProcessors = stream ?? parent?.StreamProcessors ?? [];
     }
@@ -49,7 +64,16 @@ public sealed class ProcessorPipeline
 
     public IReadOnlyList<ProcessorBinding> ValueProcessors { get; }
     public IReadOnlyList<ProcessorBinding> FieldProcessors { get; }
+    /// <summary>
+    /// The layout chain a field reads through: the processors declared from the root down to this level, outermost (head) first.
+    /// </summary>
     public IReadOnlyList<ProcessorBinding> LayoutProcessors { get; }
+
+    /// <summary>
+    /// The layout processors declared at this level (empty when inherited): the ones this group begins and ends.
+    /// A nested group's own processors run as a scope inside the scopes of its ancestors.
+    /// </summary>
+    public IReadOnlyList<ProcessorBinding> OwnLayoutProcessors { get; }
     public IReadOnlyList<ProcessorBinding> StreamProcessors { get; }
 
     /// <summary>True when this pipeline only reuses parent stages (no own processors).</summary>

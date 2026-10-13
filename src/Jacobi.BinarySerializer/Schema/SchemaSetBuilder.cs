@@ -471,6 +471,12 @@ public sealed class SchemaSetBuilder
                 }
             }
 
+            if (node is SchemaChoice { MemberNodeDef: null, Pipeline: SchemaPipelineMode.Isolate })
+            {
+                throw new InvalidOperationException(
+                    $"The Choice '{node.Name}' sets a pipeline mode, which is only valid for an open choice (with a memberNodeDef).");
+            }
+
             if (node is SchemaChoice { MemberNodeDef: { } memberNodeDef })
             {
                 var memberDef = FindNodeDef(document, memberNodeDef, $"The Choice '{node.Name}' (member nodeDef)");
@@ -628,6 +634,7 @@ public sealed class SchemaSetBuilder
                 MemberList = [.. nodeDef.MemberList, .. choiceNode.MemberList],
                 SelectedIndex = choiceNode.SelectedIndex,
                 MemberNodeDef = choiceNode.MemberNodeDef,
+                Pipeline = choiceNode.Pipeline,
                 ByteSize = choiceNode.ByteSize,
                 ValueProcessorsList = [.. choiceNode.ValueProcessors],
             };

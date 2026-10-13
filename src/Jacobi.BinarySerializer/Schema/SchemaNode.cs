@@ -137,10 +137,43 @@ public sealed class SchemaChoice : SchemaGroup
     public SchemaName? MemberNodeDef { get; init; }
 
     /// <summary>
+    /// Open choice only: whether the selected group inherits the processor pipeline of this choice (integrate) or not (isolate).
+    /// </summary>
+    public SchemaPipelineMode Pipeline { get; init; }
+
+    /// <summary>
     /// Semantic (value) processors that convert the referenced value into the (int) selected index.
     /// </summary>
     public IReadOnlyList<SchemaProcessorRef> ValueProcessors => ValueProcessorsList;
     internal List<SchemaProcessorRef> ValueProcessorsList { get; init; } = [];
+}
+
+/// <summary>
+/// How the group selected by an open choice relates to the processor pipeline of the choice.
+/// </summary>
+public enum SchemaPipelineMode
+{
+    /// <summary>The selected group inherits the processor stages of the choice (and so of its ancestors), like a nested group (default).</summary>
+    Integrate = 0,
+    /// <summary>The selected group has its own pipeline: processors of the choice and its ancestors do not apply.</summary>
+    Isolate,
+}
+
+internal static class SchemaPipelineModes
+{
+    public static SchemaPipelineMode Parse(string? text, string choiceName)
+    {
+        if (String.IsNullOrEmpty(text))
+        {
+            return SchemaPipelineMode.Integrate;
+        }
+        if (Enum.TryParse<SchemaPipelineMode>(text, ignoreCase: true, out var mode) && Enum.IsDefined(mode))
+        {
+            return mode;
+        }
+        throw new InvalidOperationException(
+            $"The Choice '{choiceName}' has an unknown pipeline mode '{text}' (use 'isolate' or 'integrate').");
+    }
 }
 
 public enum SchemaNodeKind

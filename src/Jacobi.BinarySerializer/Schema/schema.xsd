@@ -189,7 +189,16 @@
     <xs:attribute name="nodeDef" type="xs:string" />
     <xs:attribute name="byteSize" type="xs:string" />
     <xs:attribute name="selectedIndex" type="xs:string" />
-    <xs:anyAttribute processContents="skip" />
+    <xs:attribute name="memberNodeDef" type="xs:string" />
+    <xs:attribute name="pipeline">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="isolate" />
+          <xs:enumeration value="integrate" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <xs:anyAttribute
   </xs:complexType>
 
 </xs:schema>

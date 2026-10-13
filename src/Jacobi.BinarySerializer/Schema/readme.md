@@ -66,6 +66,7 @@ A choice with `memberNodeDef` (instead of `members`) is *open*: an envelope with
 Rules:
 - `memberNodeDef` names a nodeDef of kind `group` (same document, or qualified `document.name`). The compiler rejects a missing nodeDef or one of another kind.
 - `selectedIndex` is optional and not used by an open choice.
+- `pipeline` (open choice only) is `integrate` (default) or `isolate`. With `integrate` the selected body is built under the pipeline of the choice, so it inherits the processors of the choice and its ancestors like a nested group (layout scopes of the ancestors stay open around the body, and the body's fields read through the inherited layout chain). With `isolate` the body has its own pipeline: nothing of the envelope applies. Setting `pipeline="isolate"` on a choice that is not open is a compile error. The JSON/XML property is omitted when it is `integrate`.
 - A body is a schema root (a plain group) that declares `"nodeDef": "<name>"`. Repeat and choice roots are rejected.
 - The value model must implement `IOpenChoiceSink` (read) / `IOpenChoiceSource` (write) and return the scope plus the name of the selected group. Without the interface the engine fails, naming the choice path.
 - The group name is matched by full name (`document.name`), or by short name when exactly one conforming root has that name. An unknown or non-conforming group throws an `InvalidOperationException` naming the choice path and the nodeDef.
@@ -77,7 +78,7 @@ Rules:
 
 Limitations:
 - Body paths are relative to the body root (e.g. `BodyA.Id`).
-- The processors/pipeline of the envelope are not inherited by the body.
+- Referenced groups cannot (yet) influence the pipeline mode; only the open choice decides.
 - `byteSize` and `processors` on the open choice itself are ignored.
 - Body roots are not merged with the members of their nodeDef (nested nodes are); a body must list all its own members.
 - Only plans created from a `SchemaSet` have bodies; plans created from a single group or document cannot resolve an open choice.
@@ -127,7 +128,7 @@ A reference to a value that is not available yet is an error at runtime. Plan bu
 - Inside a processor entry the properties belong to that processor, so no prefix is needed. Elsewhere the full name is used (`sys.varint.encoding`). `Compile()` expands the short names to the full form.
 - Properties on fields and groups themselves are generic (e.g. `byteorder` on a group is read by the layout processors that care about it).
 - A property value is a string interpreted by the processor; `null` is a valid value that a processor may give meaning.
-A child node inherits the stages of its parent
+A child node inherits the stages of its parent. Value, field and stream stages: processors declared on a child replace the inherited ones for that stage (the nearest declaration wins). Layout stage: processors declared on a group nest inside the layout scopes of its ancestors: each group begins/ends only the layout processors it declares itself, while a field reads/writes through the whole layout chain (all layout processors declared from the root down to the field, outermost first). The outermost layout processor is the head (it reads/writes the field); the inner ones are followers and must implement the chained layout interfaces (`ILayoutReader<ReadOnlyMemory<byte>>` / `ILayoutWriter<ReadOnlySpan<byte>>`). A processor already in the chain (same key) is not added again. The plan builder reports a non-chainable follower with the path of the group.
 
 ## How to...
 

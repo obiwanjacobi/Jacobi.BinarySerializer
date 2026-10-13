@@ -279,6 +279,9 @@ public sealed class XmlSchemaChoice : XmlSchemaGroup
     [XmlAttribute("memberNodeDef")]
     public string? MemberNodeDef { get; set; }
 
+    [XmlAttribute("pipeline")]
+    public string? Pipeline { get; set; }
+
     [XmlElement("selectedIndex")]
     public XmlSchemaValueRef? SelectedIndexRef { get; set; }
 

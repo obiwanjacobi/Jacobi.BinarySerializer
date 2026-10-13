@@ -50,6 +50,7 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaChoice.Members),
         nameof(XmlSchemaChoice.SelectedIndex),
         nameof(XmlSchemaChoice.MemberNodeDef),
+        nameof(XmlSchemaChoice.Pipeline),
         nameof(XmlSchemaChoice.SelectedIndexRef),
         nameof(XmlSchemaChoice.ByteSize),
         nameof(XmlSchemaChoice.ByteSizeRef),
@@ -337,6 +338,7 @@ internal static class XmlSchemaMapper
             MemberList = members,
             SelectedIndex = ToSchemaValue(xmlChoice.SelectedIndex, xmlChoice.SelectedIndexRef),
             MemberNodeDef = ToNodeDefName(xmlChoice.MemberNodeDef),
+            Pipeline = SchemaPipelineModes.Parse(xmlChoice.Pipeline, xmlChoice.Name),
             ByteSize = ToSchemaValue(xmlChoice.ByteSize, xmlChoice.ByteSizeRef),
             ValueProcessorsList = xmlChoice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
@@ -438,6 +440,7 @@ internal static class XmlSchemaMapper
                 Members = choice.Members.Select(FromSchemaNode).ToList(),
                 SelectedIndex = ToConstantText(choice.SelectedIndex),
                 MemberNodeDef = choice.MemberNodeDef?.ToString(),
+                Pipeline = choice.Pipeline == SchemaPipelineMode.Integrate ? null : choice.Pipeline.ToString().ToLowerInvariant(),
                 SelectedIndexRef = ToXmlValueRef(choice.SelectedIndex),
                 ByteSize = ToConstantText(choice.ByteSize),
                 ByteSizeRef = ToXmlValueRef(choice.ByteSize),

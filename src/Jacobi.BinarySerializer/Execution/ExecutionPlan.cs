@@ -197,12 +197,12 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
 {
     private readonly DataTypeRegistry _dataTypes = dataTypes ?? DataTypeRegistry.CreateDefault();
 
-    public ExecutionPlan Build(SchemaGroup root)
+    public ExecutionPlan Build(SchemaGroup root, ProcessorPipeline? parentPipeline = null)
     {
         ArgumentNullException.ThrowIfNull(root);
 
         var state = new BuildState { Root = root };
-        var rootInfo = BuildGroup(root, root.Name, parentPipeline: null, state);
+        var rootInfo = BuildGroup(root, root.Name, parentPipeline, state);
         ResolvePathReferences(rootInfo, state);
         ValidateBytesWindow(rootInfo, false, state);
 
@@ -221,7 +221,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         GroupInfo root, SchemaSet schemas, string? rootNamespace)
     {
         var result = new Dictionary<ChoiceInfo, IReadOnlyDictionary<SchemaName, GroupInfo>>();
-        var built = new Dictionary<SchemaName, GroupInfo>();
+        var built = new Dictionary<(SchemaName, IReadOnlyList<ProcessorBinding>?, IReadOnlyList<ProcessorBinding>?, IReadOnlyList<ProcessorBinding>?, IReadOnlyList<ProcessorBinding>?), GroupInfo>();
         var work = new Queue<(GroupInfo Group, string? Namespace)>();
         work.Enqueue((root, rootNamespace));
 
@@ -242,15 +242,17 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
                         }
 
                         var name = new SchemaName($"{document.Name}{SchemaName.Separator}{candidate.Name}");
-                        if (!built.TryGetValue(name, out var body))
+                        var pipeline = ((SchemaChoice)choice.Group).Pipeline == SchemaPipelineMode.Integrate ? choice.Pipeline : null;
+                        var key = (name, pipeline?.ValueProcessors, pipeline?.FieldProcessors, pipeline?.LayoutProcessors, pipeline?.StreamProcessors);
+                        if (!built.TryGetValue(key, out var body))
                         {
-                            body = Build(candidate).Root;
+                            body = Build(candidate, pipeline is null ? null : new ProcessorPipeline(pipeline, [])).Root;
                             if (body is RepeatInfo or ChoiceInfo)
                             {
                                 throw new InvalidOperationException(
                                     $"'{choice.Path}': the group '{name}' must be a plain group to be used in an open choice.");
                             }
-                            built[name] = body;
+                            built[key] = body;
                             work.Enqueue((body, document.Name));
                         }
                         bodies[name] = body;
