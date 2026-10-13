@@ -70,12 +70,18 @@ public interface IValueSink
 /// <summary>
 /// The group the model selected for an open choice and the scope that holds (or receives) its values.
 /// </summary>
-public readonly record struct OpenChoiceSourceResult(IValueSource Scope, SchemaName Group);
+/// <param name="Scope">The scope for the values of the body.</param>
+/// <param name="Group">The selected group (a schema root that conforms to the nodeDef of the open choice).</param>
+/// <param name="Target">
+/// Optional: the path of a group inside the selected group (starting with its root name, e.g. 'BodyA.Part1.Sub').
+/// Only that group (and the groups leading to it) is read or written. Empty: the whole group.
+/// </param>
+public readonly record struct OpenChoiceSourceResult(IValueSource Scope, SchemaName Group, SchemaPath Target = default);
 
 /// <summary>
 /// <inheritdoc cref="OpenChoiceSourceResult"/>
 /// </summary>
-public readonly record struct OpenChoiceSinkResult(IValueSink Scope, SchemaName Group);
+public readonly record struct OpenChoiceSinkResult(IValueSink Scope, SchemaName Group, SchemaPath Target = default);
 
 /// <summary>
 /// Optional extension of <see cref="IValueSource"/> for models that support open choices.

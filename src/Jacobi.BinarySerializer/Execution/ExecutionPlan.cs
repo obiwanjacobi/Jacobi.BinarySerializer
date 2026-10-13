@@ -54,6 +54,24 @@ public sealed class ExecutionPlan
     }
 
     /// <summary>
+    /// Creates the range for the target group inside a body of an open choice (null target: the whole body).
+    /// </summary>
+    internal PlanRange? CreateOpenChoiceRange(ChoiceInfo choice, GroupInfo body, SchemaPath target)
+    {
+        if (target.IsEmpty)
+        {
+            return null;
+        }
+
+        if (Find(body, target) is not GroupInfo group)
+        {
+            throw new InvalidOperationException(
+                $"'{choice.Path}': the target '{target}' is not a group inside the selected group '{body.Path}'.");
+        }
+        return new PlanRange(this, group, group);
+    }
+
+    /// <summary>
     /// Checks the open choices a read or write visits: an open choice outside the range is skipped,
     /// an open choice inside the range must have at least one group in the plan that conforms to its memberNodeDef.
     /// </summary>

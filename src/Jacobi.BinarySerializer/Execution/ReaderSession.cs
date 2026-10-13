@@ -151,7 +151,7 @@ internal sealed class ReaderSession : SessionState
                             var selected = openSink.EnterOpenChoice(new OpenChoiceContext { Node = openChoice, Services = _services, Instance = _instance });
                             var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Group);
                             _openBody = (body, selected.Scope);
-                            cursor.EnterOpenChoice(step.Scope, body);
+                            cursor.EnterOpenChoice(step.Scope, body, _plan.CreateOpenChoiceRange(openChoice, body, selected.Target));
                         }
                         else if (group is ChoiceInfo choice)
                         {

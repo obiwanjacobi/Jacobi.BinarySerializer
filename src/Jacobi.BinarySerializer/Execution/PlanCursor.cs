@@ -54,8 +54,10 @@ internal sealed class PlanCursor<TScope>
         /// <summary>Repeat frame: the index of the current item. Item frame: its own index.</summary>
         public int Iteration { get; set; } = -1;
         public bool IsItem { get; init; }
-        /// <summary>The frame is inside an open-choice body: the range (made for the main plan) does not apply.</summary>
-        public bool Unranged { get; init; }
+        /// <summary>The range that filters the members of this frame (null: no filtering). Inherited by the frames below it.</summary>
+        public PlanRange? Range { get; init; }
+        /// <summary>The frame is the body of an open choice: its range keys (and repeat indices) are relative to this frame.</summary>
+        public bool RangeRoot { get; init; }
     }
 
     private readonly Stack<Frame> _frames = new();
@@ -65,7 +67,25 @@ internal sealed class PlanCursor<TScope>
     private bool _pendingAnnounced;
     private int _pendingItemIndex = -1;
 
-    private bool InUnranged => _frames.Count > 0 && _frames.Peek().Unranged;
+    private PlanRange? CurrentRange => _frames.Count > 0 ? _frames.Peek().Range : _range;
+
+    // the item indices of the repeats the range keys know about: those below the nearest open-choice body.
+    private InstancePath RangeInstance()
+    {
+        var path = InstancePath.Empty;
+        foreach (var frame in _frames.Reverse())
+        {
+            if (frame.RangeRoot)
+            {
+                path = InstancePath.Empty;
+            }
+            if (frame.IsItem)
+            {
+                path = path.Append(frame.Iteration);
+            }
+        }
+        return path;
+    }
 
     /// <param name="root">The root group of the plan.</param>
     /// <param name="range">Optional: only the fields of the range (and the groups leading to them) are visited.</param>
@@ -125,10 +145,10 @@ internal sealed class PlanCursor<TScope>
         var frame = _frames.Peek();
         if (frame.Count is { } count)
         {
-            if (_range is not null && !frame.Unranged)
+            if (frame.Range is { } itemRange)
             {
-                var above = Instance;
-                while (frame.Iteration + 1 < count && !_range.Includes(frame.Group, above.Append(frame.Iteration + 1)))
+                var above = RangeInstance();
+                while (frame.Iteration + 1 < count && !itemRange.Includes(frame.Group, above.Append(frame.Iteration + 1)))
                 {
                     frame.Iteration++;
                 }
@@ -147,10 +167,10 @@ internal sealed class PlanCursor<TScope>
             return new(CursorStepKind.ExitGroup, frame.Group, frame.Scope);
         }
 
-        if (_range is not null && !frame.Unranged)
+        if (frame.Range is { } memberRange)
         {
-            var instance = Instance;
-            while (frame.NextChild < frame.EndChild && !_range.Includes(frame.Members[frame.NextChild], instance))
+            var instance = RangeInstance();
+            while (frame.NextChild < frame.EndChild && !memberRange.Includes(frame.Members[frame.NextChild], instance))
             {
                 frame.NextChild++;
             }
@@ -215,7 +235,7 @@ internal sealed class PlanCursor<TScope>
         {
             IsItem = _pendingItemIndex >= 0,
             Iteration = _pendingItemIndex,
-            Unranged = InUnranged,
+            Range = CurrentRange,
         });
         _pendingEnter = null;
         _pendingAnnounced = false;
@@ -239,7 +259,7 @@ internal sealed class PlanCursor<TScope>
             throw _logger.Fail($"'{repeat.Path}': the repeat count {count} cannot be negative.");
         }
 
-        _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = count, Unranged = InUnranged });
+        _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = count, Range = CurrentRange });
         _pendingEnter = null;
         _pendingAnnounced = false;
     }
@@ -254,7 +274,7 @@ internal sealed class PlanCursor<TScope>
             throw _logger.Fail("EnterOpenRepeat can only be called after an EnterGroup step for a repeat.");
         }
 
-        _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = Int32.MaxValue, Open = true, Unranged = InUnranged });
+        _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = Int32.MaxValue, Open = true, Range = CurrentRange });
         _pendingEnter = null;
         _pendingAnnounced = false;
     }
@@ -262,14 +282,15 @@ internal sealed class PlanCursor<TScope>
     /// <summary>
     /// Completes an EnterGroup step for an open choice: the selected body group is the only member of the choice.
     /// </summary>
-    public void EnterOpenChoice(TScope scope, GroupInfo body)
+    /// <param name="range">Optional: a range over the body plan; null visits the whole body.</param>
+    public void EnterOpenChoice(TScope scope, GroupInfo body, PlanRange? range = null)
     {
         if (_pendingEnter is not ChoiceInfo { IsOpen: true } choice || !_pendingAnnounced || _pendingItemIndex >= 0)
         {
             throw _logger.Fail("EnterOpenChoice can only be called after an EnterGroup step for an open choice.");
         }
 
-        _frames.Push(new Frame(choice, scope, 0, 1) { Members = [body], Unranged = true });
+        _frames.Push(new Frame(choice, scope, 0, 1) { Members = [body], Range = range, RangeRoot = true });
         _pendingEnter = null;
         _pendingAnnounced = false;
     }

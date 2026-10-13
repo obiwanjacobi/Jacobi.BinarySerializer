@@ -254,6 +254,73 @@ public class OpenChoiceTests
         Assert.That(sink.Fields, Is.EqualTo(new[] { "Root.Inner.Flag=1", "BodyA.X=2", "BodyA.Y=3" }));
     }
 
+    private const string TargetSchema = """
+        {
+          "name": "TargetTest",
+          "nodeDefs": [
+            { "name": "Body", "kind": "group" }
+          ],
+          "members": [
+            {
+              "name": "Root",
+              "kind": "group",
+              "members": [
+                { "name": "Msg", "kind": "choice", "memberNodeDef": "Body" }
+              ]
+            },
+            {
+              "name": "BodyA", "kind": "group", "nodeDef": "Body",
+              "members": [
+                { "name": "Skip", "kind": "field", "datatype": "sys.uint8" },
+                {
+                  "name": "Part", "kind": "group",
+                  "members": [
+                    { "name": "P1", "kind": "field", "datatype": "sys.uint8" },
+                    { "name": "P2", "kind": "field", "datatype": "sys.uint8" }
+                  ]
+                },
+                { "name": "Tail", "kind": "field", "datatype": "sys.uint8" }
+              ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Read_OpenChoiceTarget_ReadsOnlyTheTargetGroup()
+    {
+        var serializer = CreateSerializer(TargetSchema);
+        var sink = new OpenSink { Target = new SchemaPath("BodyA.Part") };
+
+        var read = serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x01, 0x02, 0x03]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "BodyA.Part.P1=1", "BodyA.Part.P2=2" }));
+        Assert.That(read, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void Read_OpenChoiceWithoutTarget_ReadsTheWholeBody()
+    {
+        var serializer = CreateSerializer(TargetSchema);
+        var sink = new OpenSink();
+
+        serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x01, 0x02, 0x03, 0x04]), sink);
+
+        Assert.That(sink.Fields, Has.Count.EqualTo(4));
+    }
+
+    [Test]
+    public void Read_OpenChoiceTargetNotInBody_Throws()
+    {
+        var serializer = CreateSerializer(TargetSchema);
+        var sink = new OpenSink { Target = new SchemaPath("BodyA.Nope") };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x01, 0x02, 0x03]), sink));
+
+        Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("BodyA.Nope"));
+    }
+
     private static Serializer CreateSerializer(string json)
     {
         var schemaBuilder = new SchemaSetBuilder();
@@ -284,11 +351,12 @@ public class OpenChoiceTests
     {
         public List<OpenChoiceContext> Contexts { get; } = [];
         public SchemaName Selected { get; init; } = new("BodyA");
+        public SchemaPath Target { get; init; }
 
         public OpenChoiceSinkResult EnterOpenChoice(OpenChoiceContext context)
         {
             Contexts.Add(context);
-            return new OpenChoiceSinkResult(this, Selected);
+            return new OpenChoiceSinkResult(this, Selected, Target);
         }
     }
 
