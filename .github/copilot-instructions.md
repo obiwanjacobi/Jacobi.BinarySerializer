@@ -6,6 +6,7 @@
 - Two public APIs are planned: one over a generic value model (values with structure) and one over typed objects (types as structure, populated instances). Only the generic one is built first. The session/engine must talk to values only through `IValueSource` (write) and `IValueSink` (read), never to a concrete model, so the typed API can be added later without refactoring the engine.
 - Keep these rules for the engine: scopes live on the session's frame stack (resumable, no call-stack state); nodes are identified by plan `NodeInfo` (Name/Path); schema fields without a model member (lengths, counts, discriminators) are derived by the engine, not required from the model; derived values (repeat count, choice index) are resolved in the engine, not in the adapters.
 - Schemas are explicit definitions: never infer values (e.g. node kind) with guessing or magic rules; require them to be specified.
+- Read the code! That is the only source of truth. Your idea of how things are done or assumptions or even the readme.md files, which can be out of date, may not be how things actually work. This prevents 'solutions' that turn out to be additional problems or bugs to fix later.
 
 ## Naming Conventions
 - Properties that refer to physical (encoded byte) attributes are explicitly prefixed 'byte' (e.g., byteLength, byteSize, like bitLength); plain length/size/count mean the logical value.

@@ -30,7 +30,6 @@ public sealed class SchemaSetBuilder
         var extension = Path.GetExtension(path).ToLowerInvariant();
         var content = File.ReadAllText(path);
         var document = LoadFileContent(content, extension);
-        AddDocument(document);
         return document;
     }
 
@@ -71,10 +70,18 @@ public sealed class SchemaSetBuilder
     }
 
     public SchemaDocument LoadFromXml(string xml)
-        => XmlSerializer.Deserialize(xml);
+    {
+        var document = XmlSerializer.Deserialize(xml);
+        AddDocument(document);
+        return document;
+    }
 
     public SchemaDocument LoadFromJson(string json)
-        => JsonSerializer.Deserialize(json);
+    {
+        var document = JsonSerializer.Deserialize(json);
+        AddDocument(document);
+        return document;
+    }
 
     public SchemaDocument LoadFromBinary(string name, Stream data)
     {

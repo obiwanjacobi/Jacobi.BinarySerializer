@@ -207,10 +207,57 @@ public class OpenChoiceTests
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("Body").And.Contain("conforms"));
     }
 
+    private const string NestedSchema = """
+        {
+          "name": "NestedTest",
+          "nodeDefs": [
+            { "name": "Body", "kind": "group" }
+          ],
+          "members": [
+            {
+              "name": "Root",
+              "kind": "group",
+              "members": [
+                { "name": "Pre", "kind": "field", "datatype": "sys.uint8" },
+                {
+                  "name": "Inner",
+                  "kind": "group",
+                  "members": [
+                    { "name": "Flag", "kind": "field", "datatype": "sys.uint8" },
+                    { "name": "Msg", "kind": "choice", "memberNodeDef": "Body" }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "BodyA", "kind": "group", "nodeDef": "Body",
+              "members": [
+                { "name": "X", "kind": "field", "datatype": "sys.uint8" },
+                { "name": "Y", "kind": "field", "datatype": "sys.uint8" }
+              ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Read_RangeOverGroupWithOpenChoice_ReadsAllBodyFields()
+    {
+        var serializer = CreateSerializer(NestedSchema);
+        var range = serializer
+            .GetPlan(new SchemaName("NestedTest.Root"))
+            .CreateRange(new SchemaPath("Root.Inner"));
+        var sink = new OpenSink();
+
+        serializer.Deserialize(range, new ReadOnlySequence<byte>([0x01, 0x02, 0x03]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "Root.Inner.Flag=1", "BodyA.X=2", "BodyA.Y=3" }));
+    }
+
     private static Serializer CreateSerializer(string json)
     {
         var schemaBuilder = new SchemaSetBuilder();
-        schemaBuilder.AddDocument(JsonSerializer.Deserialize(json));
+        schemaBuilder.LoadFromJson(json);
         var schemaSet = schemaBuilder.Compile();
 
         var manager = new ProcessorManager();
