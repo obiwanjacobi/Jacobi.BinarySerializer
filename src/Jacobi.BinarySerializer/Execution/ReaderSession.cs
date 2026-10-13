@@ -22,6 +22,12 @@ internal sealed class ReaderSession : SessionState
     private readonly Stack<long> _groupStarts = new();
     private readonly Stack<int> _choiceIndexes = new();
     private readonly Stack<(GroupInfo Group, long End)> _windows = new();
+    private long _transportConsumed;
+
+    /// <summary>
+    /// The physical bytes consumed from the input by the last read (the transport bytes when the root has stream processors).
+    /// </summary>
+    public long BytesRead { get; private set; }
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
@@ -62,6 +68,8 @@ internal sealed class ReaderSession : SessionState
 
         var root = _plan.Root;
         var payload = input;
+        BytesRead = 0;
+        _transportConsumed = 0;
         if (root.Pipeline.StreamProcessors.Count > 0)
         {
             var result = ReadStream(root, input, out var buffer);
@@ -229,6 +237,7 @@ internal sealed class ReaderSession : SessionState
                     break;
 
                 case CursorStepKind.Done:
+                    BytesRead = root.Pipeline.StreamProcessors.Count > 0 ? _transportConsumed : reader.Consumed;
                     EngineLogger.ReadFinished(root.Path.ToString());
                     return ReadResult.Success;
             }
@@ -547,6 +556,10 @@ internal sealed class ReaderSession : SessionState
             var reader = new SequenceReader<byte>(current);
             Prepare(_streamContext, binding);
             var result = ((IStreamProcessor)binding.Processor).Read(ref reader, next, _streamContext);
+            if (i == processors.Count - 1)
+            {
+                _transportConsumed = reader.Consumed;
+            }
             if (result != ReadResult.Success)
             {
                 if (result == ReadResult.NeedMoreData)

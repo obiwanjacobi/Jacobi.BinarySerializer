@@ -15,7 +15,7 @@ namespace Jacobi.BinarySerializer.Execution;
 internal sealed class WriterSession : SessionState
 {
     private readonly ExecutionPlan _plan;
-    private readonly IBufferWriter<byte> _output;
+    private readonly CountingBufferWriter _output;
     private readonly IServiceProvider _services;
     private readonly bool _valueFieldsUseModel;
     private InstancePath _instance;
@@ -48,7 +48,7 @@ internal sealed class WriterSession : SessionState
         _plan = plan ?? throw new ArgumentNullException(nameof(plan));
         _valueFieldsUseModel = valueFieldsUseModel;
         DataTypes = plan.DataTypes;
-        _output = output ?? throw new ArgumentNullException(nameof(output));
+        _output = new CountingBufferWriter(output ?? throw new ArgumentNullException(nameof(output)));
         _counter = new CountingBufferWriter(output);
         _target = _counter;
         _services = services ?? EmptyServiceProvider.Instance;
@@ -58,6 +58,9 @@ internal sealed class WriterSession : SessionState
         _layoutContext = new LayoutProcessorContext(this) { Services = _services, Stage = PipelineStage.Layout };
         _streamContext = new StreamProcessorContext(this) { Services = _services, Stage = PipelineStage.Stream };
     }
+
+    /// <summary>The physical bytes written to the output.</summary>
+    public long BytesWritten => _output.Written;
 
     /// <summary>Writes the fields from the flat <paramref name="source"/> to the output.</summary>
     /// <param name="source">Asked for the value of each field that is written, in plan order.</param>
@@ -77,7 +80,7 @@ internal sealed class WriterSession : SessionState
 
         var root = _plan.Root;
         var payload = root.Pipeline.StreamProcessors.Count > 0 ? new ArrayBufferWriter<byte>() : null;
-        _counter = new CountingBufferWriter(payload ?? _output);
+        _counter = new CountingBufferWriter((IBufferWriter<byte>?)payload ?? _output);
         _target = _counter;
         _groupStarts.Clear();
         _sizeStarts.Clear();
@@ -704,7 +707,7 @@ internal sealed class WriterSession : SessionState
 
             var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(input.WrittenMemory));
             Prepare(_streamContext, binding);
-            var result = ((IStreamProcessor)binding.Processor).Write(ref reader, next ?? _output, _streamContext);
+            var result = ((IStreamProcessor)binding.Processor).Write(ref reader, (IBufferWriter<byte>?)next ?? _output, _streamContext);
             if (result != WriteResult.Success)
             {
                 if (result == WriteResult.NeedMoreSpace)

@@ -55,53 +55,67 @@ public sealed class Serializer
         }
     }
 
-    public void Serialize(SchemaName schemaName, IValueSource valueSource, IBufferWriter<byte> writer)
+    public long Serialize(SchemaName schemaName, IValueSource valueSource, IBufferWriter<byte> writer)
     {
         var plan = GetPlan(schemaName);
         var session = new WriterSession(plan, writer, _serviceProvider, _valueFieldsUseModel);
-        session.Write(valueSource);
+        return Complete(session.Write(valueSource), session.BytesWritten);
     }
 
-    public void Serialize(ExecutionPlan plan, IValueSource valueSource, IBufferWriter<byte> writer)
+    public long Serialize(ExecutionPlan plan, IValueSource valueSource, IBufferWriter<byte> writer)
     {
         var session = new WriterSession(plan, writer, _serviceProvider, _valueFieldsUseModel);
-        session.Write(valueSource);
+        return Complete(session.Write(valueSource), session.BytesWritten);
     }
 
-    public void Serialize(PlanRange planRange, IValueSource valueSource, IBufferWriter<byte> writer)
+    public long Serialize(PlanRange planRange, IValueSource valueSource, IBufferWriter<byte> writer)
     {
         var session = new WriterSession(planRange.ExecutionPlan, writer, _serviceProvider, _valueFieldsUseModel);
-        session.Write(valueSource, planRange);
+        return Complete(session.Write(valueSource, planRange), session.BytesWritten);
     }
 
-    public void Serialize(PlanRange planRange, IFieldSource valueSource, IBufferWriter<byte> writer)
+    public long Serialize(PlanRange planRange, IFieldSource valueSource, IBufferWriter<byte> writer)
     {
         var session = new WriterSession(planRange.ExecutionPlan, writer, _serviceProvider, _valueFieldsUseModel);
-        session.Write(valueSource, planRange);
+        return Complete(session.Write(valueSource, planRange), session.BytesWritten);
     }
 
-    public void Deserialize(SchemaName schemaName, ReadOnlySequence<byte> reader, IValueSink valueSink)
+    public long Deserialize(SchemaName schemaName, ReadOnlySequence<byte> reader, IValueSink valueSink)
     {
         var plan = GetPlan(schemaName);
         var session = new ReaderSession(plan, _serviceProvider, _valueFieldsUseModel);
-        session.Read(reader, valueSink);
+        return Complete(session.Read(reader, valueSink), session.BytesRead);
     }
 
-    public void Deserialize(ExecutionPlan plan, ReadOnlySequence<byte> reader, IValueSink valueSink)
+    public long Deserialize(ExecutionPlan plan, ReadOnlySequence<byte> reader, IValueSink valueSink)
     {
         var session = new ReaderSession(plan, _serviceProvider, _valueFieldsUseModel);
-        session.Read(reader, valueSink);
+        return Complete(session.Read(reader, valueSink), session.BytesRead);
     }
 
-    public void Deserialize(PlanRange planRange, ReadOnlySequence<byte> reader, IValueSink valueSink)
+    public long Deserialize(PlanRange planRange, ReadOnlySequence<byte> reader, IValueSink valueSink)
     {
         var session = new ReaderSession(planRange.ExecutionPlan, _serviceProvider, _valueFieldsUseModel);
-        session.Read(reader, valueSink, planRange);
+        return Complete(session.Read(reader, valueSink, planRange), session.BytesRead);
     }
 
-    public void Deserialize(PlanRange planRange, ReadOnlySequence<byte> reader, IFieldSink fieldSink)
+    public long Deserialize(PlanRange planRange, ReadOnlySequence<byte> reader, IFieldSink fieldSink)
     {
         var session = new ReaderSession(planRange.ExecutionPlan, _serviceProvider, _valueFieldsUseModel);
-        session.Read(reader, fieldSink, planRange);
+        return Complete(session.Read(reader, fieldSink, planRange), session.BytesRead);
     }
+
+    // truncated input (or a full output) is an error: callers must supply a complete message.
+    private static long Complete(ReadResult result, long bytes)
+        => result == ReadResult.NeedMoreData
+            ? throw new InvalidOperationException("The input is incomplete: more data is needed to complete the read.")
+            : bytes;
+
+    private static long Complete(WriteResult result, long bytes)
+        => result switch
+        {
+            WriteResult.NeedMoreData => throw new InvalidOperationException("More data is needed to complete the write."),
+            WriteResult.NeedMoreSpace => throw new InvalidOperationException("More space is needed in the output to complete the write."),
+            _ => bytes,
+        };
 }
