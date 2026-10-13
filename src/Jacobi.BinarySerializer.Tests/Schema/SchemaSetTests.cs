@@ -17,10 +17,10 @@ public class SchemaSetTests
         schemaBuilder.AddDocument(CreateDocument("Main", roots: [root]));
         var schemaSet = schemaBuilder.Compile();
 
-        Assert.That(schemaSet.FindNode(new SchemaPath("Main.Root.Inner.Leaf")), Is.SameAs(leaf));
-        Assert.That(schemaSet.FindNode<SchemaGroup>(new SchemaPath("main.root.inner")), Is.SameAs(inner));
-        Assert.That(schemaSet.TryFindNode(new SchemaPath("Main.Root.Missing"), out _), Is.False);
-        Assert.Throws<InvalidOperationException>(() => schemaSet.FindNode(new SchemaPath("Main.Root.Missing")));
+        Assert.That(schemaSet.FindByPath(new SchemaPath("Main.Root.Inner.Leaf")), Is.SameAs(leaf));
+        Assert.That(schemaSet.FindByPath<SchemaGroup>(new SchemaPath("main.root.inner")), Is.SameAs(inner));
+        Assert.That(schemaSet.TryFindByPath(new SchemaPath("Main.Root.Missing"), out _), Is.False);
+        Assert.Throws<InvalidOperationException>(() => schemaSet.FindByPath(new SchemaPath("Main.Root.Missing")));
     }
 
     [Test]
@@ -35,11 +35,11 @@ public class SchemaSetTests
         schemaBuilder.AddDocument(CreateDocument("Main", roots: [root]));
         var schemaSet = schemaBuilder.Compile();
 
-        Assert.That(schemaSet.FindNode(new SchemaName("Main.Leaf")), Is.SameAs(leaf));
-        Assert.That(schemaSet.FindNode<SchemaGroup>(new SchemaName("main.inner")), Is.SameAs(inner));
-        Assert.That(schemaSet.TryFindNode(new SchemaName("Main.Missing"), out _), Is.False);
-        Assert.That(schemaSet.TryFindNode(new SchemaName("Other.Leaf"), out _), Is.False);
-        Assert.Throws<InvalidOperationException>(() => schemaSet.FindNode(new SchemaName("Main.Missing")));
+        Assert.That(schemaSet.FindByName(new SchemaName("Main.Leaf")), Is.SameAs(leaf));
+        Assert.That(schemaSet.FindByName<SchemaGroup>(new SchemaName("main.inner")), Is.SameAs(inner));
+        Assert.That(schemaSet.TryFindByName(new SchemaName("Main.Missing"), out _), Is.False);
+        Assert.That(schemaSet.TryFindByName(new SchemaName("Other.Leaf"), out _), Is.False);
+        Assert.Throws<InvalidOperationException>(() => schemaSet.FindByName(new SchemaName("Main.Missing")));
     }
 
     [Test]

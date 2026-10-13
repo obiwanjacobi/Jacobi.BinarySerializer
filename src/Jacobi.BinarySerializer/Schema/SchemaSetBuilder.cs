@@ -63,7 +63,6 @@ public sealed class SchemaSetBuilder
                 var document = LoadFromBinary(name, stream);
 
                 documents.Add(document);
-                AddDocument(document);
             });
 
         return documents;

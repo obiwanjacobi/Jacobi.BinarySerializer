@@ -42,9 +42,9 @@ public sealed class SchemaSet
     /// The namespace of the name identifies the document and the name identifies the node inside that document.
     /// The node can be nested at any depth; node names are assumed to be unique within a document.
     /// </summary>
-    public SchemaNode FindNode(SchemaName name)
+    public SchemaNode FindByName(SchemaName name)
     {
-        if (!TryFindNode(name, out var node))
+        if (!TryFindByName(name, out var node))
         {
             throw new InvalidOperationException($"Schema node '{name}' not found.");
         }
@@ -54,10 +54,10 @@ public sealed class SchemaSet
     /// <summary>
     /// Finds a node by its schema name (namespace = document, name = node inside that document).
     /// </summary>
-    public T FindNode<T>(SchemaName name)
+    public T FindByName<T>(SchemaName name)
         where T : SchemaNode
     {
-        var node = FindNode(name);
+        var node = FindByName(name);
         return node as T
             ?? throw new InvalidOperationException($"Schema node '{name}' is a {node.GetType().Name}, not a {typeof(T).Name}.");
     }
@@ -66,17 +66,17 @@ public sealed class SchemaSet
     /// Tries to find a node by its schema name.
     /// The namespace of the name identifies the document and the name identifies the node (at any depth) inside that document.
     /// </summary>
-    public bool TryFindNode(SchemaName name, [NotNullWhen(true)] out SchemaNode? node)
+    public bool TryFindByName(SchemaName name, [NotNullWhen(true)] out SchemaNode? node)
     {
         node = null;
         if (!_documents.TryGetValue(name.Namespace, out var document))
             return false;
 
-        node = FindByName(document.Roots, name.Name);
+        node = FindByNameIn(document.Roots, name.Name);
         return node is not null;
     }
 
-    private static SchemaNode? FindByName(IEnumerable<SchemaNode> nodes, string name)
+    private static SchemaNode? FindByNameIn(IEnumerable<SchemaNode> nodes, string name)
     {
         foreach (var node in nodes)
         {
@@ -85,7 +85,7 @@ public sealed class SchemaSet
 
             if (node is SchemaGroup group)
             {
-                var found = FindByName(group.Members, name);
+                var found = FindByNameIn(group.Members, name);
                 if (found is not null)
                     return found;
             }
@@ -97,24 +97,24 @@ public sealed class SchemaSet
     /// Finds any node by its path: 'document.root.member.member...'.
     /// The first segment(s) identify the document, the remaining segments the node names from the root down.
     /// </summary>
-    public SchemaNode FindNode(SchemaPath path)
+    public SchemaNode FindByPath(SchemaPath path)
     {
-        if (!TryFindNode(path, out var node))
+        if (!TryFindByPath(path, out var node))
         {
             throw new InvalidOperationException($"Schema node '{path}' not found.");
         }
         return node;
     }
 
-    public T FindNode<T>(SchemaPath path)
+    public T FindByPath<T>(SchemaPath path)
         where T : SchemaNode
     {
-        var node = FindNode(path);
+        var node = FindByPath(path);
         return node as T
             ?? throw new InvalidOperationException($"Schema node '{path}' is a {node.GetType().Name}, not a {typeof(T).Name}.");
     }
 
-    public bool TryFindNode(SchemaPath path, [NotNullWhen(true)] out SchemaNode? node)
+    public bool TryFindByPath(SchemaPath path, [NotNullWhen(true)] out SchemaNode? node)
     {
         node = null;
         var segments = path.Segments.ToArray();
@@ -144,4 +144,45 @@ public sealed class SchemaSet
 
     private static SchemaNode? FindMember(IEnumerable<SchemaNode> nodes, string name)
         => nodes.FirstOrDefault(n => String.Equals(n.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Finds all nodes (at any depth, in all documents) that have all the specified properties (AND).
+    /// Property names are matched case-insensitively; values are matched ordinally.
+    /// </summary>
+    public IReadOnlyList<SchemaNode> FindByProperties(IEnumerable<KeyValuePair<string, string?>> properties)
+    {
+        var criteria = properties.ToArray();
+        var result = new List<SchemaNode>();
+        foreach (var document in _documents.Values)
+            CollectByProperties(document.Roots, criteria, result);
+        return result;
+    }
+
+    public IReadOnlyList<SchemaNode> FindByProperty(string propertyName, string? value)
+        => FindByProperties([new KeyValuePair<string, string?>(propertyName, value)]);
+
+    public IReadOnlyList<T> FindByProperties<T>(IEnumerable<KeyValuePair<string, string?>> properties)
+        where T : SchemaNode
+        => FindByProperties(properties).OfType<T>().ToList();
+
+    public IReadOnlyList<T> FindByProperty<T>(string propertyName, string? value)
+        where T : SchemaNode
+        => FindByProperties<T>([new KeyValuePair<string, string?>(propertyName, value)]);
+
+    private static void CollectByProperties(
+        IEnumerable<SchemaNode> nodes, KeyValuePair<string, string?>[] criteria, List<SchemaNode> result)
+    {
+        foreach (var node in nodes)
+        {
+            if (criteria.All(c => node.Properties.Any(p =>
+                    String.Equals(p.Name, c.Key, StringComparison.OrdinalIgnoreCase)
+                    && String.Equals(p.Value, c.Value, StringComparison.Ordinal))))
+            {
+                result.Add(node);
+            }
+
+            if (node is SchemaGroup group)
+                CollectByProperties(group.Members, criteria, result);
+        }
+    }
 }
