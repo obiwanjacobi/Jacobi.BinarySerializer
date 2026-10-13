@@ -142,6 +142,71 @@ public class OpenChoiceTests
         Assert.That(choice.MemberNodeDef?.ToString(), Is.EqualTo("Body"));
     }
 
+    private const string HeaderSchema = """
+        {
+          "name": "HeaderTest",
+          "nodeDefs": [
+            { "name": "Body", "kind": "group" }
+          ],
+          "members": [
+            {
+              "name": "Root",
+              "kind": "group",
+              "members": [
+                { "name": "Head", "kind": "field", "datatype": "sys.uint8" },
+                { "name": "Msg", "kind": "choice", "memberNodeDef": "Body" }
+              ]
+            },
+            {
+              "name": "BodyA", "kind": "group", "nodeDef": "Body",
+              "members": [ { "name": "Id", "kind": "field", "datatype": "sys.uint8" } ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Read_GroupRange_IncludesTheOpenChoice()
+    {
+        var serializer = CreateSerializer(HeaderSchema);
+        var range = serializer.GetPlan(new SchemaName("HeaderTest.Root")).CreateRange(new SchemaPath("Root"));
+        var sink = new OpenSink();
+
+        var read = serializer.Deserialize(range, new ReadOnlySequence<byte>([0x01, 0x07]), sink);
+
+        Assert.That(sink.Contexts, Has.Count.EqualTo(1));
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "Root.Head=1", "BodyA.Id=7" }));
+        Assert.That(read, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void Read_FieldRangeBeforeTheOpenChoice_DoesNotEnterIt()
+    {
+        var serializer = CreateSerializer(HeaderSchema);
+        var range = serializer.GetPlan(new SchemaName("HeaderTest.Root")).CreateRange(new SchemaPath("Root.Head"), new SchemaPath("Root.Head"));
+        var sink = new OpenSink();
+
+        var read = serializer.Deserialize(range, new ReadOnlySequence<byte>([0x01, 0x07]), sink);
+
+        Assert.That(sink.Contexts, Is.Empty);
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "Root.Head=1" }));
+        Assert.That(read, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void Read_OpenChoiceWithoutConformingGroup_Throws()
+    {
+        var json = OpenChoiceSchema
+            .Replace("\"name\": \"BodyA\", \"kind\": \"group\", \"nodeDef\": \"Body\"", "\"name\": \"BodyA\", \"kind\": \"group\"")
+            .Replace("\"name\": \"BodyB\", \"kind\": \"group\", \"nodeDef\": \"Body\"", "\"name\": \"BodyB\", \"kind\": \"group\"");
+        var serializer = CreateSerializer(json);
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => serializer.Deserialize(new SchemaName("OpenTest.Root"), new ReadOnlySequence<byte>([0x07]), new OpenSink()));
+
+        Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("Body").And.Contain("conforms"));
+    }
+
     private static Serializer CreateSerializer(string json)
     {
         var schemaBuilder = new SchemaSetBuilder();

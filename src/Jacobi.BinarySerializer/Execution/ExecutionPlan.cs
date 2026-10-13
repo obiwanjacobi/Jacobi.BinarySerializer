@@ -1,6 +1,7 @@
 ﻿using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
+using Microsoft.Extensions.Logging;
 
 namespace Jacobi.BinarySerializer.Execution;
 
@@ -50,6 +51,38 @@ public sealed class ExecutionPlan
         var contract = ((SchemaChoice)choice.Group).MemberNodeDef;
         throw new InvalidOperationException(
             $"'{choice.Path}': the group '{selected}' is not a known group that conforms to the nodeDef '{contract}' of the open choice.");
+    }
+
+    /// <summary>
+    /// Checks the open choices a read or write visits: an open choice outside the range is skipped,
+    /// an open choice inside the range must have at least one group in the plan that conforms to its memberNodeDef.
+    /// </summary>
+    internal void ValidateOpenChoices(PlanRange? range, ILogger logger)
+        => ValidateOpenChoices(Root, range, logger);
+
+    private void ValidateOpenChoices(GroupInfo group, PlanRange? range, ILogger logger)
+    {
+        foreach (var member in group.Members)
+        {
+            if (member is ChoiceInfo { IsOpen: true } open)
+            {
+                var contract = ((SchemaChoice)open.Group).MemberNodeDef!.Value;
+                if (range is not null && !range.IncludesAny(open))
+                {
+                    continue;
+                }
+
+                if (!_openChoiceBodies.TryGetValue(open, out var bodies) || bodies.Count == 0)
+                {
+                    throw logger.Fail(
+                        $"'{open.Path}': no group in the plan conforms to the nodeDef '{contract}' of the open choice.");
+                }
+            }
+            else if (member is GroupInfo child)
+            {
+                ValidateOpenChoices(child, range, logger);
+            }
+        }
     }
 
     /// <summary>Finds a node by its path (e.g. 'Root.Header.Length'); null when there is none.</summary>

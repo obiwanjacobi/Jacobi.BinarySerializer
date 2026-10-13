@@ -79,6 +79,7 @@ internal sealed class WriterSession : SessionState
         ArgumentNullException.ThrowIfNull(source);
 
         var root = _plan.Root;
+        _plan.ValidateOpenChoices(range, EngineLogger);
         var payload = root.Pipeline.StreamProcessors.Count > 0 ? new ArrayBufferWriter<byte>() : null;
         _counter = new CountingBufferWriter((IBufferWriter<byte>?)payload ?? _output);
         _target = _counter;
@@ -651,7 +652,7 @@ internal sealed class WriterSession : SessionState
         var buffers = RentBuffers(chain.Count - 1);
         for (var i = chain.Count - 1; i >= 0; i--)
         {
-            Prepare(_layoutContext, chain[i]);
+            Prepare(_layoutContext, chain[i], "BeginWrite");
             SetPosition();
             ((ILayoutProcessor)chain[i].Processor).BeginWrite(i == chain.Count - 1 ? _target : buffers[i], _layoutContext);
             ForwardGroupWrite(group, chain, i + 1, buffers);
@@ -676,7 +677,7 @@ internal sealed class WriterSession : SessionState
         var buffers = RentBuffers(chain.Count - 1);
         for (var i = 0; i < chain.Count; i++)
         {
-            Prepare(_layoutContext, chain[i]);
+            Prepare(_layoutContext, chain[i], "EndWrite");
             SetPosition();
             ((ILayoutProcessor)chain[i].Processor).EndWrite(i == chain.Count - 1 ? _target : buffers[i], _layoutContext);
             ForwardGroupWrite(group, chain, i + 1, buffers);
@@ -739,14 +740,14 @@ internal sealed class WriterSession : SessionState
         _streamContext.Instance = instance;
     }
 
-    private void Prepare(ProcessorContext context, ProcessorBinding? binding)
+    private void Prepare(ProcessorContext context, ProcessorBinding? binding, string direction = "write")
     {
         // a null binding is an empty stage that was short-circuited: there is no processor-private state.
         context.Current = binding!;
         context.ProcessorProperties = binding?.Properties ?? [];
         if (binding is not null)
         {
-            EngineLogger.ProcessorExecuting(context.Stage, binding.LogCategory, "write", context.NodePath, _instance.ToLogString());
+            EngineLogger.ProcessorExecuting(context.Stage, binding.LogCategory, direction, context.NodePath, _instance.ToLogString());
         }
     }
 

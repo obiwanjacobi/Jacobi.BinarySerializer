@@ -68,6 +68,7 @@ internal sealed class ReaderSession : SessionState
 
         var root = _plan.Root;
         var payload = input;
+        _plan.ValidateOpenChoices(range, EngineLogger);
         BytesRead = 0;
         _transportConsumed = 0;
         if (root.Pipeline.StreamProcessors.Count > 0)
@@ -453,7 +454,7 @@ internal sealed class ReaderSession : SessionState
         var chain = group.Pipeline.LayoutProcessors;
         for (var i = chain.Count - 1; i >= 0; i--)
         {
-            Prepare(_layoutContext, chain[i]);
+            Prepare(_layoutContext, chain[i], "BeginRead");
             SetPosition(reader.Consumed);
             ((ILayoutProcessor)chain[i].Processor).BeginRead(ref reader, _layoutContext);
         }
@@ -471,7 +472,7 @@ internal sealed class ReaderSession : SessionState
         SetGroupData(group, itemIndex, itemCount);
         foreach (var binding in group.Pipeline.LayoutProcessors)
         {
-            Prepare(_layoutContext, binding);
+            Prepare(_layoutContext, binding, "EndRead");
             SetPosition(reader.Consumed);
             ((ILayoutProcessor)binding.Processor).EndRead(ref reader, _layoutContext);
         }
@@ -588,13 +589,13 @@ internal sealed class ReaderSession : SessionState
         _streamContext.Instance = instance;
     }
 
-    private void Prepare(ProcessorContext context, ProcessorBinding? binding)
+    private void Prepare(ProcessorContext context, ProcessorBinding? binding, string direction = "read")
     {
         context.Current = binding!;
         context.ProcessorProperties = binding?.Properties ?? [];
         if (binding is not null)
         {
-            EngineLogger.ProcessorExecuting(context.Stage, binding.LogCategory, "read", context.NodePath, _instance.ToLogString());
+            EngineLogger.ProcessorExecuting(context.Stage, binding.LogCategory, direction, context.NodePath, _instance.ToLogString());
         }
     }
 }

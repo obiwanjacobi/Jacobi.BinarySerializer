@@ -54,6 +54,22 @@ public class EngineEdgeCaseTests
         Assert.That(result, Is.EqualTo(ReadResult.NeedMoreData));
     }
 
+    [Test]
+    public void Read_MoreBytesThanSchemaNeeds_StopsAtEndOfSchema()
+    {
+        var root = Group("Root", [],
+            Field("A", "sys.uint8"),
+            Field("B", "sys.uint8"));
+        var sink = new DictSink();
+        var session = new ReaderSession(Build(root));
+
+        var result = session.Read(new ReadOnlySequence<byte>(new byte[] { 1, 2, 3, 4 }), sink);
+
+        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That(session.BytesRead, Is.EqualTo(2));
+        Assert.That(sink.Values, Has.Count.EqualTo(2));
+    }
+
     [TestCase(7)]
     [TestCase(-8)]
     public void Read_ProcessorConsumesInvalidBits_Throws(int bits)

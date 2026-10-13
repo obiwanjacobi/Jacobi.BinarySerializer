@@ -38,8 +38,8 @@ public sealed class PlanRange
 
         CheckInstance(First, fromInstance);
         CheckInstance(Last, toInstance);
-        _from = Key(First, fromInstance, 0);
-        _to = Key(Last, toInstance, int.MaxValue);
+        _from = Key(from, fromInstance, 0);
+        _to = Key(to, toInstance, int.MaxValue);
         if (Compare(_from, _to) > 0)
         {
             throw new ArgumentException($"The range start '{from.Path}{fromInstance}' comes after the range end '{to.Path}{toInstance}'.");
@@ -68,6 +68,17 @@ public sealed class PlanRange
     {
         var key = Key(node, instance, 0);
         return Compare(key, _from) >= 0 && Compare(key, _to) <= 0;
+    }
+
+    /// <summary>
+    /// True when the node is in the range for at least the first or the last item of the repeats above it.
+    /// </summary>
+    internal bool IncludesAny(NodeInfo node)
+    {
+        var first = Key(node, InstancePath.Empty, 0);
+        var last = Key(node, InstancePath.Empty, int.MaxValue);
+        return (Compare(first, _from) >= 0 && Compare(first, _to) <= 0)
+            || (Compare(last, _from) >= 0 && Compare(last, _to) <= 0);
     }
 
     private static void CheckInstance(FieldInfo field, InstancePath instance)
