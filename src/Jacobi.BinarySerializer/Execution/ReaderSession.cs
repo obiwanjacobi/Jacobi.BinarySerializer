@@ -218,14 +218,24 @@ internal sealed class ReaderSession : SessionState
 
                 case CursorStepKind.ExitItem:
                     EndLayout((GroupInfo)step.Node!, ref reader, step.Index, step.Count);
-                    step.Scope!.Complete();
+                    step.Scope!.ExitItem(
+                        new RepeatContext { Node = (RepeatInfo)step.Node!, Services = _services, Instance = _instance }, step.Index, step.Count);
                     break;
 
                 case CursorStepKind.ExitGroup:
                     if (step.Node is not RepeatInfo and not ChoiceInfo { IsOpen: true })
                     {
                         EndLayout((GroupInfo)step.Node!, ref reader);
-                        step.Scope!.Complete();
+                        if (step.Node is ChoiceInfo exitChoice)
+                        {
+                            step.Scope!.ExitChoice(
+                                new ChoiceContext { Node = exitChoice, Services = _services, Instance = _instance }, _choiceIndexes.Peek());
+                        }
+                        else
+                        {
+                            step.Scope!.ExitGroup(
+                                new GroupContext { Node = (GroupInfo)step.Node!, Services = _services, Instance = _instance });
+                        }
                     }
                     if (step.Node is ChoiceInfo { IsOpen: false })
                     {

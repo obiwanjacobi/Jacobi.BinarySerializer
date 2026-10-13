@@ -515,6 +515,14 @@ internal static class XmlSchemaMapper
         {
             return number;
         }
+        if (constant.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            var hexText = constant[2..];
+            if (Int32.TryParse(hexText, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hexNumber))
+            {
+                return hexNumber;
+            }
+        }
 
         throw new InvalidOperationException(
             $"'{constant}' is not a valid constant; use a nested element with a 'ref' attribute to refer to a value.");

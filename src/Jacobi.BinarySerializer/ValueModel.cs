@@ -61,10 +61,20 @@ public interface IValueSink
     IValueSink EnterChoice(ChoiceContext context, int selectedIndex);
 
     /// <summary>
-    /// Called when the scope is exhausted, on the scope that was returned by an Enter method (or on the root).
+    /// Called when a group scope is exhausted, on the scope that was returned by EnterGroup (or on the root).
     /// Models that build immutable/typed instances create the instance here and hand it to their parent.
     /// </summary>
-    void Complete();
+    void ExitGroup(GroupContext context);
+
+    /// <summary>
+    /// Called when a repeat item scope is exhausted, on the scope that was returned by EnterItem.
+    /// </summary>
+    void ExitItem(RepeatContext context, int index, int count);
+
+    /// <summary>
+    /// Called when a choice scope is exhausted, on the scope that was returned by EnterChoice.
+    /// </summary>
+    void ExitChoice(ChoiceContext context, int selectedIndex);
 }
 
 /// <summary>

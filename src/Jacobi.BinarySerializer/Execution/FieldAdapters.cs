@@ -29,5 +29,7 @@ internal sealed class FieldSinkAdapter(IFieldSink sink) : IValueSink
     public IValueSink EnterGroup(GroupContext context) => this;
     public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
     public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
-    public void Complete() { }
+    public void ExitGroup(GroupContext context) { }
+    public void ExitItem(RepeatContext context, int index, int count) { }
+    public void ExitChoice(ChoiceContext context, int selectedIndex) { }
 }

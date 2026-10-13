@@ -96,7 +96,9 @@ public class PngSchemaTests
         public IValueSink EnterGroup(GroupContext context) => this;
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
-        public void Complete() { }
+        public void ExitGroup(GroupContext context) { }
+        public void ExitItem(RepeatContext context, int index, int count) { }
+        public void ExitChoice(ChoiceContext context, int selectedIndex) { }
 
         IValueSource IValueSource.EnterGroup(GroupContext context) => this;
         IValueSource IValueSource.EnterItem(RepeatContext context, int index) => this;
@@ -123,10 +125,11 @@ public class PngSchemaTests
         public IValueSink EnterGroup(GroupContext context) => this;
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
-        public void Complete() { }
+        public void ExitGroup(GroupContext context) { }
+        public void ExitItem(RepeatContext context, int index, int count) { }
+        public void ExitChoice(ChoiceContext context, int selectedIndex) { }
 
-        public List<string> Types { get; } = [];
-        public List<string> Seen { get; } = [];
+        public List<string> Types { get; } = [];        public List<string> Seen { get; } = [];
         public Dictionary<string, object?> Values { get; } = [];
 
         public void SetField(FieldContext context, LogicalField value)
