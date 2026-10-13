@@ -114,6 +114,57 @@ public class NodeDefTests
         Assert.That(ex.Message, Does.Contain("'A'").And.Contain("'Word'").And.Contain("kinds must match"));
     }
 
+    [Test]
+    public void Compile_UnknownNodeDef_ReportsFullName()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => CompileField("Nope"));
+
+        Assert.That(ex.Message, Does.Contain("'NodeDefTest.Nope'"));
+    }
+
+    [Test]
+    public void Compile_UnknownNodeDefInsideNodeDef_ReportsFullName()
+    {
+        var json = """
+            {
+              "name": "NodeDefTest",
+              "nodeDefs": [
+                { "name": "Header", "kind": "group", "members": [
+                  { "name": "Id", "kind": "field", "datatype": "sys.uint8", "nodeDef": "Nope" }
+                ] }
+              ],
+              "members": [
+                { "name": "Root", "kind": "group", "members": [
+                  { "name": "Msg", "kind": "group", "nodeDef": "Header" }
+                ] }
+              ]
+            }
+            """;
+
+        var ex = Assert.Throws<InvalidOperationException>(() => Compile(json));
+
+        Assert.That(ex.Message, Does.Contain("'NodeDefTest.Nope'"));
+    }
+
+    private static void CompileField(string nodeDef)
+        => Compile($$"""
+            {
+              "name": "NodeDefTest",
+              "members": [
+                { "name": "Root", "kind": "group", "members": [
+                  { "name": "A", "kind": "field", "datatype": "sys.uint16", "nodeDef": "{{nodeDef}}" }
+                ] }
+              ]
+            }
+            """);
+
+    private static void Compile(string json)
+    {
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.AddDocument(JsonSerializer.Deserialize(json));
+        schemaBuilder.Compile();
+    }
+
     private static Serializer CreateSerializer(string json)
     {
         var schemaBuilder = new SchemaSetBuilder();

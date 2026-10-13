@@ -376,6 +376,11 @@ public sealed class SchemaSetBuilder
 
         foreach (var nodeDef in document.NodeDefs)
         {
+            if (!ResolveReferences(document, nodeDef.MemberList))
+            {
+                allResolved = false;
+            }
+
             foreach (var processor in nodeDef.Processors)
             {
                 if (!TryResolveProcessorRef(document, processor))
@@ -444,22 +449,15 @@ public sealed class SchemaSetBuilder
         {
             if (node.NodeDef.HasValue)
             {
-                if (document.TryFindNodeDef(node.NodeDef.Value, out var nodeDef) ||
-                    TryFindNodeDef(node.NodeDef.Value, out nodeDef))
+                var nodeDef = FindNodeDef(document, node.NodeDef.Value, $"The {node.Kind} '{node.Name}'");
+                if (nodeDef.Kind != node.Kind)
                 {
-                    if (nodeDef.Kind != node.Kind)
-                    {
-                        throw new InvalidOperationException(
-                            $"The {node.Kind} '{node.Name}' references the nodeDef '{nodeDef.Name}' that defines a {nodeDef.Kind}: the kinds must match.");
-                    }
+                    throw new InvalidOperationException(
+                        $"The {node.Kind} '{node.Name}' references the nodeDef '{nodeDef.Name}' that defines a {nodeDef.Kind}: the kinds must match.");
+                }
 
-                    var replacementNode = InstantiateNodeDef(node, nodeDef);
-                    resolvedNodes.Replace(node, replacementNode);
-                }
-                else
-                {
-                    allResolved = false;
-                }
+                var replacementNode = InstantiateNodeDef(node, nodeDef);
+                resolvedNodes.Replace(node, replacementNode);
             }
 
             if (node is SchemaField field)
@@ -475,18 +473,11 @@ public sealed class SchemaSetBuilder
 
             if (node is SchemaChoice { MemberNodeDef: { } memberNodeDef })
             {
-                if (document.TryFindNodeDef(memberNodeDef, out var memberDef) ||
-                    TryFindNodeDef(memberNodeDef, out memberDef))
+                var memberDef = FindNodeDef(document, memberNodeDef, $"The Choice '{node.Name}' (member nodeDef)");
+                if (memberDef.Kind != SchemaNodeKind.Group)
                 {
-                    if (memberDef.Kind != SchemaNodeKind.Group)
-                    {
-                        throw new InvalidOperationException(
-                            $"The Choice '{node.Name}' references the member nodeDef '{memberDef.Name}' that defines a {memberDef.Kind}: it must be a Group.");
-                    }
-                }
-                else
-                {
-                    allResolved = false;
+                    throw new InvalidOperationException(
+                        $"The Choice '{node.Name}' references the member nodeDef '{memberDef.Name}' that defines a {memberDef.Kind}: it must be a Group.");
                 }
             }
 
@@ -713,16 +704,25 @@ public sealed class SchemaSetBuilder
         return true;
     }
 
-    private bool TryFindNodeDef(SchemaName schemaName, [NotNullWhen(true)] out SchemaNodeDef? nodeDef)
+    // A name without a namespace (or with the document's own name) must resolve in the local document.
+    private SchemaNodeDef FindNodeDef(SchemaDocument document, SchemaName schemaName, string referrer)
     {
-        if (!String.IsNullOrEmpty(schemaName.Namespace) &&
-            _documents.TryGetValue(schemaName.Namespace, out var document))
+        var ns = schemaName.Namespace;
+        var isLocal = String.IsNullOrEmpty(ns) || String.Equals(ns, document.Name, StringComparison.OrdinalIgnoreCase);
+
+        SchemaDocument? definingDocument = isLocal ? document : _documents.GetValueOrDefault(ns!);
+        var nodeDef = definingDocument?.NodeDefs.FirstOrDefault(n =>
+            String.Equals(n.Name, schemaName.Name, StringComparison.OrdinalIgnoreCase));
+
+        if (nodeDef is null)
         {
-            return document.TryFindNodeDef(schemaName, out nodeDef);
+            var fullName = $"{(isLocal ? document.Name : ns)}.{schemaName.Name}";
+            throw new InvalidOperationException(definingDocument is null
+                ? $"{referrer} references the nodeDef '{fullName}' but the schema '{ns}' is not known."
+                : $"{referrer} references the nodeDef '{fullName}' that is not defined in the schema '{definingDocument.Name}'.");
         }
 
-        nodeDef = null;
-        return false;
+        return nodeDef;
     }
 }
 
