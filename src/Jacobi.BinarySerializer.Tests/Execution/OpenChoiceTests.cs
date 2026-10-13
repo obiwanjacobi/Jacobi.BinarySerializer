@@ -299,6 +299,18 @@ public class OpenChoiceTests
     }
 
     [Test]
+    public void Read_OpenChoiceTargetWithoutGroup_ResolvesTheBodyFromTheTarget()
+    {
+        var serializer = CreateSerializer(TargetSchema);
+        var sink = new OpenSink { Selected = default, Target = new SchemaPath("BodyA.Part") };
+
+        var read = serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x01, 0x02, 0x03]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "BodyA.Part.P1=1", "BodyA.Part.P2=2" }));
+        Assert.That(read, Is.EqualTo(2));
+    }
+
+    [Test]
     public void Read_OpenChoiceWithoutTarget_ReadsTheWholeBody()
     {
         var serializer = CreateSerializer(TargetSchema);

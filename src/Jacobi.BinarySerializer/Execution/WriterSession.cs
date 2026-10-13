@@ -181,7 +181,7 @@ internal sealed class WriterSession : SessionState
                             var openSource = step.Scope as IOpenChoiceSource
                                 ?? throw EngineLogger.Fail($"'{openChoice.Path}': the value model does not implement {nameof(IOpenChoiceSource)}, which an open choice requires.");
                             var selected = openSource.EnterOpenChoice(new OpenChoiceContext { Node = openChoice, Services = _services, Instance = _instance });
-                            var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Group);
+                            var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Group, selected.Target);
                             _openBody = (body, selected.Scope);
                             cursor.EnterOpenChoice(step.Scope, body, _plan.CreateOpenChoiceRange(openChoice, body, selected.Target));
                         }

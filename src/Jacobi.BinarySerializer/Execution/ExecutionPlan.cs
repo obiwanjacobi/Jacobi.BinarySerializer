@@ -30,10 +30,14 @@ public sealed class ExecutionPlan
     /// Finds the plan of the group a value model selected for an open choice.
     /// The group must be a schema root that conforms to the nodeDef of the open choice.
     /// </summary>
-    internal GroupInfo ResolveOpenChoiceBody(ChoiceInfo choice, SchemaName selected)
+    internal GroupInfo ResolveOpenChoiceBody(ChoiceInfo choice, SchemaName selected, SchemaPath target = default)
     {
         if (_openChoiceBodies.TryGetValue(choice, out var bodies))
         {
+            if (String.IsNullOrEmpty(selected.Name) && !target.IsEmpty)
+            {
+                selected = new SchemaName(target.Segments.First());
+            }
             if (bodies.TryGetValue(selected, out var exact))
             {
                 return exact;
@@ -50,7 +54,7 @@ public sealed class ExecutionPlan
 
         var contract = ((SchemaChoice)choice.Group).MemberNodeDef;
         throw new InvalidOperationException(
-            $"'{choice.Path}': the group '{selected}' is not a known group that conforms to the nodeDef '{contract}' of the open choice.");
+            $"'{choice.Path}': the group '{selected}' provided by the client-model, is not a known group that conforms to the nodeDef '{contract}' of the open choice.");
     }
 
     /// <summary>
