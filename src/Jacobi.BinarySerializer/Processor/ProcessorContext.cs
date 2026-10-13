@@ -162,6 +162,24 @@ public sealed class LayoutProcessorContext : ProcessorContext
     /// The running data of the group being laid out (set by the session before each call).
     /// </summary>
     public GroupData GroupData { get; } = new();
+
+    internal int ReservedTail { get; set; }
+
+    internal bool CanReserveTail { get; set; }
+
+    /// <summary>
+    /// Call from BeginRead: reserves bytes at the end of the group's content that the processor reads in EndRead (e.g. a checksum or end marker).
+    /// A repeat without a count (and no size window) stops before the reserved bytes. Released when the group ends.
+    /// </summary>
+    public void ReserveTail(int byteCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(byteCount);
+        if (!CanReserveTail)
+        {
+            throw new InvalidOperationException("ReserveTail can only be called from a layout processor's BeginRead.");
+        }
+        ReservedTail += byteCount;
+    }
 }
 
 public sealed class StreamProcessorContext : ProcessorContext

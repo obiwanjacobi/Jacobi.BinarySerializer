@@ -83,6 +83,7 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
 
     public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
+        context.ReserveTail(GetCodec(context).ByteLength);
     }
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)

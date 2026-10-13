@@ -22,6 +22,9 @@ internal sealed class ReaderSession : SessionState
     private readonly Stack<long> _groupStarts = new();
     private readonly Stack<int> _choiceIndexes = new();
     private readonly Stack<(GroupInfo Group, long End)> _windows = new();
+    private readonly Stack<int> _tails = new();
+    private readonly Dictionary<GroupInfo, int> _minItemBytes = new();
+    private int _tailTotal;
     private long _transportConsumed;
 
     /// <summary>
@@ -84,11 +87,13 @@ internal sealed class ReaderSession : SessionState
         var reader = new SequenceReader<byte>(payload);
         _groupStarts.Clear();
         _windows.Clear();
+        _tails.Clear();
+        _tailTotal = 0;
         EngineLogger.ReadStarted(root.Path.ToString());
         var cursor = new PlanCursor<IValueSink>(root, range, EngineLogger);
         while (true)
         {
-            if (cursor.AtOpenRepeat && AtWindowEnd(ref reader))
+            if (cursor.AtOpenRepeat && AtOpenRepeatEnd(ref reader, (RepeatInfo)cursor.CurrentGroup!))
             {
                 cursor.CloseRepeat();
             }
@@ -245,8 +250,37 @@ internal sealed class ReaderSession : SessionState
         }
     }
 
-    private bool AtWindowEnd(ref SequenceReader<byte> reader)
-        => _windows.Count > 0 ? reader.Consumed >= _windows.Peek().End : reader.End;
+    private bool AtOpenRepeatEnd(ref SequenceReader<byte> reader, RepeatInfo repeat)
+    {
+        if (_windows.Count > 0)
+        {
+            return reader.Consumed >= _windows.Peek().End;
+        }
+        if (!_minItemBytes.TryGetValue(repeat, out var min))
+        {
+            min = repeat.Members.Sum(MinBytes);
+            _minItemBytes[repeat] = min;
+        }
+        return reader.Remaining - _tailTotal < Math.Max(min, 1);
+    }
+
+    /// <summary>
+    /// The lower bound of the encoded size of a node (0 when unknown).
+    /// </summary>
+    private static int MinBytes(NodeInfo node)
+        => node switch
+        {
+            FieldInfo { ByteOffset: not null } => 0,
+            FieldInfo { ByteLength: int length } => length,
+            FieldInfo { HasByteLength: true } => 0,
+            FieldInfo field => field.Pipeline.FieldProcessors.Count == 0 ? field.DataType.FixedSize ?? 0 : 0,
+            GroupInfo { ByteSize: int size } => size,
+            ChoiceInfo => 0,
+            RepeatInfo { Count: int count } repeat => checked(count * repeat.Members.Sum(MinBytes)),
+            RepeatInfo => 0,
+            GroupInfo group => group.Members.Sum(MinBytes),
+            _ => 0
+        };
 
     /// <summary>
     /// The number of bytes (physical) a field with a length takes: its length, or the rest of the enclosing size window for a data type that takes the rest. Null for other fields.
@@ -450,6 +484,8 @@ internal sealed class ReaderSession : SessionState
         _groupStarts.Push(reader.Consumed);
         _layoutContext.Group = group;
         _layoutContext.Field = null;
+        _layoutContext.ReservedTail = 0;
+        _layoutContext.CanReserveTail = true;
         SetGroupData(group, itemIndex, itemCount);
         var chain = group.Pipeline.LayoutProcessors;
         for (var i = chain.Count - 1; i >= 0; i--)
@@ -458,6 +494,9 @@ internal sealed class ReaderSession : SessionState
             SetPosition(reader.Consumed);
             ((ILayoutProcessor)chain[i].Processor).BeginRead(ref reader, _layoutContext);
         }
+        _layoutContext.CanReserveTail = false;
+        _tails.Push(_layoutContext.ReservedTail);
+        _tailTotal += _layoutContext.ReservedTail;
     }
 
     private void EndLayout(GroupInfo group, ref SequenceReader<byte> reader, int? itemIndex = null, int? itemCount = null)
@@ -467,6 +506,7 @@ internal sealed class ReaderSession : SessionState
             return;
         }
 
+        _tailTotal -= _tails.Pop();
         _layoutContext.Group = group;
         _layoutContext.Field = null;
         SetGroupData(group, itemIndex, itemCount);

@@ -321,6 +321,48 @@ public class OpenChoiceTests
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("BodyA.Nope"));
     }
 
+    private const string OpenRepeatBodySchema = """
+        {
+          "name": "RepeatTest",
+          "nodeDefs": [
+            { "name": "Body", "kind": "group" }
+          ],
+          "members": [
+            {
+              "name": "Root",
+              "kind": "group",
+              "members": [
+                { "name": "Msg", "kind": "choice", "memberNodeDef": "Body" }
+              ]
+            },
+            {
+              "name": "BodyA", "kind": "group", "nodeDef": "Body",
+              "members": [
+                {
+                  "name": "Items", "kind": "repeat",
+                  "members": [
+                    { "name": "A", "kind": "field", "datatype": "sys.uint8" },
+                    { "name": "B", "kind": "field", "datatype": "sys.uint8" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Read_OpenRepeatInBody_StopsWhenLessThanAnItemRemains()
+    {
+        var serializer = CreateSerializer(OpenRepeatBodySchema);
+        var sink = new OpenSink();
+
+        var read = serializer.Deserialize(new SchemaName("RepeatTest.Root"), new ReadOnlySequence<byte>([1, 2, 3, 4, 5]), sink);
+
+        Assert.That(sink.Fields, Has.Count.EqualTo(4));
+        Assert.That(read, Is.EqualTo(4));
+    }
+
     private static Serializer CreateSerializer(string json)
     {
         var schemaBuilder = new SchemaSetBuilder();

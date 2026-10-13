@@ -63,6 +63,14 @@ Every call gets a context for its stage (`ValueProcessorContext`, `FieldProcesso
 | `Publish(name, value)` | Publishes a public value. The namespace is the processor key (or the schema `pubns`), so the processor passes only the name. |
 | `Field` / `Group` | The node being processed (varies by stage). Layout also has `RootPosition`/`GroupPosition`. |
 
+### Reserving a tail (layout, read only)
+
+A layout processor that reads trailing bytes in `EndRead` (a checksum, an end marker such as the SysEx `0xF7`) calls `context.ReserveTail(byteCount)` from `BeginRead`. Reservations of all active layouts add up and are released when that group's `EndRead` has run.
+
+- A repeat without a count (read until the end) and without a size window stops before the reserved bytes, so the trailing bytes are left for `EndRead`. A repeat also stops when fewer bytes remain than the minimum encoded size of one item (the fixed sizes of its members; unknown sizes count as 0, and at least 1 byte is always required).
+- A group or repeat with a `byteSize` is not affected: its window is exact and already excludes the trailing bytes.
+- Calling `ReserveTail` anywhere else (any write hook, `Read`, `EndRead`) throws `InvalidOperationException`. When writing nothing needs reserving: the item count comes from the model and `EndWrite` appends the trailing bytes after the group's content.
+
 ## Properties
 
 - A processor declares the properties it supports (`Properties`). The schema supplies the values per use of the processor, as strings.
