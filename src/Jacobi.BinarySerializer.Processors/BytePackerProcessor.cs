@@ -9,8 +9,10 @@ namespace Jacobi.BinarySerializer.Processors;
 /// Lays out fields as whole bytes in declaration order, in the configured byte order.
 /// Group property 'endian' ('little' or 'big') sets the byte order of fixed-width values (default: little, the canonical form).
 /// Values without a fixed width (strings) are passed on unchanged.
+/// Usable as the layout head, or chained after a head: the bytes of a fixed-width field are then converted in place.
 /// </summary>
-internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor
+internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
+    ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
 {
     private static readonly PropertyDescriptor EndianProperty = new("byteorder", "sys.endianness", false, description: "Group: 'little' (default) or 'big' byte order of fixed-width values.");
 
@@ -50,6 +52,41 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor
 
     public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         => DefaultProcessors.LayoutProcessor.EndRead(ref reader, context);
+
+    // chained
+    public WriteResult Write(IBufferWriter<byte> writer, ReadOnlySpan<byte> bytes, LayoutProcessorContext context)
+    {
+        if (IsFixedWidth(context) && bytes.Length == context.Field!.DataType.FixedSize)
+        {
+            var converted = EndianCodec.Convert(bytes.ToArray(), Endianness.Little, GetEndianness(context));
+            context.Logger.ByteOrderConverted(context.Field.Path, GetEndianness(context).ToString());
+            writer.Write(converted);
+            return WriteResult.Success;
+        }
+
+        return LayoutChain.PassThroughWrite(writer, bytes);
+    }
+
+    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    {
+        if (!IsFixedWidth(context))
+        {
+            return LayoutChain.PassThroughRead(ref reader);
+        }
+
+        var size = context.Field!.DataType.FixedSize!.Value;
+        if (reader.Remaining < size)
+        {
+            return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData();
+        }
+
+        // convert the bytes of this field to the canonical (little) order; the rest is passed on unchanged
+        var unread = LayoutChain.Unread(reader).ToArray();
+        var converted = EndianCodec.Convert(unread.AsSpan(0, size).ToArray(), GetEndianness(context), Endianness.Little);
+        converted.CopyTo(unread, 0);
+        context.Logger.ByteOrderConverted(context.Field.Path, GetEndianness(context).ToString());
+        return LayoutReadResult<ReadOnlyMemory<byte>>.Success(unread);
+    }
 
     private static bool IsFixedWidth(LayoutProcessorContext context)
         => context.Field is not null && context.Field.DataType.FixedSize is > 1;

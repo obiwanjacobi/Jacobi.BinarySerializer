@@ -96,7 +96,7 @@ Lays out fields as whole bytes in declaration order, in the configured byte orde
 
 ### `sys.bitpacker`
 
-Packs fields of arbitrary bit widths into bytes, in declaration order. A partially filled byte is padded with zero bits at the end of the group.
+Packs fields of arbitrary bit widths into bytes, in declaration order. A partially filled byte is padded with zero bits at the end of the group. It works at bit level, so it is a layout head only: it cannot be chained after another layout processor, and no layout processor can be chained after it by an enclosing group (a layout chain spans nested groups). The plan builder reports a non-chainable processor in a chain.
 
 | Property | Required | Description |
 |----------|----------|-------------|

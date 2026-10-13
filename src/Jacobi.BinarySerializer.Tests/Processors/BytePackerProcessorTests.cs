@@ -48,6 +48,54 @@ public class BytePackerProcessorTests
     }
 
     [Test]
+    public void RoundTrip_ChainedAfterHead_ConvertsFixedWidthFields()
+    {
+        var root = Group("Root", [Ref("align", ("bytes", "1"))],
+            Field("A", "sys.uint8"),
+            Group("G", [Ref("bytepacker", ("byteorder", "big"))],
+                Field("B", "sys.uint16"),
+                Field("C", "sys.uint8"),
+                Field("D", "sys.int32")));
+        var values = new Dictionary<string, object?>
+        {
+            ["Root.A"] = (byte)1,
+            ["Root.G.B"] = (ushort)0x1234,
+            ["Root.G.C"] = (byte)7,
+            ["Root.G.D"] = 0x01020304
+        };
+
+        var (bytes, read) = RoundTrip(root, values);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 1, 0x12, 0x34, 7, 0x01, 0x02, 0x03, 0x04 }));
+        Assert.That(read, Is.EqualTo(values));
+    }
+
+    [Test]
+    public void RoundTrip_ChainedAfterHead_LeavesOtherFieldsLittleEndian()
+    {
+        var root = Group("Root", [Ref("align", ("bytes", "1"))],
+            Field("A", "sys.uint16"),
+            Group("G", [Ref("bytepacker", ("byteorder", "big"))], Field("B", "sys.uint16")));
+        var values = new Dictionary<string, object?> { ["Root.A"] = (ushort)0x1234, ["Root.G.B"] = (ushort)0x1234 };
+
+        var (bytes, read) = RoundTrip(root, values);
+
+        // A is read through the head only (the chained packer sits in G): little endian; B is converted.
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0x34, 0x12, 0x12, 0x34 }));
+        Assert.That(read, Is.EqualTo(values));
+    }
+
+    [Test]
+    public void Write_BitPackerChainedAfterHead_IsRejected()
+    {
+        var root = Group("Root", [Ref("align", ("bytes", "1"))],
+            Group("G", [Ref("bitpacker")], Field("A", "sys.uint8")));
+
+        Assert.That(() => Write(root, new Dictionary<string, object?> { ["Root.G.A"] = (byte)1 }, out _),
+            Throws.InstanceOf<Jacobi.BinarySerializer.Execution.ExecutionPlanException>());
+    }
+
+    [Test]
     public void Write_InvalidEndian_Throws()
     {
         Assert.That(() => Write(CreateRoot("middle"), CreateValues(), out _),
