@@ -12,7 +12,7 @@ The built-in processors of namespace `sys`. Property names are short names as us
 | `sys.bitslicer` | Representation | field | Joins the low bits of each byte of one field (e.g. 7 bits: MIDI 14-bit values). |
 | `sys.string` | Representation | field | Strings with a fixed length or a terminator. |
 | `sys.bytepacker` | Layout | group (fields inherit) | Whole bytes in a byte order. |
-| `sys.bitpacker` | Layout | group (fields inherit; `bits` on a field) | Fields of arbitrary bit widths. |
+| `sys.bitpacker` | Packing | `packedGroup` (`bits` on each child) | Fields of arbitrary bit widths in one carrier. |
 | `sys.align` | Layout | group (fields inherit) | Zero padding to a byte multiple. |
 | `sys.crc` | Layout | group (fields inherit) | Appends/validates a CRC over a group. |
 
@@ -84,6 +84,39 @@ Joins the lowest `bits` bits of each byte of one field into a single unsigned va
 | `bits` | no | Bits taken from each byte, 1 to 8 (default 7). |
 | `byteorder` | no | `little` (default, least significant slice first) or `big`. |
 
+## Packing processors
+
+A packing processor is selected by a `packedGroup` (exactly one, in the group's `processors`; it is never inherited). It encodes the ordered logical values of the group's fields into one carrier of the group's `byteLength` bytes, and back. The fields may have value processors but no representation or layout processors; the carrier then goes through the layout chain once.
+
+### `sys.bitpacker`
+
+Packs the fields of a packed group into bit fields of arbitrary width, in declaration order. Each value is encoded with the default representation of its data type (little-endian, at most 8 bytes wide) and its lowest `bits` bits are stored; signed types are sign-extended on read. Bits that remain in the carrier are zero when writing and ignored when reading.
+
+Writing and reading fail when `bits` is not between 1 and the width of the data type, when the bits of all fields together do not fit in the carrier (`byteLength` x 8), or when the data type has no fixed-width default representation of at most 8 bytes (strings and byte arrays are not supported). Writing also fails when a value does not fit in its `bits`; the engine reports the failed processor result.
+
+| Property | Required | Description |
+|----------|----------|-------------|
+| `bits` | no | Field property: number of bits the field occupies (default: 1). Written `sys.bitpacker.bits` or `bits` on the field. |
+| `bitorder` | no | Processor property: `little` (default) or `big` bit order within a byte. `little` fills each byte from the least significant bit, `big` from the most significant bit. |
+
+```json
+{
+  "name": "Status",
+  "kind": "packedGroup",
+  "byteLength": 1,
+  "processors": [ { "name": "sys.bitpacker", "bitorder": "big" } ],
+  "members": [
+    { "name": "Enabled", "kind": "field", "datatype": "sys.bool", "bits": 1 },
+    { "name": "Mode", "kind": "field", "datatype": "sys.uint8", "bits": 3 },
+    { "name": "Level", "kind": "field", "datatype": "sys.uint8", "bits": 3,
+      "processors": [ { "name": "sys.scale", "scale": 2 } ] },
+    { "name": "Flag", "kind": "field", "datatype": "sys.bool" }
+  ]
+}
+```
+
+In the example `byteLength` could be left out (default 1) and `Flag` has no `bits` (default 1). Layout processors on the enclosing group (byte order, align, CRC) apply to the finished carrier, for example `sys.bytepacker` with `byteorder` `big` reverses a carrier of more than one byte.
+
 ## Layout processors
 
 ### `sys.bytepacker`
@@ -94,18 +127,9 @@ Lays out fields as whole bytes in declaration order, in the configured byte orde
 |----------|----------|-------------|
 | `endian` | no | Group property: `little` (default) or `big` byte order of fixed-width values. |
 
-### `sys.bitpacker`
-
-Packs fields of arbitrary bit widths into bytes, in declaration order. A partially filled byte is padded with zero bits at the end of the group. It works at bit level, so it is a layout head only: it cannot be chained after another layout processor, and no layout processor can be chained after it by an enclosing group (a layout chain spans nested groups). The plan builder reports a non-chainable processor in a chain.
-
-| Property | Required | Description |
-|----------|----------|-------------|
-| `bits` | no | Field property: number of bits the field occupies (default: the encoded width). |
-| `bitorder` | no | Group property: `little` (default) or `big` bit order within a byte. |
-
 ### `sys.align`
 
-Pads with zero bytes so each value, and the end of the group, starts on a multiple of `bytes`. Usable as the layout head or chained after a head such as the byte packer. Chained after a bit packer, only the bytes the packer emits are aligned; on read it cannot tell which fields consumed bits only, so combine with care.
+Pads with zero bytes so each value, and the end of the group, starts on a multiple of `bytes`. Usable as the layout head or chained after a head such as the byte packer. On a group that contains a packed group, the finished carrier is aligned like any other encoded value.
 
 | Property | Required | Description |
 |----------|----------|-------------|

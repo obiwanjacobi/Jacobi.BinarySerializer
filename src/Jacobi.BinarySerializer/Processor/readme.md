@@ -12,7 +12,7 @@ Each processor belongs to exactly one stage (`IProcessor.Stage`). The `Processor
 |-------|-----------|----------|--------|
 | Value | `IValueProcessor` | logical value <-> encoded value (scaled, mapped, compressed) | Per field. Reports the bits written/consumed. |
 | Field | `IFieldProcessor` | logical value <-> encoded field (varint, string) | Per field. Reports the bits written/consumed. |
-| Packing | `IPackingProcessor` | ordered logical fields <-> one encoded carrier | Contract: once per packed-group instance. Plan support exists; session execution is pending. |
+| Packing | `IPackingProcessor` | ordered logical fields <-> one encoded carrier | Once per packed-group instance (e.g. `sys.bitpacker`). |
 | Layout | `ILayoutProcessor` | encoded field <-> bytes in a group (alignment, byte order, CRC) | `BeginWrite/Read` when the group is entered, `Write/Read` per encoded field or packed carrier, `EndWrite/Read` when the group is left. |
 | Stream | `IStreamProcessor` | whole message payload <-> transport bytes (framing, compression, encryption) | Once per message, on the root only. |
 
@@ -35,7 +35,7 @@ A `packedGroup` requires exactly one `IPackingProcessor` with `Stage = PipelineS
 
 `PackingProcessorContext.Group` is the `PackedGroupInfo`; `Fields` exposes its ordered child metadata, and `ByteLength` is the engine-resolved pre-layout carrier length. Existing properties, state, services, logging and publishing are available. A packer does not talk to the model or other processors and needs no Begin/End hooks.
 
-Plan building enforces logical-only children (value processors allowed; field, own layout, stream and packing declarations rejected) and preserves the group's layout/stream stages for carrier processing. **Reader/writer execution is not implemented yet** and fails explicitly when entering a packed group.
+Plan building enforces logical-only children (value processors allowed; field, own layout, stream and packing declarations rejected) and preserves the group's layout/stream stages for carrier processing. The sessions call the packer once per instance: on write after the child value processors and before the layout chain, on read after the layout chain and before the reverse child value processors. The carrier must be exactly `ByteLength * 8` bits (`BitsWritten`, `BitWidth` and `BitsConsumed` all equal that); the read result must hold one field per child, in order, with the child names. The built-in packer is `sys.bitpacker`; see the [Processors readme](../../Jacobi.BinarySerializer.Processors/readme.md).
 
 | Stage | Read Interface | Write Interface | Description |
 |-------|----------------|-----------------|-------------|
