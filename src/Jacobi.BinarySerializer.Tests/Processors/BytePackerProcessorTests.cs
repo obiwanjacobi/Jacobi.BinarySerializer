@@ -86,7 +86,7 @@ public class BytePackerProcessorTests
     }
 
     [Test]
-    public void Write_BitPackerChainedAfterHead_IsRejected()
+    public void Write_BitPackerOnAnOrdinaryGroup_IsRejected()
     {
         var root = Group("Root", [Ref("align", ("bytes", "1"))],
             Group("G", [Ref("bitpacker")], Field("A", "sys.uint8")));

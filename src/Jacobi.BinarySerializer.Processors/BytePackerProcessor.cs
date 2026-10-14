@@ -25,7 +25,7 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
         {
             var converted = EndianCodec.Convert(bytes, Endianness.Little, GetEndianness(context));
             encodedValue = encodedValue with { Value = converted };
-            context.Logger.ByteOrderConverted(context.Field?.Path ?? String.Empty, GetEndianness(context).ToString());
+            context.Logger.ByteOrderConverted(GetPath(context), GetEndianness(context).ToString());
         }
 
         return DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
@@ -43,7 +43,7 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
         if (result.Status == ReadResult.Success && result.Value.Value is byte[] bytes && IsFixedWidth(context))
         {
             var converted = EndianCodec.Convert(bytes, GetEndianness(context), Endianness.Little);
-            context.Logger.ByteOrderConverted(context.Field?.Path ?? String.Empty, GetEndianness(context).ToString());
+            context.Logger.ByteOrderConverted(GetPath(context), GetEndianness(context).ToString());
             return LayoutReadResult<EncodedField>.Success(result.Value with { Value = converted });
         }
 
@@ -56,10 +56,10 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
     // chained
     public WriteResult Write(IBufferWriter<byte> writer, ReadOnlySpan<byte> bytes, LayoutProcessorContext context)
     {
-        if (IsFixedWidth(context) && bytes.Length == context.Field!.DataType.FixedSize)
+        if (IsFixedWidth(context) && bytes.Length == context.FixedByteLength)
         {
             var converted = EndianCodec.Convert(bytes.ToArray(), Endianness.Little, GetEndianness(context));
-            context.Logger.ByteOrderConverted(context.Field.Path, GetEndianness(context).ToString());
+            context.Logger.ByteOrderConverted(GetPath(context), GetEndianness(context).ToString());
             writer.Write(converted);
             return WriteResult.Success;
         }
@@ -74,7 +74,7 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
             return LayoutChain.PassThroughRead(ref reader);
         }
 
-        var size = context.Field!.DataType.FixedSize!.Value;
+        var size = context.FixedByteLength!.Value;
         if (reader.Remaining < size)
         {
             return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData();
@@ -84,12 +84,15 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
         var unread = LayoutChain.Unread(reader).ToArray();
         var converted = EndianCodec.Convert(unread.AsSpan(0, size).ToArray(), GetEndianness(context), Endianness.Little);
         converted.CopyTo(unread, 0);
-        context.Logger.ByteOrderConverted(context.Field.Path, GetEndianness(context).ToString());
+        context.Logger.ByteOrderConverted(GetPath(context), GetEndianness(context).ToString());
         return LayoutReadResult<ReadOnlyMemory<byte>>.Success(unread);
     }
 
+    private static string GetPath(LayoutProcessorContext context)
+        => context.Field?.Path.ToString() ?? context.PackedGroup?.Path.ToString() ?? String.Empty;
+
     private static bool IsFixedWidth(LayoutProcessorContext context)
-        => context.Field is not null && context.Field.DataType.FixedSize is > 1;
+        => context.FixedByteLength is > 1;
 
     private static Endianness GetEndianness(LayoutProcessorContext context)
     {

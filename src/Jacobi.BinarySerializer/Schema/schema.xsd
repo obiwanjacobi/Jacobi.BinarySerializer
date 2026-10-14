@@ -108,12 +108,24 @@
     <xs:anyAttribute processContents="skip" />
   </xs:complexType>
 
+  <xs:simpleType name="nodeKind">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="field" />
+      <xs:enumeration value="group" />
+      <xs:enumeration value="packedGroup" />
+      <xs:enumeration value="repeat" />
+      <xs:enumeration value="choice" />
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:complexType name="nodeDef">
     <xs:sequence>
       <xs:element name="properties" type="propertyList" minOccurs="0" />
       <xs:element name="processors" type="processorList" minOccurs="0" />
+      <xs:element name="members" type="nodeList" minOccurs="0" />
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="kind" type="nodeKind" use="required" />
     <xs:attribute name="datatype" type="xs:string" />
   </xs:complexType>
 
@@ -126,6 +138,7 @@
     <xs:choice minOccurs="0" maxOccurs="unbounded">
       <xs:element name="field" type="field" />
       <xs:element name="group" type="group" />
+      <xs:element name="packedGroup" type="packedGroup" />
       <xs:element name="repeat" type="repeat" />
       <xs:element name="choice" type="choice" />
     </xs:choice>
@@ -156,6 +169,30 @@
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
     <xs:attribute name="nodeDef" type="xs:string" />
+    <xs:attribute name="byteSize" type="xs:string" />
+    <xs:anyAttribute processContents="skip" />
+  </xs:complexType>
+
+  <xs:complexType name="packedGroup">
+    <xs:annotation>
+      <xs:documentation>Ordered logical fields represented together by one packing processor. byteLength is the packed length before layout (default: 1); byteSize bounds the entire encoded group. Schema compilation forbids physical attributes on child fields.</xs:documentation>
+    </xs:annotation>
+    <xs:all>
+      <xs:element name="properties" type="propertyList" minOccurs="0" />
+      <xs:element name="processors" type="processorList" minOccurs="0" />
+      <xs:element name="byteSize" type="valueRef" minOccurs="0" />
+      <xs:element name="members" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="field" type="field" minOccurs="0" maxOccurs="unbounded" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="byteLength" type="valueRef" minOccurs="0" />
+    </xs:all>
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="nodeDef" type="xs:string" />
+    <xs:attribute name="byteLength" type="xs:positiveInteger" />
     <xs:attribute name="byteSize" type="xs:string" />
     <xs:anyAttribute processContents="skip" />
   </xs:complexType>
@@ -198,7 +235,7 @@
         </xs:restriction>
       </xs:simpleType>
     </xs:attribute>
-    <xs:anyAttribute
+    <xs:anyAttribute processContents="skip" />
   </xs:complexType>
 
 </xs:schema>

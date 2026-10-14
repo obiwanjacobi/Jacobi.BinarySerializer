@@ -16,15 +16,25 @@ public closed class Schema : SchemaGroup
 
 public sealed class SchemaDocument : Schema
 {
+    private IReadOnlyList<SchemaGroup> _groups = [];
+    private IReadOnlyList<SchemaField> _fields = [];
+
     public required IReadOnlyList<SchemaGroup> Roots { get; init; }
 
-    public required IReadOnlyList<SchemaGroup> Groups { get; init; }
-    public required IReadOnlyList<SchemaField> Fields { get; init; }
+    public required IReadOnlyList<SchemaGroup> Groups { get => _groups; init => _groups = value; }
+    public required IReadOnlyList<SchemaField> Fields { get => _fields; init => _fields = value; }
 
     /// <summary>
     /// True when all references have been resolved and the schema document is ready for use.
     /// </summary>
     public bool IsCompiled { get; internal set; }
+
+    internal void RefreshIndexes()
+    {
+        var indexed = SchemaDocumentMapper.ToDocument(this);
+        _groups = indexed.Groups;
+        _fields = indexed.Fields;
+    }
 }
 
 public sealed class SchemaDocumentRef

@@ -54,6 +54,7 @@ internal sealed class JsonSchemaNodeDef : JsonSchemaNode
 [JsonDerivedType(typeof(JsonSchemaGroup), "group")]
 [JsonDerivedType(typeof(JsonSchemaRepeat), "repeat")]
 [JsonDerivedType(typeof(JsonSchemaChoice), "choice")]
+[JsonDerivedType(typeof(JsonSchemaPackedGroup), "packedGroup")]
 internal abstract class JsonSchemaNode
 {
     public required string Name { get; init; }
@@ -85,6 +86,11 @@ internal class JsonSchemaGroup : JsonSchemaNode
     public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
     public IReadOnlyList<JsonSchemaNode> Members { get; init; } = [];
     public JsonSchemaValueOrRef<int> ByteSize { get; init; }
+}
+
+internal sealed class JsonSchemaPackedGroup : JsonSchemaGroup
+{
+    public JsonSchemaValueOrRef<int> ByteLength { get; init; }
 }
 
 internal sealed class JsonSchemaRepeat : JsonSchemaGroup

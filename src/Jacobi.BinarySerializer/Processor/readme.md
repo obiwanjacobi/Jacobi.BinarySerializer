@@ -12,7 +12,8 @@ Each processor belongs to exactly one stage (`IProcessor.Stage`). The `Processor
 |-------|-----------|----------|--------|
 | Value | `IValueProcessor` | logical value <-> encoded value (scaled, mapped, compressed) | Per field. Reports the bits written/consumed. |
 | Field | `IFieldProcessor` | logical value <-> encoded field (varint, string) | Per field. Reports the bits written/consumed. |
-| Layout | `ILayoutProcessor` | encoded field <-> bytes in a group (packing, alignment, crc) | `BeginWrite/Read` when the group is entered, `Write/Read` per field, `EndWrite/Read` when the group is left. |
+| Packing | `IPackingProcessor` | ordered logical fields <-> one encoded carrier | Contract: once per packed-group instance. Plan support exists; session execution is pending. |
+| Layout | `ILayoutProcessor` | encoded field <-> bytes in a group (alignment, byte order, CRC) | `BeginWrite/Read` when the group is entered, `Write/Read` per encoded field or packed carrier, `EndWrite/Read` when the group is left. |
 | Stream | `IStreamProcessor` | whole message payload <-> transport bytes (framing, compression, encryption) | Once per message, on the root only. |
 
 Order per field:
@@ -25,6 +26,16 @@ read:  input -> (stream, whole message) -> layout -> field -> value
 - Several processors in one stage form a **chain** in declaration order. Value processors are applied in order when writing; the reverse is the engine's concern when reading. For layout chains the first is the head (field <-> bytes) and followers work byte-to-byte; the last one talks to the actual stream. The plan builder validates chains. A layout chain also spans nested groups: the layout processors declared on the ancestors come first (the outermost is the head), followed by the ones the group declares. Each group still calls `BeginWrite/Read` and `EndWrite/Read` only for the layout processors it declares itself.
 - A stage without processors is skipped; the engine uses a default (fixed-width codec, bytes appended as is).
 - The engine owns the buffers between the stages.
+
+### Packing
+
+A `packedGroup` requires exactly one `IPackingProcessor` with `Stage = PipelineStage.Packing`. The pipeline collects it from the node's flat processor list but never inherits it into children. There is no default packer and no packing chain.
+
+`Write` accepts ordered `LogicalField` values after child value processing and returns one `EncodedField` carrier with `BitsWritten`. `Read` accepts the carrier and returns one logical field per descriptor in declaration order, with `BitsConsumed`, before reverse child value processing. Bit counts describe the byte-aligned carrier, including packing padding, not separate child representations.
+
+`PackingProcessorContext.Group` is the `PackedGroupInfo`; `Fields` exposes its ordered child metadata, and `ByteLength` is the engine-resolved pre-layout carrier length. Existing properties, state, services, logging and publishing are available. A packer does not talk to the model or other processors and needs no Begin/End hooks.
+
+Plan building enforces logical-only children (value processors allowed; field, own layout, stream and packing declarations rejected) and preserves the group's layout/stream stages for carrier processing. **Reader/writer execution is not implemented yet** and fails explicitly when entering a packed group.
 
 | Stage | Read Interface | Write Interface | Description |
 |-------|----------------|-----------------|-------------|

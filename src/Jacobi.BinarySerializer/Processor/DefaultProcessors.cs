@@ -12,6 +12,7 @@ public static class DefaultProcessors
             PipelineStage.Representation => FieldProcessor,
             PipelineStage.Layout => LayoutProcessor,
             PipelineStage.Stream => StreamProcessor,
+            PipelineStage.Packing => throw new InvalidOperationException("There is no default packing processor; a packedGroup must select one explicitly."),
             _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "Unknown pipeline stage.")
         };
 
@@ -110,9 +111,9 @@ internal sealed class DefaultLayoutProcessor : ILayoutProcessor
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var field = context.Field;
-        var name = field?.Name ?? string.Empty;
+        var name = field?.Name ?? context.PackedGroup?.Name ?? String.Empty;
 
-        if (field is not null && context.FieldData.ByteLength is { } length)
+        if ((field is not null || context.PackedGroup is not null) && context.FieldData.ByteLength is { } length)
         {
             if (reader.Remaining < length)
             {

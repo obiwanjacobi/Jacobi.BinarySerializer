@@ -12,6 +12,7 @@ public sealed class XmlSchema
     [XmlArray("members")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
     [XmlArrayItem("group", typeof(XmlSchemaGroup))]
+    [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode> Members { get; set; } = [];
@@ -122,6 +123,7 @@ public sealed class XmlSchemaNodeDef
     [XmlArray("members")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
     [XmlArrayItem("group", typeof(XmlSchemaGroup))]
+    [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode> Members { get; set; } = [];
@@ -195,6 +197,7 @@ public class XmlSchemaGroup : XmlSchemaNode
     [XmlArray("members")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
     [XmlArrayItem("group", typeof(XmlSchemaGroup))]
+    [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode> Members { get; set; } = [];
@@ -205,6 +208,15 @@ public class XmlSchemaGroup : XmlSchemaNode
 
     [XmlElement("byteSize")]
     public XmlSchemaValueRef? ByteSizeRef { get; set; }
+}
+
+public sealed class XmlSchemaPackedGroup : XmlSchemaGroup
+{
+    [XmlAttribute("byteLength")]
+    public string? ByteLength { get; set; }
+
+    [XmlElement("byteLength")]
+    public XmlSchemaValueRef? ByteLengthRef { get; set; }
 }
 
 /// <summary>A named processor declaration: 'name' is used in a 'ref:name' (or 'ref:document.name').</summary>

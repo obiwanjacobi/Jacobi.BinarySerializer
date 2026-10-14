@@ -21,7 +21,7 @@ internal sealed class ReaderSession : SessionState
     private (GroupInfo Group, IValueSink Scope)? _openBody;
     private readonly Stack<long> _groupStarts = new();
     private readonly Stack<int> _choiceIndexes = new();
-    private readonly Stack<(GroupInfo Group, long End)> _windows = new();
+    private readonly Stack<(GroupInfo Group, long End, int AncestorTail)> _windows = new();
     private readonly Stack<int> _tails = new();
     private readonly Dictionary<GroupInfo, int> _minItemBytes = new();
     private int _tailTotal;
@@ -34,6 +34,7 @@ internal sealed class ReaderSession : SessionState
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
+    private readonly PackingProcessorContext _packingContext;
     private readonly LayoutProcessorContext _layoutContext;
     private readonly StreamProcessorContext _streamContext;
 
@@ -50,6 +51,7 @@ internal sealed class ReaderSession : SessionState
 
         _valueContext = new ValueProcessorContext(this) { Services = _services, Stage = PipelineStage.Semantic };
         _fieldContext = new FieldProcessorContext(this) { Services = _services, Stage = PipelineStage.Representation };
+        _packingContext = new PackingProcessorContext(this) { Services = _services, Stage = PipelineStage.Packing };
         _layoutContext = new LayoutProcessorContext(this) { Services = _services, Stage = PipelineStage.Layout };
         _streamContext = new StreamProcessorContext(this) { Services = _services, Stage = PipelineStage.Stream };
     }
@@ -181,7 +183,7 @@ internal sealed class ReaderSession : SessionState
                                 EngineLogger.ReadStopped(group.Path.ToString(), ReadResult.NeedMoreData);
                                 return ReadResult.NeedMoreData;
                             }
-                            _windows.Push((group, reader.Consumed + size));
+                            _windows.Push((group, reader.Consumed + size, _tailTotal));
                         }
                         if (group is not RepeatInfo and not ChoiceInfo { IsOpen: true })
                         {
@@ -200,6 +202,18 @@ internal sealed class ReaderSession : SessionState
                         if (result != ReadResult.Success)
                         {
                             EngineLogger.ReadStopped(fieldNode.Path.ToString(), result);
+                            return result;
+                        }
+                        break;
+                    }
+
+                case CursorStepKind.PackedGroup:
+                    {
+                        var group = (PackedGroupInfo)step.Node!;
+                        var result = ReadPackedGroup(group, step.Scope!, ref reader);
+                        if (result != ReadResult.Success)
+                        {
+                            EngineLogger.ReadStopped(group.Path.ToString(), result);
                             return result;
                         }
                         break;
@@ -262,6 +276,10 @@ internal sealed class ReaderSession : SessionState
 
     private bool AtOpenRepeatEnd(ref SequenceReader<byte> reader, RepeatInfo repeat)
     {
+        if (ContainsPackedGroup(repeat))
+        {
+            return reader.Consumed >= PackedReadEnd(ref reader);
+        }
         if (_windows.Count > 0)
         {
             return reader.Consumed >= _windows.Peek().End;
@@ -272,6 +290,19 @@ internal sealed class ReaderSession : SessionState
             _minItemBytes[repeat] = min;
         }
         return reader.Remaining - _tailTotal < Math.Max(min, 1);
+    }
+
+    private static bool ContainsPackedGroup(GroupInfo group)
+        => group is PackedGroupInfo || group.Members.OfType<GroupInfo>().Any(ContainsPackedGroup);
+
+    private long PackedReadEnd(ref SequenceReader<byte> reader)
+    {
+        var end = reader.Sequence.Length - _tailTotal;
+        foreach (var window in _windows)
+        {
+            end = Math.Min(end, window.End - (_tailTotal - window.AncestorTail));
+        }
+        return end;
     }
 
     /// <summary>
@@ -285,6 +316,8 @@ internal sealed class ReaderSession : SessionState
             FieldInfo { HasByteLength: true } => 0,
             FieldInfo field => field.Pipeline.FieldProcessors.Count == 0 ? field.DataType.FixedSize ?? 0 : 0,
             GroupInfo { ByteSize: int size } => size,
+            PackedGroupInfo { ByteLength: int length } => length,
+            PackedGroupInfo => 0,
             ChoiceInfo => 0,
             RepeatInfo { Count: int count } repeat => checked(count * repeat.Members.Sum(MinBytes)),
             RepeatInfo => 0,
@@ -382,6 +415,7 @@ internal sealed class ReaderSession : SessionState
         // Layout: bytes -> encoded
         _layoutContext.Group = field.Parent!;
         _layoutContext.Field = field;
+        _layoutContext.PackedGroup = null;
         var fieldLength = BytesLength(field, ref reader);
         _layoutContext.FieldData.ByteLength = fieldLength;
         _fieldContext.FieldData.ByteLength = fieldLength;
@@ -389,31 +423,12 @@ internal sealed class ReaderSession : SessionState
         {
             return ReadResult.NeedMoreData;
         }
-        EncodedField encoded;
-        LayoutReadResult<EncodedField> layoutRead;
-        switch (pipeline.LayoutProcessors.Count)
-        {
-            case 0:
-                Prepare(_layoutContext, null);
-                SetPosition(reader.Consumed);
-                layoutRead = DefaultProcessors.LayoutProcessor.Read(ref reader, _layoutContext);
-                break;
-            case 1:
-                var layoutBinding = pipeline.LayoutProcessors[0];
-                Prepare(_layoutContext, layoutBinding);
-                SetPosition(reader.Consumed);
-                layoutRead = ((ILayoutProcessor)layoutBinding.Processor).Read(ref reader, _layoutContext);
-                break;
-            default:
-                layoutRead = ReadChained(pipeline.LayoutProcessors, ref reader);
-                break;
-        }
-
+        var layoutRead = ReadLayout(pipeline, ref reader);
         if (layoutRead.Status != ReadResult.Success)
         {
             return layoutRead.Status;
         }
-        encoded = layoutRead.Value;
+        var encoded = layoutRead.Value;
 
         // Representation: encoded -> logical
         LogicalField logical;
@@ -451,9 +466,15 @@ internal sealed class ReaderSession : SessionState
                 break;
         }
 
+        CompleteLogicalField(field, logical, scope);
+        return ReadResult.Success;
+    }
+
+    private void CompleteLogicalField(FieldInfo field, LogicalField logical, IValueSink scope)
+    {
         // Semantic: reverse order of writing
         _valueContext.Field = field;
-        var valueProcessors = pipeline.ValueProcessors;
+        var valueProcessors = field.Pipeline.ValueProcessors;
         for (var i = valueProcessors.Count - 1; i >= 0; i--)
         {
             Prepare(_valueContext, valueProcessors[i]);
@@ -474,13 +495,84 @@ internal sealed class ReaderSession : SessionState
         {
             scope.SetField(new FieldContext { Node = field, Services = _services, Instance = _instance }, logical);
         }
+    }
+
+    private ReadResult ReadPackedGroup(PackedGroupInfo group, IValueSink scope, ref SequenceReader<byte> reader)
+    {
+        var byteLength = Resolve(group.ByteLength, group.Path, _instance);
+        ValidateCarrierLength(group, byteLength);
+        var end = PackedReadEnd(ref reader);
+        if (end - reader.Consumed < byteLength)
+        {
+            return ReadResult.NeedMoreData;
+        }
+        var bounded = new SequenceReader<byte>(reader.Sequence.Slice(0, end));
+        bounded.Advance(reader.Consumed);
+        _layoutContext.Group = group;
+        _layoutContext.Field = null;
+        _layoutContext.PackedGroup = group;
+        _layoutContext.FieldData.ByteLength = byteLength;
+        var layout = ReadLayout(group.Pipeline, ref bounded);
+        if (layout.Status != ReadResult.Success)
+        {
+            return layout.Status == ReadResult.EndOfData ? ReadResult.NeedMoreData : layout.Status;
+        }
+        var carrier = PrepareCarrier(group, layout.Value, layout.Value?.BitWidth ?? 0, byteLength);
+        _packingContext.Group = group;
+        _packingContext.ByteLength = byteLength;
+        _packingContext.Instance = _instance;
+        Prepare(_packingContext, group.PackingProcessor);
+        var result = ((IPackingProcessor)group.PackingProcessor.Processor).Read(carrier, _packingContext);
+        if (result.Status != ReadResult.Success)
+        {
+            return result.Status == ReadResult.EndOfData ? ReadResult.NeedMoreData : result.Status;
+        }
+        if (result.BitsConsumed != checked(byteLength * 8))
+        {
+            throw EngineLogger.Fail($"'{group.Path}': the packing processor consumed {result.BitsConsumed} bits but the carrier requires {byteLength * 8}.");
+        }
+        if (result.Value is null || result.Value.Count != group.Fields.Count)
+        {
+            throw EngineLogger.Fail($"'{group.Path}': the packing processor must return exactly {group.Fields.Count} logical fields.");
+        }
+        for (var i = 0; i < group.Fields.Count; i++)
+        {
+            if (result.Value[i] is not { } logical || logical.Name != group.Fields[i].Name)
+            {
+                throw EngineLogger.Fail($"'{group.Path}': packed field {i} must be '{group.Fields[i].Name}' in declaration order.");
+            }
+        }
+        reader.Advance(bounded.Consumed - reader.Consumed);
+        for (var i = 0; i < group.Fields.Count; i++)
+        {
+            CompleteLogicalField(group.Fields[i], result.Value[i], scope);
+        }
         return ReadResult.Success;
+    }
+
+    private LayoutReadResult<EncodedField> ReadLayout(ProcessorPipeline pipeline, ref SequenceReader<byte> reader)
+    {
+        switch (pipeline.LayoutProcessors.Count)
+        {
+            case 0:
+                Prepare(_layoutContext, null);
+                SetPosition(reader.Consumed);
+                return DefaultProcessors.LayoutProcessor.Read(ref reader, _layoutContext);
+            case 1:
+                var binding = pipeline.LayoutProcessors[0];
+                Prepare(_layoutContext, binding);
+                SetPosition(reader.Consumed);
+                return ((ILayoutProcessor)binding.Processor).Read(ref reader, _layoutContext);
+            default:
+                return ReadChained(pipeline.LayoutProcessors, ref reader);
+        }
     }
 
     private void SetGroupData(GroupInfo group, int? itemIndex, int? itemCount)
     {
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
         _layoutContext.FieldData.ByteLength = null;
+        _layoutContext.PackedGroup = null;
         _layoutContext.GroupData.ByteSize = group is not RepeatInfo && group.HasByteSize ? Resolve(group.ByteSize, group.Path, _instance) : null;
     }
 

@@ -13,7 +13,7 @@ read:   bytes -> (Stream, root only) -> Layout -> Representation -> Semantic -> 
 
 | Part | Role |
 |------|------|
-| `ExecutionPlan` | Immutable tree of `NodeInfo` (`GroupInfo`, `RepeatInfo`, `ChoiceInfo`, `FieldInfo`). Each node has a path, its resolved processor pipeline and its bound references. Plans are cached by the `Serializer`. |
+| `ExecutionPlan` | Immutable tree of `NodeInfo` (`GroupInfo`, `PackedGroupInfo`, `RepeatInfo`, `ChoiceInfo`, `FieldInfo`). Each node has a path, its resolved processor pipeline and its bound references. Plans are cached by the `Serializer`. |
 | `PlanCursor<TScope>` | Walks the plan with an explicit frame stack and emits steps (`EnterGroup`, `Field`, `ExitGroup`, `EnterItem`, `ExitItem`, `Done`). Model-agnostic: the caller decides what a scope is. |
 | `WriterSession` / `ReaderSession` | Drive the cursor for one message. Call the processors, own the buffers and positions, resolve derived values. One session per message, not thread-safe. |
 | `SessionState` | Per-session state shared with processors: private processor state, published values, logging. |
@@ -47,6 +47,7 @@ read:   bytes -> (Stream, root only) -> Layout -> Representation -> Semantic -> 
 ## Structures
 
 - **Group**: a sequence of members. Optional `byteSize` (constant or reference) bounds its bytes: the reader limits a window, the writer buffers the group and writes the size once it is known.
+- **Packed group**: `PackedGroupInfo` retains ordered logical `Fields` as its `Members`, with normal parent/index/path metadata and value pipelines. It binds a required pre-layout carrier `ByteLength` separately from group `ByteSize` and selects one group-local `PackingProcessor`. Child representation/layout declarations are rejected; layout is retained for the carrier. Child default encoded widths do not determine open-endedness or require byte windows. Length references publish their target logical fields normally; the carrier cannot depend on its own children. Plan construction is supported, but sessions currently fail explicitly on entering a packed group until gather/scatter and carrier layout execution are implemented.
 - **Repeat**: a group with a count (constant, `ref:`, `pub:`) or *until end* (open). Each item is entered/exited as a separate frame with its own index.
 - **Choice**: a group where one member is selected by an index (constant or referenced); only the selected member is visited.
 

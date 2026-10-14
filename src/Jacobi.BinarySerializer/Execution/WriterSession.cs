@@ -23,6 +23,7 @@ internal sealed class WriterSession : SessionState
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
+    private readonly PackingProcessorContext _packingContext;
     private readonly LayoutProcessorContext _layoutContext;
     private readonly StreamProcessorContext _streamContext;
 
@@ -55,6 +56,7 @@ internal sealed class WriterSession : SessionState
         InitializeLogging(_services, "Write");
         _valueContext = new ValueProcessorContext(this) { Services = _services, Stage = PipelineStage.Semantic };
         _fieldContext = new FieldProcessorContext(this) { Services = _services, Stage = PipelineStage.Representation };
+        _packingContext = new PackingProcessorContext(this) { Services = _services, Stage = PipelineStage.Packing };
         _layoutContext = new LayoutProcessorContext(this) { Services = _services, Stage = PipelineStage.Layout };
         _streamContext = new StreamProcessorContext(this) { Services = _services, Stage = PipelineStage.Stream };
     }
@@ -215,6 +217,18 @@ internal sealed class WriterSession : SessionState
                         if (result != WriteResult.Success)
                         {
                             EngineLogger.WriteStopped(fieldNode.Path.ToString(), result);
+                            return result;
+                        }
+                        break;
+                    }
+
+                case CursorStepKind.PackedGroup:
+                    {
+                        var group = (PackedGroupInfo)step.Node!;
+                        var result = WritePackedGroup(group, step.Scope!);
+                        if (result != WriteResult.Success)
+                        {
+                            EngineLogger.WriteStopped(group.Path.ToString(), result);
                             return result;
                         }
                         break;
@@ -413,7 +427,7 @@ internal sealed class WriterSession : SessionState
         return false;
     }
 
-    private WriteResult WriteField(FieldInfo field, IValueSource scope, LogicalField? forced = null)
+    private LogicalField? PrepareLogicalField(FieldInfo field, IValueSource scope, LogicalField? forced = null)
     {
         var pipeline = field.Pipeline;
         LogicalField logical;
@@ -455,7 +469,11 @@ internal sealed class WriterSession : SessionState
             }
             else if (field.ByteSizeOf is not null)
             {
-                return DeferSizeField(field, scope);
+                if (field.Parent is PackedGroupInfo)
+                {
+                    throw EngineLogger.Fail($"'{field.Path}': a packed child cannot defer a size value to later output.");
+                }
+                return null;
             }
             else
             {
@@ -486,12 +504,22 @@ internal sealed class WriterSession : SessionState
             Publish(PublishedValueKey.ForPath(field.Path, _instance), logical.Value);
         }
 
+        return logical;
+    }
+
+    private WriteResult WriteField(FieldInfo field, IValueSource scope, LogicalField? forced = null)
+    {
+        var logical = PrepareLogicalField(field, scope, forced);
+        if (logical is null)
+        {
+            return DeferSizeField(field, scope);
+        }
         if (field.ByteOffset is not null)
         {
-            // virtual field: the value is known to the model and published, but no bytes are written.
             return WriteResult.Success;
         }
 
+        var pipeline = field.Pipeline;
         EncodedField encoded;
         var fieldLength = field.HasByteLength ? Resolve(field.ByteLength, field.Path, _instance) : (int?)null;
         _fieldContext.FieldData.ByteLength = fieldLength;
@@ -539,6 +567,39 @@ internal sealed class WriterSession : SessionState
         // Layout: encoded -> bytes in the target
         _layoutContext.Group = field.Parent!;
         _layoutContext.Field = field;
+        _layoutContext.PackedGroup = null;
+        return WriteLayout(pipeline, encoded);
+    }
+
+    private WriteResult WritePackedGroup(PackedGroupInfo group, IValueSource scope)
+    {
+        var byteLength = Resolve(group.ByteLength, group.Path, _instance);
+        ValidateCarrierLength(group, byteLength);
+        var fields = new LogicalField[group.Fields.Count];
+        for (var i = 0; i < fields.Length; i++)
+        {
+            fields[i] = PrepareLogicalField(group.Fields[i], scope)
+                ?? throw EngineLogger.Fail($"'{group.Fields[i].Path}': a packed child cannot defer its value.");
+        }
+        _packingContext.Group = group;
+        _packingContext.ByteLength = byteLength;
+        _packingContext.Instance = _instance;
+        Prepare(_packingContext, group.PackingProcessor);
+        var result = ((IPackingProcessor)group.PackingProcessor.Processor).Write(fields, _packingContext);
+        if (result.Status != WriteResult.Success)
+        {
+            return result.Status;
+        }
+        var carrier = PrepareCarrier(group, result.Value, result.BitsWritten, byteLength);
+        _layoutContext.Group = group;
+        _layoutContext.Field = null;
+        _layoutContext.PackedGroup = group;
+        _layoutContext.FieldData.ByteLength = byteLength;
+        return WriteLayout(group.Pipeline, carrier);
+    }
+
+    private WriteResult WriteLayout(ProcessorPipeline pipeline, EncodedField encoded)
+    {
         switch (pipeline.LayoutProcessors.Count)
         {
             case 0:
@@ -628,6 +689,7 @@ internal sealed class WriterSession : SessionState
         // restore: the forward calls are group-level (no field)
         _layoutContext.Group = group;
         _layoutContext.Field = null;
+        _layoutContext.PackedGroup = null;
         var result = ForwardWrite(chain, from, buffers);
         if (result != WriteResult.Success)
         {
@@ -645,6 +707,7 @@ internal sealed class WriterSession : SessionState
         _groupStarts.Push(_counter.Written);
         _layoutContext.Group = group;
         _layoutContext.Field = null;
+        _layoutContext.PackedGroup = null;
         _layoutContext.FieldData.ByteLength = null;
         _layoutContext.GroupData.ByteSize = null;
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
@@ -668,6 +731,7 @@ internal sealed class WriterSession : SessionState
 
         _layoutContext.Group = group;
         _layoutContext.Field = null;
+        _layoutContext.PackedGroup = null;
         _layoutContext.FieldData.ByteLength = null;
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
         _layoutContext.GroupData.ByteSize = group is not RepeatInfo && group.HasByteSize && _sizeStarts.Count > 0

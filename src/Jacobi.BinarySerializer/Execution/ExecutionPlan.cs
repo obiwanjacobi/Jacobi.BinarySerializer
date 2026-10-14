@@ -316,6 +316,10 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
     {
         var processors = BindProcessors(field.Processors, path, state);
         var fieldPipeline = CreatePipeline(parentPipeline, processors);
+        if (fieldPipeline.PackingProcessors.Count > 0)
+        {
+            state.Error(path, "A packing processor can only be declared on a packedGroup.");
+        }
         if (!ReferenceEquals(fieldPipeline.FieldProcessors, parentPipeline.FieldProcessors))
         {
             ValidateFieldChain(fieldPipeline.FieldProcessors, path, state);
@@ -388,6 +392,21 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
     {
         var processors = BindProcessors(group.Processors, path, state);
         var pipeline = CreatePipeline(parentPipeline, processors);
+        if (group is SchemaPackedGroup)
+        {
+            if (processors.Count(b => b.Processor.Stage == PipelineStage.Packing) != 1)
+            {
+                state.Error(path, "A packedGroup must declare exactly one packing processor.");
+            }
+            if (pipeline.FieldProcessors.Count > 0)
+            {
+                state.Error(path, "A packedGroup cannot use field processors; its packing processor provides the representation.");
+            }
+        }
+        else if (pipeline.PackingProcessors.Count > 0)
+        {
+            state.Error(path, "A packing processor can only be declared on a packedGroup.");
+        }
         if (parentPipeline is null || !ReferenceEquals(pipeline.FieldProcessors, parentPipeline.FieldProcessors))
         {
             ValidateFieldChain(pipeline.FieldProcessors, path, state);
@@ -405,6 +424,17 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
 
         GroupInfo info = group switch
         {
+            SchemaPackedGroup packed => new PackedGroupInfo
+            {
+                Name = group.Name,
+                Path = path,
+                Group = group,
+                Members = members,
+                Fields = members.OfType<FieldInfo>().ToList(),
+                Pipeline = pipeline,
+                ByteLength = BindValueSource(packed.EffectiveByteLength, path, state),
+                ByteSize = BindValueSource(packed.ByteSize, path, state),
+            },
             SchemaRepeat repeat => new RepeatInfo
             {
                 Name = group.Name,
@@ -438,6 +468,31 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             },
         };
 
+        if (info is PackedGroupInfo packedInfo)
+        {
+            if (packedInfo.ByteLength is int length && length <= 0)
+            {
+                state.Error(path, "A packedGroup byteLength must be positive.");
+            }
+            foreach (var member in members)
+            {
+                if (member is not FieldInfo field)
+                {
+                    state.Error(member.Path, "A packedGroup can only contain fields.");
+                    continue;
+                }
+                if (field.HasByteLength || field.ByteOffset is not null)
+                {
+                    state.Error(field.Path, "A packed child cannot declare byteLength or byteOffset.");
+                }
+                if (field.Pipeline.FieldProcessors.Count > 0 || field.Pipeline.OwnLayoutProcessors.Count > 0
+                    || !ReferenceEquals(field.Pipeline.StreamProcessors, pipeline.StreamProcessors))
+                {
+                    state.Error(field.Path, "A packed child can only declare value processors and cannot use field processors.");
+                }
+            }
+        }
+
         if (info is ChoiceInfo { SelectedIndex: int index } && (index < 0 || index >= members.Count))
         {
             state.Error(path, $"Choice index {index} is out of range (0..{members.Count - 1}).");
@@ -445,7 +500,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
 
         for (var i = 0; i < members.Count; i++)
         {
-            if (info is not ChoiceInfo && i < members.Count - 1 && IsOpenEnded(members[i]))
+            if (info is not ChoiceInfo and not PackedGroupInfo && i < members.Count - 1 && IsOpenEnded(members[i]))
             {
                 state.Error(members[i].Path, "A node that reads until the end of the input or size window (a repeat without a count or size, a bytes field without a length, or a group or choice that ends in one) must be the last node of its group.");
             }
@@ -474,6 +529,8 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
     {
         switch (node)
         {
+            case PackedGroupInfo:
+                break;
             case FieldInfo { DataType.TakesRestOfWindow: true, HasByteLength: false } when !inWindow:
                 state.Error(node.Path, "A bytes field without a length takes the rest of the enclosing size window, but no enclosing group has a size.");
                 break;
@@ -489,6 +546,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
     private static bool IsOpenEnded(NodeInfo node)
         => node switch
         {
+            PackedGroupInfo => false,
             GroupInfo { HasByteSize: true } => false,
             FieldInfo { DataType.TakesRestOfWindow: true, HasByteLength: false } => true,
             RepeatInfo repeat => repeat.UntilEnd,
@@ -499,7 +557,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
 
     private static ProcessorPipeline CreatePipeline(ProcessorPipeline? parent, IReadOnlyList<ProcessorBinding> processors)
     {
-        if (processors.Count == 0)
+        if (processors.Count == 0 && parent is not { PackingProcessors.Count: > 0 })
         {
             return parent ?? new ProcessorPipeline([]);
         }
@@ -538,6 +596,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             PipelineStage.Representation => processor is IFieldProcessor,
             PipelineStage.Layout => processor is ILayoutProcessor,
             PipelineStage.Stream => processor is IStreamProcessor,
+            PipelineStage.Packing => processor is IPackingProcessor,
             _ => false
         };
 
@@ -697,6 +756,12 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             {
                 case FieldInfo field:
                     field.PublishesValue = true;
+                    if (Find(root, from) is PackedGroupInfo { ByteLength: PublishedValueKey carrierLength } packed
+                        && carrierLength.Namespace.Length == 0 && carrierLength.Name == target.Value
+                        && target.IsSameOrDescendantOf(packed.Path))
+                    {
+                        state.Error(from, "The packed carrier byteLength cannot depend on one of its own child values.");
+                    }
                     if (Find(root, from) is GroupInfo { ValueProcessors.Count: > 0 } valueGroup && IsValueKey(valueGroup, target))
                     {
                         valueGroup.ValueType = field.DataType;

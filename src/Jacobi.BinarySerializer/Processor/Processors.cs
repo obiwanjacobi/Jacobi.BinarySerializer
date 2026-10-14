@@ -35,6 +35,24 @@ public interface IValueReader<InT, OutT> : IProcessor
     OutT Read(InT logicalValue, ValueProcessorContext context);
 }
 
+/// <summary>
+/// Represents an ordered set of logical fields as one encoded carrier. Called once per packed-group instance.
+/// </summary>
+public interface IPackingProcessor : IProcessor
+{
+    /// <summary>
+    /// Fields correspond by index to context.Fields, after each child's value processors have run.
+    /// BitsWritten is the byte-aligned width of the carrier, including packing padding.
+    /// </summary>
+    FieldWriteResult<EncodedField> Write(IReadOnlyList<LogicalField> fields, PackingProcessorContext context);
+
+    /// <summary>
+    /// Returns one logical field per context.Fields entry, in declaration order, before reverse value processing.
+    /// BitsConsumed is the byte-aligned width consumed from the carrier.
+    /// </summary>
+    FieldReadResult<IReadOnlyList<LogicalField>> Read(EncodedField carrier, PackingProcessorContext context);
+}
+
 // Representation pipeline stage: physical representation transforms (varint, fixed-width, etc.)
 public interface IFieldProcessor : IFieldWriter<LogicalField, EncodedField>, IFieldReader<EncodedField, LogicalField> { }
 public interface IFieldWriter<InT, OutT> : IProcessor

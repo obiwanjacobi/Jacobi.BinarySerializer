@@ -204,6 +204,40 @@ public closed class SessionState
         }
     }
 
+    internal void ValidateCarrierLength(PackedGroupInfo group, int byteLength)
+    {
+        if (byteLength <= 0 || byteLength > Int32.MaxValue / 8)
+        {
+            throw EngineLogger.Fail($"'{group.Path}': the packed byteLength {byteLength} must be positive and fit in a bit count.");
+        }
+    }
+
+    internal EncodedField PrepareCarrier(PackedGroupInfo group, EncodedField? carrier, int bits, int byteLength)
+    {
+        var actualLength = carrier?.Value switch
+        {
+            byte[] bytes => bytes.Length,
+            ReadOnlyMemory<byte> memory => memory.Length,
+            Memory<byte> memory => memory.Length,
+            _ => -1
+        };
+        if (carrier is null || bits != checked(byteLength * 8) || carrier.BitWidth != bits || actualLength != byteLength)
+        {
+            throw EngineLogger.Fail($"'{group.Path}': the packed carrier must contain exactly {byteLength} bytes with a matching {byteLength * 8}-bit width.");
+        }
+        return carrier with
+        {
+            Name = group.Name,
+            PhysicalType = typeof(byte[]),
+            Value = carrier.Value switch
+            {
+                ReadOnlyMemory<byte> memory => memory.ToArray(),
+                Memory<byte> memory => memory.ToArray(),
+                _ => carrier.Value
+            }
+        };
+    }
+
     /// <summary>Fails when <paramref name="actual"/> differs from the value the field must have.</summary>
     internal void CheckExpected(FieldInfo field, object? actual, InstancePath current)
     {

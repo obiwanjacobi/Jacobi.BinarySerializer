@@ -2,120 +2,144 @@
 using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
-using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processors;
 
 /// <summary>
-/// Packs fields of arbitrary bit widths into bytes, in declaration order.
-/// Field property 'bits' sets the width (default: the encoded width). Group property 'bitorder' ('little' or 'big') sets the bit order (default: little).
-/// A partially filled byte is padded with zero bits at the end of the group.
+/// Packs the logical values of a packed group into one carrier, in declaration order, using arbitrary bit widths.
+/// Child field property 'bits' sets the width (default: 1).
+/// Processor property 'bitorder' ('little' or 'big') sets the bit order (default: little).
+/// The carrier has the byte length of the packed group: unused trailing bits are zero (and ignored when reading).
 /// </summary>
-internal sealed class BitPackerProcessor : ProcessorBase, ILayoutProcessor
+internal sealed class BitPackerProcessor : ProcessorBase, IPackingProcessor
 {
-    private static readonly PropertyDescriptor BitsProperty = new("bits", "sys.int32", false, description: "Field: the number of bits the field occupies.");
-    private static readonly PropertyDescriptor BitOrderProperty = new("bitorder", "sys.endianness", false, description: "Group: 'little' (default) or 'big' bit order within a byte.");
+    private static readonly PropertyDescriptor BitsProperty = new("bits", "sys.int32", false, description: "Field: the number of bits the field occupies (default: 1).");
+    private static readonly PropertyDescriptor BitOrderProperty = new("bitorder", "sys.endianness", false, description: "Packed group: 'little' (default) or 'big' bit order within a byte.");
 
-    public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
+    public FieldWriteResult<EncodedField> Write(IReadOnlyList<LogicalField> fields, PackingProcessorContext context)
     {
-        var state = context.GetOrCreateState<BitPackerState>();
-        state.Writer = new BitWriter(writer, GetBitOrder(context));
+        if (!TryGetWidths(context, out var widths) || fields.Count != widths.Length)
+        {
+            return FieldWriteResult<EncodedField>.Failure();
+        }
+
+        var buffer = new ArrayBufferWriter<byte>(context.ByteLength);
+        var writer = new BitWriter(buffer, GetBitOrder(context));
+
+        for (var i = 0; i < widths.Length; i++)
+        {
+            var info = context.Fields[i];
+            var bits = widths[i];
+            if (info.DataType.Encode is not { } encode || !encode(fields[i].Value, out var bytes) || bytes.Length != info.DataType.FixedSize)
+            {
+                return Reject(context, info, "the value cannot be encoded");
+            }
+
+            ulong value = 0;
+            for (var b = bytes.Length - 1; b >= 0; b--)
+            {
+                value = (value << 8) | bytes[b];
+            }
+
+            if (!Fits(value, bytes.Length * 8, bits, IsSigned(info)))
+            {
+                return Reject(context, info, $"the value does not fit in {bits} bits");
+            }
+
+            writer.Write(value, bits);
+            context.Logger.BitsPacked(info.Path, bits);
+        }
+
+        writer.Flush();
+        var carrier = new byte[context.ByteLength];
+        buffer.WrittenSpan.CopyTo(carrier);
+        return FieldWriteResult<EncodedField>.Written(new(context.Group.Name, typeof(byte[]), carrier, carrier.Length * 8), carrier.Length * 8);
     }
 
-    public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
+    public FieldReadResult<IReadOnlyList<LogicalField>> Read(EncodedField carrier, PackingProcessorContext context)
     {
-        if (encodedValue.Value is not byte[] bytes || bytes.Length > 8)
+        if (carrier.Value is not byte[] bytes || bytes.Length != context.ByteLength || !TryGetWidths(context, out var widths))
         {
-            context.Logger.BitsRejected(context.Field?.Path ?? String.Empty, "the value is not 1 to 8 bytes");
-            return WriteResult.Failure;
+            return FieldReadResult<IReadOnlyList<LogicalField>>.Failure();
         }
 
-        var state = context.GetOrCreateState<BitPackerState>();
-        state.Writer ??= new BitWriter(writer, GetBitOrder(context));
+        var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(bytes));
+        var bitReader = new BitReader(GetBitOrder(context));
+        var fields = new List<LogicalField>(widths.Length);
 
-        var bits = GetBits(context, encodedValue.BitWidth);
-        if (bits < 1 || bits > bytes.Length * 8)
+        for (var i = 0; i < widths.Length; i++)
         {
-            context.Logger.BitsRejected(context.Field?.Path ?? String.Empty, $"{bits} bits is out of range");
-            return WriteResult.Failure;
+            var info = context.Fields[i];
+            var bits = widths[i];
+            var size = info.DataType.FixedSize!.Value;
+
+            if (!bitReader.TryRead(ref reader, bits, out var value))
+            {
+                return FieldReadResult<IReadOnlyList<LogicalField>>.Failure();
+            }
+
+            if (IsSigned(info) && bits < 64 && (value & (1UL << (bits - 1))) != 0)
+            {
+                value |= ~BitWriter.Mask(bits);
+            }
+
+            var encoded = new byte[size];
+            for (var b = 0; b < size; b++)
+            {
+                encoded[b] = (byte)(value >> (8 * b));
+            }
+
+            if (info.DataType.Decode is not { } decode || !decode(encoded, out var logical))
+            {
+                context.Logger.BitsRejected(info.Path, "the value cannot be decoded");
+                return FieldReadResult<IReadOnlyList<LogicalField>>.Failure();
+            }
+
+            fields.Add(new LogicalField(info.Name, info.DataType.ClrType, logical));
+            context.Logger.BitsUnpacked(info.Path, bits);
         }
 
-        ulong value = 0;
-        for (var i = bytes.Length - 1; i >= 0; i--)
-        {
-            value = (value << 8) | bytes[i];
-        }
-
-        if (!Fits(value, bytes.Length * 8, bits, IsSigned(context.Field)))
-        {
-            context.Logger.BitsRejected(context.Field?.Path ?? String.Empty, $"the value does not fit in {bits} bits");
-            return WriteResult.Failure;
-        }
-
-        state.Writer.Write(value, bits);
-        context.Logger.BitsPacked(context.Field?.Path ?? String.Empty, bits);
-        return WriteResult.Success;
+        return FieldReadResult<IReadOnlyList<LogicalField>>.Consumed(fields, bytes.Length * 8);
     }
 
-    public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
+    private static FieldWriteResult<EncodedField> Reject(PackingProcessorContext context, FieldInfo field, string reason)
     {
-        var state = context.GetOrCreateState<BitPackerState>();
-        state.Writer?.Flush();
-        state.Writer = null;
+        context.Logger.BitsRejected(field.Path, reason);
+        return FieldWriteResult<EncodedField>.Failure();
     }
 
-    public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    /// <summary>Resolves the bit width of every child (1 to the width of its data type, at most 64); all must fit in the carrier.</summary>
+    private static bool TryGetWidths(PackingProcessorContext context, out int[] widths)
     {
-        var state = context.GetOrCreateState<BitPackerState>();
-        state.Reader = new BitReader(GetBitOrder(context));
-    }
-
-    public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-    {
-        var field = context.Field;
-        var name = field?.Name ?? String.Empty;
-
-        if (field is null || field.DataType.FixedSize is not { } size || size > 8)
+        widths = new int[context.Fields.Count];
+        var total = 0;
+        for (var i = 0; i < widths.Length; i++)
         {
-            return LayoutReadResult<EncodedField>.Failure();
+            var info = context.Fields[i];
+            if (info.DataType.FixedSize is not { } size || size > 8)
+            {
+                context.Logger.BitsRejected(info.Path, "the data type is not 1 to 8 bytes wide");
+                return false;
+            }
+
+            var bits = context.PropertiesOf(info.Field.Properties).GetOrDefault(BitsProperty, 1);
+            if (bits < 1 || bits > size * 8)
+            {
+                context.Logger.BitsRejected(info.Path, $"{bits} bits is out of range");
+                return false;
+            }
+
+            widths[i] = bits;
+            total += bits;
         }
 
-        var bits = GetBits(context, size * 8);
-        if (bits < 1 || bits > size * 8)
+        if (total > context.ByteLength * 8)
         {
-            return LayoutReadResult<EncodedField>.Failure();
+            context.Logger.BitsRejected(context.Group.Path, $"{total} bits do not fit in {context.ByteLength} byte(s)");
+            return false;
         }
 
-        var state = context.GetOrCreateState<BitPackerState>();
-        state.Reader ??= new BitReader(GetBitOrder(context));
-
-        if (!state.Reader.TryRead(ref reader, bits, out var value))
-        {
-            return reader.Remaining == 0 && state.Reader.PendingBits == 0
-                ? LayoutReadResult<EncodedField>.EndOfData()
-                : LayoutReadResult<EncodedField>.NeedMoreData();
-        }
-
-        if (IsSigned(field) && bits < 64 && (value & (1UL << (bits - 1))) != 0)
-        {
-            value |= ~BitWriter.Mask(bits);
-        }
-
-        var result = new byte[size];
-        for (var i = 0; i < size; i++)
-        {
-            result[i] = (byte)(value >> (8 * i));
-        }
-
-        context.Logger.BitsUnpacked(name, bits);
-        return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), result, bits));
-    }
-
-    public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-    {
-        var state = context.GetOrCreateState<BitPackerState>();
-        state.Reader?.Align();
-        state.Reader = null;
+        return true;
     }
 
     private static bool Fits(ulong value, int storedBits, int bits, bool signed)
@@ -137,33 +161,22 @@ internal sealed class BitPackerProcessor : ProcessorBase, ILayoutProcessor
         return upper == (signBit == 1 ? upperMask : 0);
     }
 
-    private static bool IsSigned(FieldInfo? field)
-        => field?.DataType.ClrType == typeof(sbyte) || field?.DataType.ClrType == typeof(short)
-            || field?.DataType.ClrType == typeof(int) || field?.DataType.ClrType == typeof(long);
+    private static bool IsSigned(FieldInfo field)
+        => field.DataType.ClrType == typeof(sbyte) || field.DataType.ClrType == typeof(short)
+            || field.DataType.ClrType == typeof(int) || field.DataType.ClrType == typeof(long);
 
-    private static int GetBits(LayoutProcessorContext context, int defaultBits)
-    {
-        return context.PropertiesOf(context.Field?.Field.Properties).GetOrDefault(BitsProperty, defaultBits);
-    }
-
-    private static Endianness GetBitOrder(LayoutProcessorContext context)
+    private static Endianness GetBitOrder(PackingProcessorContext context)
     {
         if (context.Properties.TryGet<Endianness>(BitOrderProperty, out var order))
         {
             return order;
         }
 
-        return context.PropertiesOf(context.Group?.Group.Properties).GetOrDefault(BitOrderProperty, Endianness.Little);
+        return context.PropertiesOf(context.Group.Group.Properties).GetOrDefault(BitOrderProperty, Endianness.Little);
     }
 
     public ProcessorKey Key => new("sys.bitpacker");
     public string Name => "Bit-Packer Processor";
-    public PipelineStage Stage => PipelineStage.Layout;
+    public PipelineStage Stage => PipelineStage.Packing;
     public IReadOnlyList<PropertyDescriptor> Properties => [BitsProperty, BitOrderProperty];
-
-    private sealed class BitPackerState
-    {
-        public BitWriter? Writer { get; set; }
-        public BitReader? Reader { get; set; }
-    }
 }

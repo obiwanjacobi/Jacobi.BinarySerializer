@@ -13,10 +13,13 @@ public sealed class ProcessorPipeline
     public ProcessorPipeline(IEnumerable<ProcessorBinding> processors)
         : this(parent: null, processors) { }
 
-    /// <summary>Child pipeline: value, field and stream stages specified by <paramref name="processors"/> replace the parent's; layout accumulates; the rest are reused.</summary>
+    /// <summary>
+    /// Child pipeline: value, field and stream declarations replace inherited stages; layout accumulates.
+    /// Packing is always local to this node and is never inherited.
+    /// </summary>
     public ProcessorPipeline(ProcessorPipeline? parent, IEnumerable<ProcessorBinding> processors)
     {
-        List<ProcessorBinding>? value = null, field = null, layout = null, stream = null;
+        List<ProcessorBinding>? value = null, field = null, layout = null, stream = null, packing = null;
 
         foreach (var binding in processors)
         {
@@ -26,6 +29,7 @@ public sealed class ProcessorPipeline
                 PipelineStage.Representation => field ??= [],
                 PipelineStage.Layout => layout ??= [],
                 PipelineStage.Stream => stream ??= [],
+                PipelineStage.Packing => packing ??= [],
                 _ => throw new InvalidOperationException($"Unknown/invalid pipeline stage: {binding.Processor.Stage}")
             };
 
@@ -39,6 +43,7 @@ public sealed class ProcessorPipeline
         // reuse parent stage instances when not replaced
         ValueProcessors = value ?? parent?.ValueProcessors ?? [];
         FieldProcessors = field ?? parent?.FieldProcessors ?? [];
+        PackingProcessors = packing ?? [];
         OwnLayoutProcessors = layout ?? [];
         if (layout is not null && parent is { LayoutProcessors.Count: > 0 })
         {
@@ -64,6 +69,12 @@ public sealed class ProcessorPipeline
 
     public IReadOnlyList<ProcessorBinding> ValueProcessors { get; }
     public IReadOnlyList<ProcessorBinding> FieldProcessors { get; }
+
+    /// <summary>
+    /// Packing processors declared on this node only; never inherited. A packed group requires exactly one.
+    /// </summary>
+    public IReadOnlyList<ProcessorBinding> PackingProcessors { get; }
+
     /// <summary>
     /// The layout chain a field reads through: the processors declared from the root down to this level, outermost (head) first.
     /// </summary>
@@ -110,5 +121,7 @@ public enum PipelineStage
     /// <summary>Layout pipeline stage: bit packing, alignment, endian conversion, etc.</summary>
     Layout,
     /// <summary>Stream pipeline stage: framing, compression, encryption, etc.</summary>
-    Stream
+    Stream,
+    /// <summary>Group representation: ordered logical fields to one encoded carrier.</summary>
+    Packing
 }

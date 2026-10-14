@@ -148,6 +148,21 @@ public sealed class SchemaSetBuilder
                     $"Failed to resolve references in schema '{document.Name}'.");
             }
 
+            foreach (var nodeDef in document.NodeDefs)
+            {
+                ValidatePackedGroups(nodeDef.Members);
+                if (nodeDef.Kind == SchemaNodeKind.PackedGroup)
+                {
+                    ValidatePackedMembers(nodeDef.Name, nodeDef.Members);
+                    if (nodeDef.DataType is not null)
+                    {
+                        throw new InvalidOperationException($"The PackedGroup nodeDef '{nodeDef.Name}' cannot declare a data type.");
+                    }
+                }
+            }
+            ValidatePackedGroups(document.Roots);
+            document.RefreshIndexes();
+
             document.IsCompiled = true;
             compiledCount++;
 
@@ -403,6 +418,22 @@ public sealed class SchemaSetBuilder
 
         foreach (var group in document.Roots)
         {
+            if (group is SchemaPackedGroup && group.NodeDef is { } rootNodeDef)
+            {
+                var definition = FindNodeDef(document, rootNodeDef, $"The PackedGroup '{group.Name}'");
+                if (definition.Kind != SchemaNodeKind.PackedGroup)
+                {
+                    throw new InvalidOperationException($"The PackedGroup '{group.Name}' references the nodeDef '{definition.Name}': the kinds must match.");
+                }
+                var properties = MergeProperties(definition.PropertyList, group.Properties);
+                var processors = MergeProcessors(definition.Processors, group.Processors);
+                group.PropertyList.Clear();
+                group.PropertyList.AddRange(properties);
+                group.ProcessorsList.Clear();
+                group.ProcessorsList.AddRange(processors);
+                group.MemberList.InsertRange(0, definition.Members.Where(m => !group.MemberList.Contains(m)));
+            }
+
             foreach (var processor in group.Processors)
             {
                 if (!TryResolveProcessorRef(document, processor))
@@ -445,8 +476,9 @@ public sealed class SchemaSetBuilder
         var resolvedNodes = new List<SchemaNode>(schemaNodes);
 
         // Resolve references for groups, fields and processors
-        foreach (var node in schemaNodes)
+        foreach (var originalNode in schemaNodes)
         {
+            var node = originalNode;
             if (node.NodeDef.HasValue)
             {
                 var nodeDef = FindNodeDef(document, node.NodeDef.Value, $"The {node.Kind} '{node.Name}'");
@@ -458,6 +490,7 @@ public sealed class SchemaSetBuilder
 
                 var replacementNode = InstantiateNodeDef(node, nodeDef);
                 resolvedNodes.Replace(node, replacementNode);
+                node = replacementNode;
             }
 
             if (node is SchemaField field)
@@ -517,6 +550,40 @@ public sealed class SchemaSetBuilder
         }
 
         return allResolved;
+    }
+
+    private static void ValidatePackedGroups(IEnumerable<SchemaNode> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            if (node is SchemaPackedGroup packed)
+            {
+                if (packed.ByteLength is int length && length <= 0)
+                {
+                    throw new InvalidOperationException($"The PackedGroup '{packed.Name}' byteLength must be positive.");
+                }
+                ValidatePackedMembers(packed.Name, packed.Members);
+            }
+            if (node is SchemaGroup group)
+            {
+                ValidatePackedGroups(group.Members);
+            }
+        }
+    }
+
+    private static void ValidatePackedMembers(string name, IReadOnlyList<SchemaNode> members)
+    {
+        foreach (var member in members)
+        {
+            if (member is not SchemaField field)
+            {
+                throw new InvalidOperationException($"The PackedGroup '{name}' can only contain fields; '{member.Name}' is a {member.Kind}.");
+            }
+            if (field.ByteLength is int or SchemaNodeRef or SchemaPubRef || field.ByteOffset is not null)
+            {
+                throw new InvalidOperationException($"The PackedGroup '{name}' field '{field.Name}' cannot declare byteLength or byteOffset.");
+            }
+        }
     }
 
     private bool TryFindDataTypeDef(SchemaDocument document, SchemaName dataType, [NotNullWhen(true)] out SchemaDocument? defDocument, [NotNullWhen(true)] out SchemaDataTypeDef? dataTypeDef)
@@ -637,6 +704,18 @@ public sealed class SchemaSetBuilder
                 Pipeline = choiceNode.Pipeline,
                 ByteSize = choiceNode.ByteSize,
                 ValueProcessorsList = [.. choiceNode.ValueProcessors],
+            };
+        }
+        if (node is SchemaPackedGroup packedNode)
+        {
+            return new SchemaPackedGroup
+            {
+                Name = node.Name,
+                PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
+                ProcessorsList = MergeProcessors(nodeDef.Processors, packedNode.Processors),
+                MemberList = [.. nodeDef.MemberList, .. packedNode.MemberList],
+                ByteLength = packedNode.ByteLength,
+                ByteSize = packedNode.ByteSize,
             };
         }
         if (node is SchemaGroup groupNode)

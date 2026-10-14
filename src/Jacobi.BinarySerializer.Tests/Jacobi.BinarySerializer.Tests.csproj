@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <Using Include="NUnit.Framework" />
+    <None Include="..\Jacobi.BinarySerializer\Schema\schema.xsd" Link="schema.xsd" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

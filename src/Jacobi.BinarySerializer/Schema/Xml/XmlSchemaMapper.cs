@@ -28,6 +28,12 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaGroup.Properties)
     };
 
+    private static readonly HashSet<string> PackedGroupKnownNames = new(GroupKnownNames, StringComparer.OrdinalIgnoreCase)
+    {
+        nameof(XmlSchemaPackedGroup.ByteLength),
+        nameof(XmlSchemaPackedGroup.ByteLengthRef)
+    };
+
     private static readonly HashSet<string> RepeatKnownNames = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(XmlSchemaRepeat.Name),
@@ -174,6 +180,7 @@ internal static class XmlSchemaMapper
             XmlSchemaField => throw new InvalidOperationException("Field nodes must have a group parent."),
             XmlSchemaRepeat repeatNode => ToSchemaRepeat(repeatNode),
             XmlSchemaChoice choiceNode => ToSchemaChoice(choiceNode),
+            XmlSchemaPackedGroup packedNode => ToSchemaPackedGroup(packedNode),
             XmlSchemaGroup groupNode => ToSchemaGroup(groupNode),
             _ => throw new InvalidOperationException($"Unsupported XML schema node type '{xmlNode.GetType().Name}'.")
         };
@@ -298,6 +305,20 @@ internal static class XmlSchemaMapper
         return group;
     }
 
+    private static SchemaPackedGroup ToSchemaPackedGroup(XmlSchemaPackedGroup packed)
+    {
+        return new SchemaPackedGroup
+        {
+            Name = packed.Name,
+            NodeDef = ToNodeDefName(packed.NodeDef),
+            ProcessorsList = packed.Processors.Select(ToSchemaProcessorRef).ToList(),
+            MemberList = packed.Members.Select(m => ToSchemaNode(m, true)).ToList(),
+            ByteLength = ToSchemaValue(packed.ByteLength, packed.ByteLengthRef),
+            ByteSize = ToSchemaValue(packed.ByteSize, packed.ByteSizeRef),
+            PropertyList = MergeProperties(packed.Properties, packed.AdditionalAttributes, packed.AdditionalElements, PackedGroupKnownNames)
+        };
+    }
+
     private static SchemaRepeat ToSchemaRepeat(XmlSchemaRepeat xmlRepeat)
     {
         var members = new List<SchemaNode>();
@@ -413,6 +434,22 @@ internal static class XmlSchemaMapper
             };
         }
 
+        if (node is SchemaPackedGroup packed)
+        {
+            return new XmlSchemaPackedGroup
+            {
+                Name = packed.Name,
+                NodeDef = packed.NodeDef?.ToString(),
+                Processors = packed.Processors.Select(FromSchemaProcessorRef).ToList(),
+                Members = packed.Members.Select(FromSchemaNode).ToList(),
+                ByteLength = ToConstantText(packed.ByteLength),
+                ByteLengthRef = ToXmlValueRef(packed.ByteLength),
+                ByteSize = ToConstantText(packed.ByteSize),
+                ByteSizeRef = ToXmlValueRef(packed.ByteSize),
+                Properties = packed.Properties.Select(FromSchemaProperty).ToList()
+            };
+        }
+
         if (node is SchemaRepeat repeat)
         {
             return new XmlSchemaRepeat
@@ -471,16 +508,16 @@ internal static class XmlSchemaMapper
     {
         if (String.IsNullOrWhiteSpace(kind))
         {
-            throw new InvalidOperationException($"The nodeDef '{name}' must specify its kind (field, group, repeat or choice).");
+            throw new InvalidOperationException($"The nodeDef '{name}' must specify its kind (field, group, packedGroup, repeat or choice).");
         }
 
         if (Enum.TryParse<SchemaNodeKind>(kind, ignoreCase: true, out var parsed) &&
-            parsed is SchemaNodeKind.Field or SchemaNodeKind.Group or SchemaNodeKind.Repeat or SchemaNodeKind.Choice)
+            parsed is SchemaNodeKind.Field or SchemaNodeKind.Group or SchemaNodeKind.PackedGroup or SchemaNodeKind.Repeat or SchemaNodeKind.Choice)
         {
             return parsed;
         }
 
-        throw new InvalidOperationException($"The nodeDef '{name}' has an unknown kind '{kind}' (field, group, repeat or choice).");
+        throw new InvalidOperationException($"The nodeDef '{name}' has an unknown kind '{kind}' (field, group, packedGroup, repeat or choice).");
     }
 
     private static XmlSchemaNodeDef FromSchemaNodeDef(SchemaNodeDef nodeDef)
@@ -488,7 +525,7 @@ internal static class XmlSchemaMapper
         return new XmlSchemaNodeDef
         {
             Name = nodeDef.Name,
-            Kind = nodeDef.Kind.ToString().ToLowerInvariant(),
+            Kind = nodeDef.Kind == SchemaNodeKind.PackedGroup ? "packedGroup" : nodeDef.Kind.ToString().ToLowerInvariant(),
             DataType = nodeDef.DataType?.FullName,
             Processors = nodeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
             Members = nodeDef.Members.Select(FromSchemaNode).ToList(),

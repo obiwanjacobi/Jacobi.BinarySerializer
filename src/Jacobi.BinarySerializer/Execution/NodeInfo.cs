@@ -89,6 +89,21 @@ public class GroupInfo : NodeInfo
     public bool HasByteSize => ByteSize is int or PublishedValueKey;
 }
 
+/// <summary>
+/// Logical child fields represented together by one group-local packing processor.
+/// </summary>
+public sealed class PackedGroupInfo : GroupInfo
+{
+    public required IReadOnlyList<FieldInfo> Fields { get; init; }
+
+    /// <summary>
+    /// Length in bytes of the encoded carrier before layout, separate from the physical group ByteSize.
+    /// </summary>
+    public required ValueSource<int> ByteLength { get; init; }
+
+    public ProcessorBinding PackingProcessor => Pipeline.PackingProcessors.Single();
+}
+
 public sealed class RepeatInfo : GroupInfo
 {
     public ValueSource<int> Count { get; init; }
