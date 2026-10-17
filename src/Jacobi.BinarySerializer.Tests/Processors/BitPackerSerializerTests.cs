@@ -17,7 +17,7 @@ public class BitPackerSerializerTests
               { "name": "Msg", "kind": "group", {{groupProcessors}}
                 "members": [
                   { "name": "Header", "kind": "field", "datatype": "sys.uint8" },
-                  { "name": "Flags", "kind": "packedGroup", "byteLength": {{byteLength}},
+                  { "name": "Flags", "kind": "packed", "byteLength": {{byteLength}},
                     "processors": [ { "name": "sys.bitpacker"{{processorProperties}} } ],
                     "members": [ {{flagsMembers}} ] },
                   { "name": "Trailer", "kind": "field", "datatype": "sys.uint8" }
@@ -135,7 +135,7 @@ public class BitPackerSerializerTests
         const string schema = """
             { "name": "Doc", "members": [
               { "name": "Msg", "kind": "group", "members": [
-                { "name": "Flags", "kind": "packedGroup",
+                { "name": "Flags", "kind": "packed",
                   "processors": [ { "name": "sys.bitpacker" } ],
                   "members": [ FIELDS ] }
               ] }
@@ -213,7 +213,7 @@ public class BitPackerSerializerTests
             { "name": "Doc", "members": [
               { "name": "Msg", "kind": "group", "members": [
                 { "name": "Length", "kind": "field", "datatype": "sys.uint8" },
-                { "name": "Flags", "kind": "packedGroup", "byteLength": { "ref": "Msg.Length" },
+                { "name": "Flags", "kind": "packed", "byteLength": { "ref": "Msg.Length" },
                   "processors": [ { "name": "sys.bitpacker" } ],
                   "members": [ { "name": "A", "kind": "field", "datatype": "sys.uint16", "sys.bitpacker.bits": 16 } ] }
               ] }
@@ -234,7 +234,7 @@ public class BitPackerSerializerTests
             { "name": "Doc", "members": [
               { "name": "Msg", "kind": "group", "members": [
                 { "name": "Items", "kind": "repeat", "count": 3, "members": [
-                  { "name": "Flags", "kind": "packedGroup", "byteLength": 1,
+                  { "name": "Flags", "kind": "packed", "byteLength": 1,
                     "processors": [ { "name": "sys.bitpacker", "bitorder": "big" } ],
                     "members": [
                       { "name": "Kind", "kind": "field", "datatype": "sys.uint8", "sys.bitpacker.bits": 4 },
@@ -268,14 +268,14 @@ public class BitPackerSerializerTests
                 <group name="Msg">
                   <members>
                     <field name="Header" datatype="sys.uint8" />
-                    <packedGroup name="Flags" byteLength="3">
+                    <packed name="Flags" byteLength="3">
                       <processors><processor name="sys.bitpacker" bitorder="big" /></processors>
                       <members>
                         <field name="A" datatype="sys.uint8" sys.bitpacker.bits="3" />
                         <field name="B" datatype="sys.uint8" sys.bitpacker.bits="5" />
                         <field name="C" datatype="sys.uint16" sys.bitpacker.bits="13" />
                       </members>
-                    </packedGroup>
+                    </packed>
                     <field name="Trailer" datatype="sys.uint8" />
                   </members>
                 </group>

@@ -12,7 +12,7 @@ public sealed class XmlSchema
     [XmlArray("members")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
     [XmlArrayItem("group", typeof(XmlSchemaGroup))]
-    [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
+    [XmlArrayItem("packed", typeof(XmlSchemaPackedGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode>? Members { get; set; }
@@ -20,7 +20,7 @@ public sealed class XmlSchema
     [XmlArray("nodeDefs")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
     [XmlArrayItem("group", typeof(XmlSchemaGroup))]
-    [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
+    [XmlArrayItem("packed", typeof(XmlSchemaPackedGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode>? NodeDefs { get; set; }
@@ -161,7 +161,7 @@ public class XmlSchemaGroup : XmlSchemaNode
     [XmlArray("members")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
     [XmlArrayItem("group", typeof(XmlSchemaGroup))]
-    [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
+    [XmlArrayItem("packed", typeof(XmlSchemaPackedGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
     public List<XmlSchemaNode>? Members { get; set; }

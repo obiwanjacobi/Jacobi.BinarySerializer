@@ -263,7 +263,7 @@ public class EditNodeTests
                     { "name": "Payload", "kind": "field", "nodeDef": "Other.Payload", "datatype": "sys.bytes",
                       "value": { "pub": "header.value" }, "byteLength": { "ref": "Root.Items[].Length" },
                       "processors": [{ "name": "ref:map", "pubns": "payload", "extra": "value" }] },
-                    { "name": "Flags", "kind": "packedGroup", "byteLength": 2, "byteSize": 3,
+                    { "name": "Flags", "kind": "packed", "byteLength": 2, "byteSize": 3,
                       "processors": [{ "name": "sys.bitpacker", "bitorder": "little" }],
                       "members": [{ "name": "Mode", "kind": "field", "datatype": "sys.uint8" }] },
                     { "name": "Items", "kind": "repeat", "count": { "ref": "Root.Status" }, "byteSize": 12,

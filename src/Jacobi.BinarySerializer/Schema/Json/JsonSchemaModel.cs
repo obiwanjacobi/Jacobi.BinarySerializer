@@ -40,7 +40,7 @@ internal sealed class JsonSchemaDataTypeDef
 [JsonDerivedType(typeof(JsonSchemaGroup), "group")]
 [JsonDerivedType(typeof(JsonSchemaRepeat), "repeat")]
 [JsonDerivedType(typeof(JsonSchemaChoice), "choice")]
-[JsonDerivedType(typeof(JsonSchemaPackedGroup), "packedGroup")]
+[JsonDerivedType(typeof(JsonSchemaPackedGroup), "packed")]
 internal abstract class JsonSchemaNode
 {
     public required string Name { get; init; }

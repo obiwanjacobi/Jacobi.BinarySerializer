@@ -100,7 +100,7 @@ Every node has a `name`, a `kind` and optional `properties`.
 |------|---------|-----------------|
 | `field` | A single value. | `type`, `value`, `byteLength`, `byteOffset`, `processors` |
 | `group` | An ordered sequence of members. | `members`, `byteSize` (physical size in bytes of the encoded content), `processors` |
-| `packedGroup` | Logical fields represented together as one encoded unit. | Field-only `members`, carrier `byteLength` (default 1), optional group `byteSize`, `processors` |
+| `packed` | Logical fields represented together as one encoded unit. | Field-only `members`, carrier `byteLength` (default 1), optional group `byteSize`, `processors` |
 | `repeat` | A group that repeats. | `count` (constant or reference); no count means until the end of the data. `valueProcessors` convert a referenced count. |
 | `choice` | A group where exactly one member is used. | `selectedIndex` (constant or reference), `valueProcessors` |
 
@@ -124,9 +124,9 @@ The members below are part of the schema model itself (as opposed to the free-fo
 
 | Member | Applies to | Meaning | Use it to |
 |--------|-----------|---------|-----------|
-| `members` | group, packedGroup, repeat, choice | The ordered child nodes (fields only for packedGroup). | Structure. A repeat repeats all its members as one item; a choice has one alternative per member. |
-| `byteSize` | group, packedGroup, repeat, choice | The physical size in bytes of the encoded content (constant or reference). The reader limits the content to that window; the writer derives the value from the encoded content. | Length-prefixed blocks (PNG chunk data, MIDI track). A repeat with a `byteSize` and no `count` repeats until the window is full. |
-| `byteLength` | packedGroup | Length in bytes of the packed representation before layout (positive constant or reference; default: 1). | Give the carrier its width, independently of the group's layout contributions. |
+| `members` | group, packed, repeat, choice | The ordered child nodes (fields only for packed). | Structure. A repeat repeats all its members as one item; a choice has one alternative per member. |
+| `byteSize` | group, packed, repeat, choice | The physical size in bytes of the encoded content (constant or reference). The reader limits the content to that window; the writer derives the value from the encoded content. | Length-prefixed blocks (PNG chunk data, MIDI track). A repeat with a `byteSize` and no `count` repeats until the window is full. |
+| `byteLength` | packed | Length in bytes of the packed representation before layout (positive constant or reference; default: 1). | Give the carrier its width, independently of the group's layout contributions. |
 | `count` | repeat | The number of items (constant or reference). No count: repeat until the end of the data (or of the `byteSize` window). | Item counts stored in the data, fixed-size arrays, or until-the-end lists. |
 | `selectedIndex` | choice | The zero-based index of the used alternative (constant or reference). | Pick a variant from a discriminator (type byte, tag). |
 | `valueProcessors` | repeat, choice | Semantic processors that convert the referenced value to the count/index (read direction). | Convert a discriminator that is not a number (`sys.map` of a FourCC string, `sys.bits` of a status byte) to the index. |
@@ -136,11 +136,11 @@ The members below are part of the schema model itself (as opposed to the free-fo
 
 A packed group is an ordered set of logical fields encoded together by one packing processor. Its children undergo value processing individually; layout processing applies once to the packed representation (the engine's carrier).
 
-- JSON uses `"kind": "packedGroup"`; XML uses `<packedGroup>`; the in-memory type is `SchemaPackedGroup`. The fluent builder provides `PackedGroup(name, byteLength, members, nodeDef, processors)`.
+- JSON/YAML use `"kind": "packed"`; XML uses `<packed>`; the in-memory type remains `SchemaPackedGroup`. The fluent builder provides `PackedGroup(name, byteLength, members, nodeDef, processors)`.
 - `byteLength` is the length in bytes of the carrier **before layout**, as a positive constant or a `ref`/`pub` reference. It defaults to 1 when omitted. Optional `byteSize` retains the ordinary group's meaning: the physical size of the entire encoded group, including layout contributions such as padding and checksums. They need not be equal.
 - Members must be fields. Child `byteLength` and `byteOffset` are rejected, including those supplied through a field nodeDef. Child data types describe logical values; packing properties such as `sys.bitpacker.bits` belong to the selected processor, not to the schema structure.
 - The existing `processors` list selects the packing processor and any group layout processors. Processor definitions, property overrides and `pubns` work as usual. A packed group can be a root or occur inside a group, repeat or choice.
-- A `nodeDef` of kind `packedGroup` supplies fields, properties and processors (no data type). Its fields precede the fields on the use; the use specifies `byteLength` (optional) and optional `byteSize`.
+- A `nodeDef` of kind `packed` supplies fields, properties and processors (no data type). Its fields precede the fields on the use; the use specifies `byteLength` (optional) and optional `byteSize`.
 - Plan building permits child value processors, including those from data type definitions, but forbids child field, layout, stream and packing declarations. Inherited field processors are also rejected; ancestor/group layout and stream stages remain available for the carrier. The packer replaces child representation processing and applies only to its owning group.
 - The packer must implement `IPackingProcessor` and declare `PipelineStage.Packing`; exactly one must be selected. Its properties and `pubns` are bound normally. Carrier length references are bound and validated; a carrier's length cannot depend on its own children, which are not available before unpacking.
 
@@ -151,7 +151,7 @@ Example:
 ```json
 {
   "name": "Flags",
-  "kind": "packedGroup",
+  "kind": "packed",
   "byteLength": 1,
   "processors": [ { "name": "sys.bitpacker", "bitorder": "little" } ],
   "members": [
@@ -260,7 +260,7 @@ A child node inherits the stages of its parent. Value, field and stream stages: 
 
 **Share definitions between files:** add an `include` and reference with `ref:document.name`.
 
-**Apply a layout to many fields (alignment, byte order, CRC):** put the layout processor on the group; the fields inherit it. For sub-byte fields use a `packedGroup` with `sys.bitpacker`.
+**Apply a layout to many fields (alignment, byte order, CRC):** put the layout processor on the group; the fields inherit it. For sub-byte fields use a `packed` node with `sys.bitpacker`.
 
 ## Data type definitions
 

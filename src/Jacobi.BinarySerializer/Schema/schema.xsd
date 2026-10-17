@@ -111,7 +111,7 @@
     <xs:choice minOccurs="0" maxOccurs="unbounded">
       <xs:element name="field" type="field" />
       <xs:element name="group" type="group" />
-      <xs:element name="packedGroup" type="packedGroup" />
+      <xs:element name="packed" type="packed" />
       <xs:element name="repeat" type="repeat" />
       <xs:element name="choice" type="choice" />
     </xs:choice>
@@ -146,7 +146,7 @@
     <xs:anyAttribute processContents="skip" />
   </xs:complexType>
 
-  <xs:complexType name="packedGroup">
+  <xs:complexType name="packed">
     <xs:annotation>
       <xs:documentation>Ordered logical fields represented together by one packing processor. byteLength is the packed length before layout (default: 1); byteSize bounds the entire encoded group. Schema compilation forbids physical attributes on child fields.</xs:documentation>
     </xs:annotation>

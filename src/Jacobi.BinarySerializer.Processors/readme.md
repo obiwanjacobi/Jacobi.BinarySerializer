@@ -12,7 +12,7 @@ The built-in processors of namespace `sys`. Property names are short names as us
 | `sys.bitslicer` | Representation | field | Joins the low bits of each byte of one field (e.g. 7 bits: MIDI 14-bit values). |
 | `sys.string` | Representation | field | Strings with a fixed length or a terminator. |
 | `sys.bytepacker` | Layout | group (fields inherit) | Whole bytes in a byte order. |
-| `sys.bitpacker` | Packing | `packedGroup` (`bits` on each child) | Fields of arbitrary bit widths in one carrier. |
+| `sys.bitpacker` | Packing | `packed` (`bits` on each child) | Fields of arbitrary bit widths in one carrier. |
 | `sys.align` | Layout | group (fields inherit) | Zero padding to a byte multiple. |
 | `sys.crc` | Layout | group (fields inherit) | Appends/validates a CRC over a group. |
 
@@ -86,7 +86,7 @@ Joins the lowest `bits` bits of each byte of one field into a single unsigned va
 
 ## Packing processors
 
-A packing processor is selected by a `packedGroup` (exactly one, in the group's `processors`; it is never inherited). It encodes the ordered logical values of the group's fields into one carrier of the group's `byteLength` bytes, and back. The fields may have value processors but no representation or layout processors; the carrier then goes through the layout chain once.
+A packing processor is selected by a `packed` node (exactly one, in the group's `processors`; it is never inherited). It encodes the ordered logical values of the group's fields into one carrier of the group's `byteLength` bytes, and back. The fields may have value processors but no representation or layout processors; the carrier then goes through the layout chain once.
 
 ### `sys.bitpacker`
 
@@ -102,7 +102,7 @@ Writing and reading fail when `bits` is not between 1 and the width of the data 
 ```json
 {
   "name": "Status",
-  "kind": "packedGroup",
+  "kind": "packed",
   "byteLength": 1,
   "processors": [ { "name": "sys.bitpacker", "bitorder": "big" } ],
   "members": [

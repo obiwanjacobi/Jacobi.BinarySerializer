@@ -8,6 +8,39 @@ namespace Jacobi.BinarySerializer.Tests.Schema;
 
 public class PackedGroupSchemaTests
 {
+  [TestCase("json")]
+  [TestCase("xml")]
+  [TestCase("yaml")]
+  public void RoundTrip_UsesPackedFormatNameAndKeepsConcreteCodeType(string format)
+  {
+    var schema = new SchemaDocumentBuilder("Doc")
+      .NodeDefs(definitions => definitions.PackedGroup("Template", 2, members => members.Field("Mode")))
+      .Group("Root", members => members.PackedGroup("Flags", nodeDef: "Template"))
+      .Build();
+    var text = format switch
+    {
+      "xml" => XmlSerializer.Serialize(schema),
+      "yaml" => Jacobi.BinarySerializer.Yaml.YamlSerializer.Serialize(schema),
+      _ => JsonSerializer.Serialize(schema)
+    };
+    Assert.That(text, Does.Contain("packed").And.Not.Contain("packedGroup"));
+    var restored = format switch
+    {
+      "xml" => XmlSerializer.Deserialize(text),
+      "yaml" => Jacobi.BinarySerializer.Yaml.YamlSerializer.Deserialize(text),
+      _ => JsonSerializer.Deserialize(text)
+    };
+    Assert.That(restored.NodeDefs.Single(), Is.TypeOf<SchemaPackedGroup>());
+    Assert.That(restored.Roots.Single().Members.Single(), Is.TypeOf<SchemaPackedGroup>());
+    Assert.That(restored.Roots.Single().Members.Single().Kind, Is.EqualTo(SchemaNodeKind.PackedGroup));
+    var builder = new SchemaSetBuilder();
+    builder.AddDocument(restored);
+    builder.Compile();
+    var packed = (SchemaPackedGroup)restored.Roots.Single().Members.Single();
+    Assert.That(packed.ByteLength is int length && length == 2, Is.True);
+    Assert.That(packed.Members.Single().Name, Is.EqualTo("Mode"));
+  }
+
     [TestCase(false)]
     [TestCase(true)]
     public void RoundTrip_PreservesPackedGroupAndIndependentSizes(bool xml)
@@ -17,7 +50,7 @@ public class PackedGroupSchemaTests
             ? builder.LoadFromXml("""
                 <schema name="Doc">
                   <members>
-                    <packedGroup name="Flags" byteLength="1" byteSize="3" extra="group">
+                    <packed name="Flags" byteLength="1" byteSize="3" extra="group">
                       <processors><processor name="sys.bitpacker" bitorder="little" pubns="flags" /></processors>
                       <members>
                         <field name="Mode" datatype="sys.uint8" sys.bitpacker.bits="3">
@@ -25,13 +58,13 @@ public class PackedGroupSchemaTests
                         </field>
                         <field name="Channel" datatype="sys.uint8" value="7" sys.bitpacker.bits="5" />
                       </members>
-                    </packedGroup>
+                    </packed>
                   </members>
                 </schema>
                 """)
             : builder.LoadFromJson("""
                 { "name": "Doc", "members": [
-                  { "name": "Flags", "kind": "packedGroup", "byteLength": 1, "byteSize": 3, "extra": "group",
+                  { "name": "Flags", "kind": "packed", "byteLength": 1, "byteSize": 3, "extra": "group",
                     "processors": [ { "name": "sys.bitpacker", "bitorder": "little", "pubns": "flags" } ],
                     "members": [
                       { "name": "Mode", "kind": "field", "datatype": "sys.uint8", "sys.bitpacker.bits": 3,
@@ -81,15 +114,15 @@ public class PackedGroupSchemaTests
             ? builder.LoadFromXml($"""
                 <schema name="Doc"><members><group name="Root"><members>
                   <field name="Length" datatype="sys.uint8" />
-                  <packedGroup name="Flags"><members><field name="Mode" datatype="sys.uint8" /></members>
+                  <packed name="Flags"><members><field name="Mode" datatype="sys.uint8" /></members>
                     <byteLength {key}="{path}" />
-                  </packedGroup>
+                  </packed>
                 </members></group></members></schema>
                 """)
             : builder.LoadFromJson($$"""
                 { "name": "Doc", "members": [ { "name": "Root", "kind": "group", "members": [
                   { "name": "Length", "kind": "field", "datatype": "sys.uint8" },
-                  { "name": "Flags", "kind": "packedGroup", "byteLength": { "{{key}}": "{{path}}" },
+                  { "name": "Flags", "kind": "packed", "byteLength": { "{{key}}": "{{path}}" },
                     "members": [ { "name": "Mode", "kind": "field", "datatype": "sys.uint8" } ] }
                 ] } ] }
                 """);
@@ -164,7 +197,7 @@ public class PackedGroupSchemaTests
         var builder = new SchemaSetBuilder();
         builder.LoadFromJson($$"""
             { "name": "Doc", "members": [ { "name": "Root", "kind": "{{kind}}", "members": [
-              { "name": "Flags", "kind": "packedGroup", "byteLength": 1,
+              { "name": "Flags", "kind": "packed", "byteLength": 1,
                 "members": [ { "name": "Mode", "kind": "field", "datatype": "sys.uint8" } ] }
             ] } ] }
             """);
@@ -176,7 +209,7 @@ public class PackedGroupSchemaTests
     {
         var builder = new SchemaSetBuilder();
         builder.LoadFromJson("""
-            { "name": "Doc", "members": [ { "name": "Flags", "kind": "packedGroup", "members": [] } ] }
+            { "name": "Doc", "members": [ { "name": "Flags", "kind": "packed", "members": [] } ] }
             """);
 
         var packed = (SchemaPackedGroup)builder.Compile().FindByPath("Doc.Flags");
@@ -191,20 +224,20 @@ public class PackedGroupSchemaTests
     {
         var builder = new SchemaSetBuilder();
         builder.LoadFromJson($$"""
-            { "name": "Doc", "members": [ { "name": "Flags", "kind": "packedGroup"{{length}}, "members": [] } ] }
+            { "name": "Doc", "members": [ { "name": "Flags", "kind": "packed"{{length}}, "members": [] } ] }
             """);
         Assert.That(() => builder.Compile(), Throws.InvalidOperationException.With.Message.Contains(message));
     }
 
     [TestCase("group")]
-    [TestCase("packedGroup")]
+    [TestCase("packed")]
     [TestCase("repeat")]
     [TestCase("choice")]
     public void Compile_StructuralChild_Fails(string kind)
     {
         var builder = new SchemaSetBuilder();
         builder.LoadFromJson($$"""
-            { "name": "Doc", "members": [ { "name": "Flags", "kind": "packedGroup", "byteLength": 1,
+            { "name": "Doc", "members": [ { "name": "Flags", "kind": "packed", "byteLength": 1,
               "members": [ { "name": "Nested", "kind": "{{kind}}", "byteLength": 1, "members": [] } ] } ] }
             """);
         Assert.That(() => builder.Compile(), Throws.InvalidOperationException.With.Message.Contains("can only contain fields"));
@@ -218,11 +251,11 @@ public class PackedGroupSchemaTests
     {
         var builder = new SchemaSetBuilder();
         builder.LoadFromJson($$"""
-            { "name": "Doc", "nodeDefs": [ { "name": "Fields", "kind": "packedGroup", "members": [
+            { "name": "Doc", "nodeDefs": [ { "name": "Fields", "kind": "packed", "members": [
                 { "name": "Mode", "kind": "field", "datatype": "sys.uint8", {{attribute}} }
               ] } ],
               "members": [ { "name": "Root", "kind": "group", "members": [
-                { "name": "Flags", "kind": "packedGroup", "byteLength": 1, "nodeDef": "Fields" }
+                { "name": "Flags", "kind": "packed", "byteLength": 1, "nodeDef": "Fields" }
               ] } ] }
             """);
         Assert.That(() => builder.Compile(), Throws.InvalidOperationException.With.Message.Contains("cannot declare byteLength or byteOffset"));
@@ -257,17 +290,17 @@ public class PackedGroupSchemaTests
     {
         var xml = $"""
             <schema name="Doc">
-              <nodeDefs><packedGroup name="FlagsDef"><members>
+              <nodeDefs><packed name="FlagsDef"><members>
                 <field name="Mode" datatype="sys.uint8" />
-              </members></packedGroup></nodeDefs>
+              </members></packed></nodeDefs>
               <members>
-                <packedGroup name="Flags" nodeDef="FlagsDef" {attribute}>{element}</packedGroup>
+                <packed name="Flags" nodeDef="FlagsDef" {attribute}>{element}</packed>
                 <group name="Root"><members>
                   <field name="Length" datatype="sys.uint8" />
                   <repeat name="Items" count="2"><members>
-                    <packedGroup name="Flags" byteLength="1"><members>
+                    <packed name="Flags" byteLength="1"><members>
                       <field name="Mode" datatype="sys.uint8" />
-                    </members></packedGroup>
+                    </members></packed>
                   </members></repeat>
                 </members></group>
               </members>
@@ -283,7 +316,7 @@ public class PackedGroupSchemaTests
     {
         var xml = $"""
             <schema name="Doc"><members>
-              <packedGroup name="Flags" {attribute}><members>{member}</members></packedGroup>
+              <packed name="Flags" {attribute}><members>{member}</members></packed>
             </members></schema>
             """;
         Assert.That(() => ValidateXml(xml), Throws.TypeOf<System.Xml.Schema.XmlSchemaValidationException>());

@@ -29,7 +29,7 @@ read:  input -> (stream, whole message) -> layout -> field -> value
 
 ### Packing
 
-A `packedGroup` requires exactly one `IPackingProcessor` with `Stage = PipelineStage.Packing`. The pipeline collects it from the node's flat processor list but never inherits it into children. There is no default packer and no packing chain.
+A `packed` node requires exactly one `IPackingProcessor` with `Stage = PipelineStage.Packing`. The pipeline collects it from the node's flat processor list but never inherits it into children. There is no default packer and no packing chain.
 
 `Write` accepts ordered `LogicalField` values after child value processing and returns one `EncodedField` carrier with `BitsWritten`. `Read` accepts the carrier and returns one logical field per descriptor in declaration order, with `BitsConsumed`, before reverse child value processing. Bit counts describe the byte-aligned carrier, including packing padding, not separate child representations.
 
