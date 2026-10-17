@@ -156,7 +156,7 @@ public static class YamlSerializer
     {
         var node = new YamlScalarNode(text);
         // plain scalars that would read back as a non-string (or are unsafe) need quoting.
-        var readsAsString = ToJsonScalar(new YamlScalarNode(text)) is JsonValue v
+        var readsAsString = ToJsonScalar(new YamlScalarNode(text) { Style = ScalarStyle.Plain }) is JsonValue v
             && v.GetValueKind() == JsonValueKind.String;
         if (!readsAsString || NeedsQuotes(text))
         {

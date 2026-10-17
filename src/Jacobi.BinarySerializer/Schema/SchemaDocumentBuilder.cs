@@ -1,4 +1,5 @@
 using Jacobi.BinarySerializer.Processor;
+using Jacobi.BinarySerializer.Schema.Editing;
 
 namespace Jacobi.BinarySerializer.Schema;
 
@@ -8,21 +9,62 @@ namespace Jacobi.BinarySerializer.Schema;
 public sealed class SchemaDocumentBuilder
 {
     private readonly string _name;
-    // TODO: support multiple roots, but for now we only support one root group.
     private readonly GroupBuilder _root = new();
     private readonly List<SchemaNodeDef> _nodeDefs = [];
     private readonly List<SchemaDataTypeDef> _dataTypeDefs = [];
     private readonly List<SchemaProcessorDef> _processorDefs = [];
     private readonly List<SchemaDocumentRef> _includes = [];
+    private readonly SchemaDocument? _template;
 
     public SchemaDocumentBuilder(string name)
     {
         _name = name;
     }
 
-    public SchemaDocumentBuilder Field(string name, string? dataType = "sys.uint8", string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
+    public SchemaDocumentBuilder(SchemaDocument document)
     {
-        _root.Field(name, dataType, nodeDef, processors);
+        _template = EditNodeMapper.ToSchemaDocument(EditNodeMapper.ToEditDocument(document));
+        _name = _template.Name;
+        _root.Members.AddRange(_template.Members);
+        _nodeDefs.AddRange(_template.NodeDefs);
+        _dataTypeDefs.AddRange(_template.DataTypeDefs);
+        _processorDefs.AddRange(_template.ProcessorDefs);
+        _includes.AddRange(_template.Includes);
+    }
+
+    public SchemaDocumentBuilder(EditDocument document)
+        : this(EditNodeMapper.ToSchemaDocument(document))
+    {
+    }
+
+    public SchemaDocumentBuilder VirtualField(string name, string dataType, int byteOffset = 0, Action<ProcessorBuilder>? processors = null)
+    {
+        _root.VirtualField(name, dataType, byteOffset, processors);
+        return this;
+    }
+
+    public SchemaDocumentBuilder OpenChoice(string name, string memberNodeDef, SchemaPipelineMode pipeline = SchemaPipelineMode.Integrate)
+    {
+        _root.OpenChoice(name, memberNodeDef, pipeline);
+        return this;
+    }
+
+    public SchemaDocumentBuilder SizedGroup(string name, SchemaValueOrRef<int> byteSize, Action<GroupBuilder>? members = null, Action<ProcessorBuilder>? processors = null)
+    {
+        _root.SizedGroup(name, byteSize, members, processors);
+        return this;
+    }
+
+    public SchemaDocumentBuilder RepeatToEnd(string name, Action<GroupBuilder>? members = null, SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? processors = null)
+    {
+        _root.RepeatToEnd(name, members, byteSize, processors);
+        return this;
+    }
+
+    public SchemaDocumentBuilder Field(string name, string? dataType = "sys.uint8", string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
+        SchemaValueOrRef<string> value = default, SchemaValueOrRef<int> byteLength = default, int? byteOffset = null)
+    {
+        _root.Field(name, dataType, nodeDef, processors, value, byteLength, byteOffset);
         return this;
     }
     public SchemaDocumentBuilder BytesField(string name, int byteLength, Action<ProcessorBuilder>? processors = null)
@@ -31,27 +73,31 @@ public sealed class SchemaDocumentBuilder
         return this;
     }
 
-    public SchemaDocumentBuilder Group(string name, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
+    public SchemaDocumentBuilder Group(string name, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
+        SchemaValueOrRef<int> byteSize = default)
     {
-        _root.Group(name, members, nodeDef, processors);
+        _root.Group(name, members, nodeDef, processors, byteSize);
         return this;
     }
 
-    public SchemaDocumentBuilder PackedGroup(string name, SchemaValueOrRef<int> byteLength, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
+    public SchemaDocumentBuilder PackedGroup(string name, SchemaValueOrRef<int> byteLength = default, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
+        SchemaValueOrRef<int> byteSize = default)
     {
-        _root.PackedGroup(name, byteLength, members, nodeDef, processors);
+        _root.PackedGroup(name, byteLength, members, nodeDef, processors, byteSize);
         return this;
     }
 
-    public SchemaDocumentBuilder Repeat(string name, SchemaValueOrRef<int> count, Action<GroupBuilder>? configure = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
+    public SchemaDocumentBuilder Repeat(string name, SchemaValueOrRef<int> count, Action<GroupBuilder>? configure = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
+        SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? valueProcessors = null)
     {
-        _root.Repeat(name, count, configure, nodeDef, processors);
+        _root.Repeat(name, count, configure, nodeDef, processors, byteSize, valueProcessors);
         return this;
     }
 
-    public SchemaDocumentBuilder Choice(string name, SchemaValueOrRef<int> selectedIndex, Action<GroupBuilder>? configure = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
+    public SchemaDocumentBuilder Choice(string name, SchemaValueOrRef<int> selectedIndex, Action<GroupBuilder>? configure = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
+        SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? valueProcessors = null)
     {
-        _root.Choice(name, selectedIndex, configure, nodeDef, processors);
+        _root.Choice(name, selectedIndex, configure, nodeDef, processors, byteSize, valueProcessors);
         return this;
     }
 
@@ -127,6 +173,10 @@ public sealed class SchemaDocumentBuilder
         var document = new SchemaDocument
         {
             Name = _name,
+            NodeDef = _template?.NodeDef,
+            ByteSize = _template is null ? default : _template.ByteSize,
+            PropertyList = _template?.Properties.ToList() ?? [],
+            ProcessorsList = _template?.Processors.ToList() ?? [],
             NodeDefs = _nodeDefs,
             DataTypeDefs = _dataTypeDefs,
             ProcessorDefs = _processorDefs,
@@ -136,7 +186,7 @@ public sealed class SchemaDocumentBuilder
             Fields = fields,
         };
         document.MemberList.AddRange(_root.Members);
-        return document;
+        return EditNodeMapper.ToSchemaDocument(EditNodeMapper.ToEditDocument(document));
     }
 
     private static void Collect(SchemaNode node, List<SchemaGroup> groups, List<SchemaField> fields)
@@ -178,13 +228,37 @@ public sealed class SchemaDocumentBuilder
     {
         internal List<SchemaNode> Members { get; } = [];
 
-        public GroupBuilder Field(string name, string? dataType = "sys.uint8", string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
+        public GroupBuilder VirtualField(string name, string dataType, int byteOffset = 0, Action<ProcessorBuilder>? processors = null)
+        {
+            var field = new SchemaField { Name = name, DataType = new SchemaName(dataType), ByteOffset = byteOffset };
+            field.ProcessorsList.AddRange(CreateProcessorRefs(processors));
+            Members.Add(field);
+            return this;
+        }
+
+        public GroupBuilder OpenChoice(string name, string memberNodeDef, SchemaPipelineMode pipeline = SchemaPipelineMode.Integrate)
+        {
+            Members.Add(new SchemaChoice { Name = name, MemberNodeDef = new SchemaName(memberNodeDef), Pipeline = pipeline });
+            return this;
+        }
+
+        public GroupBuilder SizedGroup(string name, SchemaValueOrRef<int> byteSize, Action<GroupBuilder>? members = null, Action<ProcessorBuilder>? processors = null)
+            => Add(new SchemaGroup { Name = name, ByteSize = byteSize }, members, processors);
+
+        public GroupBuilder RepeatToEnd(string name, Action<GroupBuilder>? members = null, SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? processors = null)
+            => Add(new SchemaRepeat { Name = name, ByteSize = byteSize }, members, processors);
+
+        public GroupBuilder Field(string name, string? dataType = "sys.uint8", string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
+            SchemaValueOrRef<string> value = default, SchemaValueOrRef<int> byteLength = default, int? byteOffset = null)
         {
             var field = new SchemaField
             {
                 Name = name,
                 DataType = SchemaName(dataType),
                 NodeDef = SchemaName(nodeDef),
+                Value = value,
+                ByteLength = byteLength,
+                ByteOffset = byteOffset,
             };
             field.ProcessorsList.AddRange(CreateProcessorRefs(processors));
             Members.Add(field);
@@ -204,20 +278,32 @@ public sealed class SchemaDocumentBuilder
             return this;
         }
 
-        public GroupBuilder Group(string name, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
-            => Add(new SchemaGroup { Name = name, NodeDef = SchemaName(nodeDef) }, members, processors);
+        public GroupBuilder Group(string name, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
+            SchemaValueOrRef<int> byteSize = default)
+            => Add(new SchemaGroup { Name = name, NodeDef = SchemaName(nodeDef), ByteSize = byteSize }, members, processors);
 
-        public GroupBuilder PackedGroup(string name, SchemaValueOrRef<int> byteLength, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
-            => Add(new SchemaPackedGroup { Name = name, ByteLength = byteLength, NodeDef = SchemaName(nodeDef) }, members, processors);
+        public GroupBuilder PackedGroup(string name, SchemaValueOrRef<int> byteLength = default, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
+            SchemaValueOrRef<int> byteSize = default)
+            => Add(new SchemaPackedGroup { Name = name, ByteLength = byteLength, NodeDef = SchemaName(nodeDef), ByteSize = byteSize }, members, processors);
 
-        public GroupBuilder Repeat(string name, SchemaValueOrRef<int> count, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
-            => Add(new SchemaRepeat { Name = name, Count = count, NodeDef = SchemaName(nodeDef) }, members, processors);
+        public GroupBuilder Repeat(string name, SchemaValueOrRef<int> count, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
+            SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? valueProcessors = null)
+            => Add(new SchemaRepeat
+            {
+                Name = name, Count = count, NodeDef = SchemaName(nodeDef), ByteSize = byteSize,
+                ValueProcessorsList = CreateProcessorRefs(valueProcessors)
+            }, members, processors);
 
         /// <summary>
         /// The members of a choice are its alternatives (typically groups).
         /// </summary>
-        public GroupBuilder Choice(string name, SchemaValueOrRef<int> selectedIndex, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null)
-            => Add(new SchemaChoice { Name = name, SelectedIndex = selectedIndex, NodeDef = SchemaName(nodeDef) }, members, processors);
+        public GroupBuilder Choice(string name, SchemaValueOrRef<int> selectedIndex, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
+            SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? valueProcessors = null)
+            => Add(new SchemaChoice
+            {
+                Name = name, SelectedIndex = selectedIndex, NodeDef = SchemaName(nodeDef), ByteSize = byteSize,
+                ValueProcessorsList = CreateProcessorRefs(valueProcessors)
+            }, members, processors);
 
         private GroupBuilder Add(SchemaGroup group, Action<GroupBuilder>? members, Action<ProcessorBuilder>? processors = null)
         {

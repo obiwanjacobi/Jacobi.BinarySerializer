@@ -9,6 +9,38 @@ A schema describes the structure of a binary format: which fields exist, in what
 - A document has one or more **roots**. A root is a group that is selected by name when the serializer asks for an `ExecutionPlan`.
 - The schema is data: it holds no logic. Everything that is not plain structure is expressed by a **processor** (with properties) or by a **reference**.
 
+## Editing and snapshots
+
+`Schema.Editing` contains the mutable authoring model: `EditDocument`, `EditNode`,
+typed field/group/repeat/choice/packed-group nodes, definitions, processors and properties.
+It has no UI dependencies or change notifications; selection, validation messages and
+binding notifications belong to the editor's view models.
+
+Load through the existing format reader, then call `EditNodeMapper.ToEditDocument(document)`.
+Edit that draft as the source of truth. Call `new SchemaDocumentBuilder(draft).Build()`
+or `EditNodeMapper.ToSchemaDocument(draft)` to create an independent, uncompiled snapshot
+for saving or runtime compilation. No ongoing two-way synchronization is required.
+`ToEditNode` and `ToSchemaNode` perform the corresponding node-level conversions.
+
+The mapping preserves authored properties (including null values), definitions, includes,
+processor publish namespaces, and unset/literal/node-reference/published-reference distinctions.
+Derived indexes are rebuilt; resolved references and compiled state are not copied.
+Importing a compiled document is rejected: compilation may have expanded inherited members
+and properties, so keep the uncompiled source document or draft for editing.
+
+The builder can also import an existing uncompiled `SchemaDocument`. Builds are independent
+snapshots, including when more nodes are appended after an earlier build.
+`VirtualField`, `OpenChoice`, `SizedGroup` and `RepeatToEnd` name special authoring cases.
+Field values/lengths, group sizes and repeat/choice value processors are available as typed
+optional arguments. An omitted packed-group length remains unset (effective default: 1).
+Building does not replace `SchemaSet.Compile()` validation or permit incomplete drafts at runtime.
+
+Status:
+- [x] Mutable authoring model and bidirectional schema mapping.
+- [x] Builder import and typed special-case configuration.
+- [x] JSON/XML/YAML round-trip and snapshot-isolation tests.
+- [ ] Connect the MIDI schema editor's commands and persistence to the authoring model.
+
 ## Document layout
 
 | Section | Purpose |
