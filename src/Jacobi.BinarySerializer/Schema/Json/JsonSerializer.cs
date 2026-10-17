@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Jacobi.BinarySerializer.Schema.Json;
 
-internal static class JsonSerializer
+public static class JsonSerializer
 {
     public static SchemaDocument Deserialize(string json)
     {

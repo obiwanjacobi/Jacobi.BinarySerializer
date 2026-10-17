@@ -4,7 +4,7 @@ using System.Xml.Linq;
 
 namespace Jacobi.BinarySerializer.Schema.Xml;
 
-internal static class XmlSerializer
+public static class XmlSerializer
 {
     public static SchemaDocument Deserialize(string xml)
     {
@@ -34,7 +34,9 @@ internal static class XmlSerializer
         using var stringWriter = new StringWriter();
         using (var writer = XmlWriter.Create(stringWriter, settings))
         {
-            serializer.Serialize(writer, xmlSchema);
+            var namespaces = new System.Xml.Serialization.XmlSerializerNamespaces();
+            namespaces.Add(String.Empty, String.Empty);
+            serializer.Serialize(writer, xmlSchema, namespaces);
         }
 
         return AttributeToNil(stringWriter.ToString());
@@ -47,6 +49,27 @@ internal static class XmlSerializer
     private static string NilToAttribute(string xml)
     {
         var document = XDocument.Parse(xml);
+        foreach (var node in document.Descendants().Where(element => element.Name.LocalName is "schema" or "nodeDef" or "dataTypeDef" or "field" or "group" or "packedGroup" or "repeat" or "choice").ToList())
+        {
+            var processors = node.Elements().Where(element => element.Name.LocalName == "processor"
+                || element.Name.LocalName == "processors").ToList();
+            if (processors.Count == 0)
+            {
+                continue;
+            }
+            var entries = processors.SelectMany(element => element.Name.LocalName == "processor"
+                ? new[] { element }
+                : element.Elements()).Select(element => new XElement(element)).ToList();
+            processors.Remove();
+            if (node.Name.LocalName == "field")
+            {
+                node.Add(entries);
+            }
+            else
+            {
+                node.Add(new XElement("processors", entries));
+            }
+        }
         foreach (var property in document.Descendants().Where(e => e.Name.LocalName == "property").ToList())
         {
             var nil = property.Attribute(Xsi + "nil");

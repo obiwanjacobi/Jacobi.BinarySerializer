@@ -35,11 +35,17 @@ Field values/lengths, group sizes and repeat/choice value processors are availab
 optional arguments. An omitted packed-group length remains unset (effective default: 1).
 Building does not replace `SchemaSet.Compile()` validation or permit incomplete drafts at runtime.
 
+XML DTO collections are nullable: the mapper writes empty collections as null so the framework
+serializer omits their containers. Missing and explicitly empty XML collections map to the same
+non-null empty schema collections. No element-name-based output cleanup is required.
+
 Status:
 - [x] Mutable authoring model and bidirectional schema mapping.
 - [x] Builder import and typed special-case configuration.
 - [x] JSON/XML/YAML round-trip and snapshot-isolation tests.
-- [ ] Connect the MIDI schema editor's commands and persistence to the authoring model.
+- [x] Connect the MIDI schema editor's commands and persistence to the authoring model.
+- [x] Accept inline/wrapped XML processor declarations and omit empty generated collections/unused namespaces.
+- [x] Preserve loaded XML comments and presentation in the MIDI editor without adding source trivia to runtime schema nodes.
 
 ## Document layout
 

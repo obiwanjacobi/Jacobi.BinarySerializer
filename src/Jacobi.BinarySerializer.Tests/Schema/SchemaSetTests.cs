@@ -5,6 +5,29 @@ namespace Jacobi.BinarySerializer.Tests.Schema;
 
 public class SchemaSetTests
 {
+        [Test]
+        public void Compile_NodeDefByteLength_IsInheritedUnlessFieldOverridesIt()
+        {
+                var builder = new SchemaSetBuilder();
+                var document = builder.LoadFromXml("""
+                        <schema name="Test">
+                            <nodeDefs><nodeDef name="Payload" kind="field" datatype="sys.bytes" byteLength="2" /></nodeDefs>
+                            <members><group name="Root"><members>
+                                <field name="Inherited" nodeDef="Payload" />
+                                <field name="Override" nodeDef="Payload" byteLength="3" />
+                            </members></group></members>
+                        </schema>
+                        """);
+
+                builder.Compile();
+
+                var inherited = document.Fields.Single(field => field.Name == "Inherited");
+                var overridden = document.Fields.Single(field => field.Name == "Override");
+                Assert.That(inherited.ByteLength is int length && length == 2, Is.True);
+                Assert.That(overridden.ByteLength is int overrideLength && overrideLength == 3, Is.True);
+                Assert.That(inherited.Properties.Any(property => property.Name == "byteLength"), Is.False);
+        }
+
     [Test]
     public void FindNode_NestedPath_ReturnsNode()
     {

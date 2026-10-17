@@ -15,31 +15,31 @@ public sealed class XmlSchema
     [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
-    public List<XmlSchemaNode> Members { get; set; } = [];
+    public List<XmlSchemaNode>? Members { get; set; }
 
     [XmlArray("nodeDefs")]
     [XmlArrayItem("nodeDef")]
-    public List<XmlSchemaNodeDef> NodeDefs { get; set; } = [];
+    public List<XmlSchemaNodeDef>? NodeDefs { get; set; }
 
     [XmlArray("dataTypeDefs")]
     [XmlArrayItem("dataTypeDef")]
-    public List<XmlSchemaDataTypeDef> DataTypeDefs { get; set; } = [];
+    public List<XmlSchemaDataTypeDef>? DataTypeDefs { get; set; }
 
     [XmlArray("processors")]
     [XmlArrayItem("processor")]
-    public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
+    public List<XmlSchemaProcessorRef>? Processors { get; set; }
 
     [XmlArray("processorDefs")]
     [XmlArrayItem("processor")]
-    public List<XmlSchemaProcessorDef> ProcessorDefs { get; set; } = [];
+    public List<XmlSchemaProcessorDef>? ProcessorDefs { get; set; }
 
     [XmlArray("includes")]
     [XmlArrayItem("include")]
-    public List<XmlSchemaDocumentRef> Includes { get; set; } = [];
+    public List<XmlSchemaDocumentRef>? Includes { get; set; }
 
     [XmlArray("properties")]
     [XmlArrayItem("property")]
-    public List<XmlSchemaProperty> Properties { get; set; } = [];
+    public List<XmlSchemaProperty>? Properties { get; set; }
 
     [XmlAnyAttribute]
     public XmlAttribute[]? AdditionalAttributes { get; set; }
@@ -77,11 +77,11 @@ public sealed class XmlSchemaDataTypeDef
 
     [XmlArray("processors")]
     [XmlArrayItem("processor")]
-    public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
+    public List<XmlSchemaProcessorRef>? Processors { get; set; }
 
     [XmlArray("properties")]
     [XmlArrayItem("property")]
-    public List<XmlSchemaProperty> Properties { get; set; } = [];
+    public List<XmlSchemaProperty>? Properties { get; set; }
 
     [XmlAnyAttribute]
     public XmlAttribute[]? AdditionalAttributes { get; set; }
@@ -118,7 +118,7 @@ public sealed class XmlSchemaNodeDef
 
     [XmlArray("processors")]
     [XmlArrayItem("processor")]
-    public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
+    public List<XmlSchemaProcessorRef>? Processors { get; set; }
 
     [XmlArray("members")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
@@ -126,11 +126,11 @@ public sealed class XmlSchemaNodeDef
     [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
-    public List<XmlSchemaNode> Members { get; set; } = [];
+    public List<XmlSchemaNode>? Members { get; set; }
 
     [XmlArray("properties")]
     [XmlArrayItem("property")]
-    public List<XmlSchemaProperty> Properties { get; set; } = [];
+    public List<XmlSchemaProperty>? Properties { get; set; }
 
     [XmlAnyAttribute]
     public XmlAttribute[]? AdditionalAttributes { get; set; }
@@ -152,7 +152,7 @@ public abstract class XmlSchemaNode
 
     [XmlArray("properties")]
     [XmlArrayItem("property")]
-    public List<XmlSchemaProperty> Properties { get; set; } = [];
+    public List<XmlSchemaProperty>? Properties { get; set; }
 
     [XmlAnyAttribute]
     public XmlAttribute[]? AdditionalAttributes { get; set; }
@@ -164,7 +164,7 @@ public abstract class XmlSchemaNode
 public sealed class XmlSchemaField : XmlSchemaNode
 {
     [XmlElement("processor")]
-    public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
+    public List<XmlSchemaProcessorRef>? Processors { get; set; }
 
     [XmlAttribute("datatype")]
     public string? DataType { get; set; }
@@ -192,7 +192,7 @@ public class XmlSchemaGroup : XmlSchemaNode
 {
     [XmlArray("processors")]
     [XmlArrayItem("processor")]
-    public List<XmlSchemaProcessorRef> Processors { get; set; } = [];
+    public List<XmlSchemaProcessorRef>? Processors { get; set; }
 
     [XmlArray("members")]
     [XmlArrayItem("field", typeof(XmlSchemaField))]
@@ -200,7 +200,7 @@ public class XmlSchemaGroup : XmlSchemaNode
     [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
     [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
     [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
-    public List<XmlSchemaNode> Members { get; set; } = [];
+    public List<XmlSchemaNode>? Members { get; set; }
 
     /// <summary>A constant size in bytes (attribute); use <see cref="ByteSizeRef"/> to refer to a value.</summary>
     [XmlAttribute("byteSize")]
@@ -230,7 +230,7 @@ public sealed class XmlSchemaProcessorDef
 
     [XmlArray("properties")]
     [XmlArrayItem("property")]
-    public List<XmlSchemaProperty> Properties { get; set; } = [];
+    public List<XmlSchemaProperty>? Properties { get; set; }
 
     [XmlAnyAttribute]
     public XmlAttribute[]? AdditionalAttributes { get; set; }
@@ -250,7 +250,7 @@ public sealed class XmlSchemaProcessorRef
 
     [XmlArray("properties")]
     [XmlArrayItem("property")]
-    public List<XmlSchemaProperty> Properties { get; set; } = [];
+    public List<XmlSchemaProperty>? Properties { get; set; }
 
     [XmlAnyAttribute]
     public XmlAttribute[]? AdditionalAttributes { get; set; }
@@ -279,7 +279,7 @@ public sealed class XmlSchemaRepeat : XmlSchemaGroup
 
     [XmlArray("valueProcessors")]
     [XmlArrayItem("processor")]
-    public List<XmlSchemaProcessorRef> ValueProcessors { get; set; } = [];
+    public List<XmlSchemaProcessorRef>? ValueProcessors { get; set; }
 }
 
 public sealed class XmlSchemaChoice : XmlSchemaGroup
@@ -299,7 +299,7 @@ public sealed class XmlSchemaChoice : XmlSchemaGroup
 
     [XmlArray("valueProcessors")]
     [XmlArrayItem("processor")]
-    public List<XmlSchemaProcessorRef> ValueProcessors { get; set; } = [];
+    public List<XmlSchemaProcessorRef>? ValueProcessors { get; set; }
 }
 
 public sealed class XmlSchemaValueRef

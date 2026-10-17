@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using Jacobi.BinarySerializer.Schema;
 using Jacobi.BinarySerializer.Schema.Xml;
 
@@ -5,6 +6,106 @@ namespace Jacobi.BinarySerializer.Tests.Schema;
 
 public class XmlSerializerTests
 {
+  [Test]
+  public void Serialize_OmitsUnusedNamespacesAndEmptyCollections()
+  {
+    var schema = new SchemaDocumentBuilder("Test").Group("Root", group => group.Field("Value")).Build();
+    var text = XmlSerializer.Serialize(schema);
+    Assert.That(text, Does.Not.Contain("xmlns:xsi").And.Not.Contain("xmlns:xsd"));
+    var xml = XDocument.Parse(text);
+    Assert.That(xml.Descendants().Where(element => !element.HasAttributes && !element.HasElements), Is.Empty);
+    var restored = XmlSerializer.Deserialize(text);
+    Assert.That(restored.Fields.Single().Name, Is.EqualTo("Value"));
+  }
+
+    [Test]
+    public void RoundTrip_AbsentAndEmptyCollectionsAreEquivalent()
+    {
+        const string source = """
+            <schema name="Test">
+              <includes />
+              <properties />
+              <nodeDefs><nodeDef name="Body" kind="group"><processors /><members /><properties /></nodeDef></nodeDefs>
+              <dataTypeDefs><dataTypeDef name="Scaled" basedOn="sys.int16"><options /><processors /><properties /></dataTypeDef></dataTypeDefs>
+              <processorDefs><processor name="Scale" processor="sys.scale"><properties /></processor></processorDefs>
+              <members><group name="Root">
+                <properties />
+                <processors><processor name="sys.align"><properties /></processor></processors>
+                <members>
+                  <field name="Value" datatype="sys.uint8"><properties /><processor name="sys.scale"><properties /></processor></field>
+                  <packedGroup name="Flags"><members /><processors /><properties /></packedGroup>
+                  <repeat name="Items"><members /><processors /><properties /><valueProcessors /></repeat>
+                  <choice name="Variant"><members /><processors /><properties /><valueProcessors /></choice>
+                </members>
+              </group></members>
+            </schema>
+            """;
+        var withoutEmpty = XDocument.Parse(source);
+        withoutEmpty.Descendants().Where(element => !element.HasAttributes && !element.HasElements
+            && String.IsNullOrWhiteSpace(element.Value)).Remove();
+        var fromEmpty = XmlSerializer.Deserialize(source);
+        var fromAbsent = XmlSerializer.Deserialize(withoutEmpty.ToString());
+
+        Assert.That(XmlSerializer.Serialize(fromEmpty), Is.EqualTo(XmlSerializer.Serialize(fromAbsent)));
+        foreach (var schema in new[] { fromEmpty, fromAbsent })
+        {
+            Assert.That(schema.Includes, Is.Empty);
+            Assert.That(schema.Properties, Is.Empty);
+            Assert.That(schema.NodeDefs.Single().Members, Is.Empty);
+            Assert.That(schema.NodeDefs.Single().Processors, Is.Empty);
+            Assert.That(schema.DataTypeDefs.Single().Options, Is.Null);
+            Assert.That(schema.DataTypeDefs.Single().Processors, Is.Empty);
+            Assert.That(schema.ProcessorDefs.Single().Properties, Is.Empty);
+            var root = schema.Roots.Single();
+            Assert.That(root.Processors.Single().Properties, Is.Empty);
+            Assert.That(schema.Fields.Single().Processors.Single().Properties, Is.Empty);
+            foreach (var group in root.Members.OfType<SchemaGroup>())
+            {
+                Assert.That(group.Members, Is.Empty);
+                Assert.That(group.Processors, Is.Empty);
+                Assert.That(group.Properties, Is.Empty);
+            }
+            Assert.That(root.Members.OfType<SchemaRepeat>().Single().ValueProcessors, Is.Empty);
+            Assert.That(root.Members.OfType<SchemaChoice>().Single().ValueProcessors, Is.Empty);
+        }
+        var dto = XmlSchemaMapper.FromSchema(fromEmpty);
+        Assert.That(dto.Includes, Is.Null);
+        Assert.That(dto.Properties, Is.Null);
+        var nodeDefinition = dto.NodeDefs!.Single();
+        Assert.That(nodeDefinition.Members, Is.Null);
+        Assert.That(nodeDefinition.Processors, Is.Null);
+        Assert.That(dto.DataTypeDefs!.Single().Options, Is.Null);
+        Assert.That(dto.ProcessorDefs!.Single().Properties, Is.Null);
+    }
+
+    [Test]
+    public void RoundTrip_PreservesInlineNodeDefAndWrappedFieldProcessors()
+    {
+        var document = XmlSerializer.Deserialize("""
+            <schema name="Roland">
+              <nodeDefs>
+                <nodeDef name="sysex16" kind="field" datatype="sys.uint16" byteLength="2">
+                  <processor name="ref:midi.sysexbyte" />
+                </nodeDef>
+              </nodeDefs>
+              <members><group name="Message"><members>
+                <field name="Address" nodeDef="sysex16">
+                  <processors><processor name="sys.scale" scale="2" /></processors>
+                </field>
+              </members></group></members>
+            </schema>
+            """);
+        var restored = XmlSerializer.Deserialize(XmlSerializer.Serialize(document));
+        foreach (var schema in new[] { document, restored })
+        {
+            var definition = schema.NodeDefs.Single();
+            Assert.That(definition.Processors.Single().Processor.ToString(), Is.EqualTo("ref:midi.sysexbyte"));
+            Assert.That(definition.Properties.Any(property => property.Name == "processor"), Is.False);
+            Assert.That(definition.Properties.Single(property => property.Name == "byteLength").Value, Is.EqualTo("2"));
+            Assert.That(schema.Fields.Single().Processors.Single().Processor.ToString(), Is.EqualTo("sys.scale"));
+        }
+    }
+
     [Test]
     public void Deserialize_MinimalSchema_AreDeserialized()
     {

@@ -123,10 +123,10 @@ internal static class XmlSchemaMapper
         {
             Name = xmlSchema.Name,
             MemberList = members,
-            NodeDefs = xmlSchema.NodeDefs.Select(ToSchemaNodeDef).ToList(),
-            DataTypeDefs = xmlSchema.DataTypeDefs.Select(ToSchemaDataTypeDef).ToList(),
-            ProcessorDefs = xmlSchema.ProcessorDefs.Select(ToSchemaProcessorDef).ToList(),
-            Includes = xmlSchema.Includes.Select(include => new SchemaDocumentRef
+            NodeDefs = (xmlSchema.NodeDefs ?? []).Select(ToSchemaNodeDef).ToList(),
+            DataTypeDefs = (xmlSchema.DataTypeDefs ?? []).Select(ToSchemaDataTypeDef).ToList(),
+            ProcessorDefs = (xmlSchema.ProcessorDefs ?? []).Select(ToSchemaProcessorDef).ToList(),
+            Includes = (xmlSchema.Includes ?? []).Select(include => new SchemaDocumentRef
             {
                 Schema = include.Schema,
                 Path = include.Path
@@ -142,7 +142,7 @@ internal static class XmlSchemaMapper
             Groups = [],
         };
 
-        foreach (var child in xmlSchema.Members)
+        foreach (var child in xmlSchema.Members ?? [])
         {
             var node = ToSchemaNode(child, false);
             if (node is SchemaGroup group)
@@ -159,16 +159,16 @@ internal static class XmlSchemaMapper
         return new XmlSchema
         {
             Name = schema.Name,
-            Members = schema.Members.Select(FromSchemaNode).ToList(),
-            NodeDefs = schema.NodeDefs.Select(FromSchemaNodeDef).ToList(),
-            DataTypeDefs = schema.DataTypeDefs.Select(FromSchemaDataTypeDef).ToList(),
-            ProcessorDefs = schema.ProcessorDefs.Select(FromSchemaProcessorDef).ToList(),
-            Includes = schema.Includes.Select(include => new XmlSchemaDocumentRef
+            Members = ToXmlList(schema.Members, FromSchemaNode),
+            NodeDefs = ToXmlList(schema.NodeDefs, FromSchemaNodeDef),
+            DataTypeDefs = ToXmlList(schema.DataTypeDefs, FromSchemaDataTypeDef),
+            ProcessorDefs = ToXmlList(schema.ProcessorDefs, FromSchemaProcessorDef),
+            Includes = ToXmlList(schema.Includes, include => new XmlSchemaDocumentRef
             {
                 Schema = include.Schema,
                 Path = include.Path
-            }).ToList(),
-            Properties = schema.Properties.Select(FromSchemaProperty).ToList()
+            }),
+            Properties = ToXmlList(schema.Properties, FromSchemaProperty)
         };
     }
 
@@ -192,7 +192,7 @@ internal static class XmlSchemaMapper
         {
             Name = xmlField.Name,
             NodeDef = ToNodeDefName(xmlField.NodeDef),
-            ProcessorsList = xmlField.Processors.Select(ToSchemaProcessorRef).ToList(),
+            ProcessorsList = (xmlField.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
             DataType = xmlField.DataType is { } dataType ? new SchemaName(dataType) : (SchemaName?)null,
             Value = ToSchemaValueOrText(xmlField.Value, xmlField.ValueRef),
             ByteLength = ToSchemaValue(xmlField.ByteLength, xmlField.ByteLengthRef),
@@ -224,8 +224,10 @@ internal static class XmlSchemaMapper
             Max = ParseDecimal(xmlDef.Max),
             Scale = ParseDecimal(xmlDef.Scale),
             Shift = ParseDecimal(xmlDef.Shift),
-            Options = xmlDef.Options?.ToDictionary(o => Int64.Parse(o.Value, CultureInfo.InvariantCulture), o => o.Name),
-            Processors = xmlDef.Processors.Select(ToSchemaProcessorRef).ToList(),
+            Options = xmlDef.Options is { Count: > 0 } options
+                ? options.ToDictionary(option => Int64.Parse(option.Value, CultureInfo.InvariantCulture), option => option.Name)
+                : null,
+            Processors = (xmlDef.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
                 xmlDef.Properties,
                 xmlDef.AdditionalAttributes,
@@ -250,9 +252,9 @@ internal static class XmlSchemaMapper
             Max = FormatDecimal(def.Max),
             Scale = FormatDecimal(def.Scale),
             Shift = FormatDecimal(def.Shift),
-            Options = def.Options?.Select(o => new XmlSchemaOption { Value = o.Key.ToString(CultureInfo.InvariantCulture), Name = o.Value }).ToList(),
-            Processors = def.Processors.Select(FromSchemaProcessorRef).ToList(),
-            Properties = def.Properties.Select(FromSchemaProperty).ToList()
+            Options = ToXmlList(def.Options, option => new XmlSchemaOption { Value = option.Key.ToString(CultureInfo.InvariantCulture), Name = option.Value }),
+            Processors = ToXmlList(def.Processors, FromSchemaProcessorRef),
+            Properties = ToXmlList(def.Properties, FromSchemaProperty)
         };
     }
 
@@ -269,8 +271,8 @@ internal static class XmlSchemaMapper
             Name = xmlNodeDef.Name,
             Kind = ParseNodeDefKind(xmlNodeDef.Name, xmlNodeDef.Kind),
             DataType = dataType,
-            Processors = xmlNodeDef.Processors.Select(ToSchemaProcessorRef).ToList(),
-            MemberList = xmlNodeDef.Members.Select(m => ToSchemaNode(m, true)).ToList(),
+            Processors = (xmlNodeDef.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
+            MemberList = (xmlNodeDef.Members ?? []).Select(member => ToSchemaNode(member, true)).ToList(),
             PropertyList = MergeProperties(
                 xmlNodeDef.Properties,
                 xmlNodeDef.AdditionalAttributes,
@@ -287,7 +289,7 @@ internal static class XmlSchemaMapper
         {
             Name = xmlGroup.Name,
             NodeDef = ToNodeDefName(xmlGroup.NodeDef),
-            ProcessorsList = xmlGroup.Processors.Select(ToSchemaProcessorRef).ToList(),
+            ProcessorsList = (xmlGroup.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
             MemberList = members,
             ByteSize = ToSchemaValue(xmlGroup.ByteSize, xmlGroup.ByteSizeRef),
             PropertyList = MergeProperties(
@@ -297,7 +299,7 @@ internal static class XmlSchemaMapper
                 GroupKnownNames)
         };
 
-        foreach (var child in xmlGroup.Members)
+        foreach (var child in xmlGroup.Members ?? [])
         {
             members.Add(ToSchemaNode(child, true));
         }
@@ -311,8 +313,8 @@ internal static class XmlSchemaMapper
         {
             Name = packed.Name,
             NodeDef = ToNodeDefName(packed.NodeDef),
-            ProcessorsList = packed.Processors.Select(ToSchemaProcessorRef).ToList(),
-            MemberList = packed.Members.Select(m => ToSchemaNode(m, true)).ToList(),
+            ProcessorsList = (packed.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
+            MemberList = (packed.Members ?? []).Select(member => ToSchemaNode(member, true)).ToList(),
             ByteLength = ToSchemaValue(packed.ByteLength, packed.ByteLengthRef),
             ByteSize = ToSchemaValue(packed.ByteSize, packed.ByteSizeRef),
             PropertyList = MergeProperties(packed.Properties, packed.AdditionalAttributes, packed.AdditionalElements, PackedGroupKnownNames)
@@ -327,11 +329,11 @@ internal static class XmlSchemaMapper
         {
             Name = xmlRepeat.Name,
             NodeDef = ToNodeDefName(xmlRepeat.NodeDef),
-            ProcessorsList = xmlRepeat.Processors.Select(ToSchemaProcessorRef).ToList(),
+            ProcessorsList = (xmlRepeat.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
             MemberList = members,
             Count = ToSchemaValue(xmlRepeat.Count, xmlRepeat.CountRef),
             ByteSize = ToSchemaValue(xmlRepeat.ByteSize, xmlRepeat.ByteSizeRef),
-            ValueProcessorsList = xmlRepeat.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
+            ValueProcessorsList = (xmlRepeat.ValueProcessors ?? []).Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
                 xmlRepeat.Properties,
                 xmlRepeat.AdditionalAttributes,
@@ -339,7 +341,7 @@ internal static class XmlSchemaMapper
                 RepeatKnownNames)
         };
 
-        foreach (var child in xmlRepeat.Members)
+        foreach (var child in xmlRepeat.Members ?? [])
         {
             members.Add(ToSchemaNode(child, true));
         }
@@ -355,13 +357,13 @@ internal static class XmlSchemaMapper
         {
             Name = xmlChoice.Name,
             NodeDef = ToNodeDefName(xmlChoice.NodeDef),
-            ProcessorsList = xmlChoice.Processors.Select(ToSchemaProcessorRef).ToList(),
+            ProcessorsList = (xmlChoice.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
             MemberList = members,
             SelectedIndex = ToSchemaValue(xmlChoice.SelectedIndex, xmlChoice.SelectedIndexRef),
             MemberNodeDef = ToNodeDefName(xmlChoice.MemberNodeDef),
             Pipeline = SchemaPipelineModes.Parse(xmlChoice.Pipeline, xmlChoice.Name),
             ByteSize = ToSchemaValue(xmlChoice.ByteSize, xmlChoice.ByteSizeRef),
-            ValueProcessorsList = xmlChoice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
+            ValueProcessorsList = (xmlChoice.ValueProcessors ?? []).Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
                 xmlChoice.Properties,
                 xmlChoice.AdditionalAttributes,
@@ -369,7 +371,7 @@ internal static class XmlSchemaMapper
                 ChoiceKnownNames)
         };
 
-        foreach (var child in xmlChoice.Members)
+        foreach (var child in xmlChoice.Members ?? [])
         {
             members.Add(ToSchemaNode(child, true));
         }
@@ -397,7 +399,7 @@ internal static class XmlSchemaMapper
         {
             Name = processor.Name,
             Processor = processor.Processor.ToString(),
-            Properties = processor.Properties.Select(FromSchemaProperty).ToList()
+            Properties = ToXmlList(processor.Properties, FromSchemaProperty)
         };
     }
 
@@ -423,14 +425,14 @@ internal static class XmlSchemaMapper
             {
                 Name = field.Name,
                 NodeDef = field.NodeDef?.ToString(),
-                Processors = field.Processors.Select(FromSchemaProcessorRef).ToList(),
+                Processors = ToXmlList(field.Processors, FromSchemaProcessorRef),
                 DataType = field.DataType?.FullName,
                 Value = ToConstantText(field.Value),
                 ValueRef = ToXmlValueRef(field.Value),
                 ByteLength = ToConstantText(field.ByteLength),
                 ByteLengthRef = ToXmlValueRef(field.ByteLength),
                 ByteOffset = field.ByteOffset?.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                Properties = field.Properties.Select(FromSchemaProperty).ToList()
+                Properties = ToXmlList(field.Properties, FromSchemaProperty)
             };
         }
 
@@ -440,13 +442,13 @@ internal static class XmlSchemaMapper
             {
                 Name = packed.Name,
                 NodeDef = packed.NodeDef?.ToString(),
-                Processors = packed.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Members = packed.Members.Select(FromSchemaNode).ToList(),
+                Processors = ToXmlList(packed.Processors, FromSchemaProcessorRef),
+                Members = ToXmlList(packed.Members, FromSchemaNode),
                 ByteLength = ToConstantText(packed.ByteLength),
                 ByteLengthRef = ToXmlValueRef(packed.ByteLength),
                 ByteSize = ToConstantText(packed.ByteSize),
                 ByteSizeRef = ToXmlValueRef(packed.ByteSize),
-                Properties = packed.Properties.Select(FromSchemaProperty).ToList()
+                Properties = ToXmlList(packed.Properties, FromSchemaProperty)
             };
         }
 
@@ -456,14 +458,14 @@ internal static class XmlSchemaMapper
             {
                 Name = repeat.Name,
                 NodeDef = repeat.NodeDef?.ToString(),
-                Processors = repeat.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Members = repeat.Members.Select(FromSchemaNode).ToList(),
+                Processors = ToXmlList(repeat.Processors, FromSchemaProcessorRef),
+                Members = ToXmlList(repeat.Members, FromSchemaNode),
                 Count = ToConstantText(repeat.Count),
                 CountRef = ToXmlValueRef(repeat.Count),
                 ByteSize = ToConstantText(repeat.ByteSize),
                 ByteSizeRef = ToXmlValueRef(repeat.ByteSize),
-                ValueProcessors = repeat.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
-                Properties = repeat.Properties.Select(FromSchemaProperty).ToList()
+                ValueProcessors = ToXmlList(repeat.ValueProcessors, FromSchemaProcessorRef),
+                Properties = ToXmlList(repeat.Properties, FromSchemaProperty)
             };
         }
 
@@ -473,16 +475,16 @@ internal static class XmlSchemaMapper
             {
                 Name = choice.Name,
                 NodeDef = choice.NodeDef?.ToString(),
-                Processors = choice.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Members = choice.Members.Select(FromSchemaNode).ToList(),
+                Processors = ToXmlList(choice.Processors, FromSchemaProcessorRef),
+                Members = ToXmlList(choice.Members, FromSchemaNode),
                 SelectedIndex = ToConstantText(choice.SelectedIndex),
                 MemberNodeDef = choice.MemberNodeDef?.ToString(),
                 Pipeline = choice.Pipeline == SchemaPipelineMode.Integrate ? null : choice.Pipeline.ToString().ToLowerInvariant(),
                 SelectedIndexRef = ToXmlValueRef(choice.SelectedIndex),
                 ByteSize = ToConstantText(choice.ByteSize),
                 ByteSizeRef = ToXmlValueRef(choice.ByteSize),
-                ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
-                Properties = choice.Properties.Select(FromSchemaProperty).ToList()
+                ValueProcessors = ToXmlList(choice.ValueProcessors, FromSchemaProcessorRef),
+                Properties = ToXmlList(choice.Properties, FromSchemaProperty)
             };
         }
 
@@ -493,11 +495,11 @@ internal static class XmlSchemaMapper
             {
                 Name = group.Name,
                 NodeDef = group.NodeDef?.ToString(),
-                Processors = group.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Members = group.Members.Select(FromSchemaNode).ToList(),
+                Processors = ToXmlList(group.Processors, FromSchemaProcessorRef),
+                Members = ToXmlList(group.Members, FromSchemaNode),
                 ByteSize = ToConstantText(group.ByteSize),
                 ByteSizeRef = ToXmlValueRef(group.ByteSize),
-                Properties = group.Properties.Select(FromSchemaProperty).ToList()
+                Properties = ToXmlList(group.Properties, FromSchemaProperty)
             };
         }
 
@@ -527,9 +529,9 @@ internal static class XmlSchemaMapper
             Name = nodeDef.Name,
             Kind = nodeDef.Kind == SchemaNodeKind.PackedGroup ? "packedGroup" : nodeDef.Kind.ToString().ToLowerInvariant(),
             DataType = nodeDef.DataType?.FullName,
-            Processors = nodeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
-            Members = nodeDef.Members.Select(FromSchemaNode).ToList(),
-            Properties = nodeDef.Properties.Select(FromSchemaProperty).ToList()
+            Processors = ToXmlList(nodeDef.Processors, FromSchemaProcessorRef),
+            Members = ToXmlList(nodeDef.Members, FromSchemaNode),
+            Properties = ToXmlList(nodeDef.Properties, FromSchemaProperty)
         };
     }
 
@@ -574,7 +576,7 @@ internal static class XmlSchemaMapper
         {
             Processor = processor.Processor.ToString(),
             PubNs = processor.PublishNamespace,
-            Properties = processor.Properties.Select(FromSchemaProperty).ToList()
+            Properties = ToXmlList(processor.Properties, FromSchemaProperty)
         };
     }
 
@@ -663,13 +665,19 @@ internal static class XmlSchemaMapper
         };
     }
 
+    private static List<TTarget>? ToXmlList<TSource, TTarget>(IEnumerable<TSource>? source, Func<TSource, TTarget> map)
+    {
+        var items = source?.Select(map).ToList();
+        return items is { Count: > 0 } ? items : null;
+    }
+
     private static List<SchemaProperty> MergeProperties(
-        IReadOnlyList<XmlSchemaProperty> explicitProperties,
+        IReadOnlyList<XmlSchemaProperty>? explicitProperties,
         XmlAttribute[]? additionalAttributes,
         XmlElement[]? additionalElements,
         IReadOnlySet<string> knownNames)
     {
-        var merged = explicitProperties.Select(ToSchemaProperty).ToList();
+        var merged = (explicitProperties ?? []).Select(ToSchemaProperty).ToList();
 
         if (additionalAttributes is not null)
         {
