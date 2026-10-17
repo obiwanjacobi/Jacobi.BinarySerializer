@@ -7,7 +7,7 @@ internal sealed class JsonSchema
 {
     public required string Name { get; init; }
     public IReadOnlyList<JsonSchemaNode> Members { get; init; } = [];
-    public IReadOnlyList<JsonSchemaNodeDef> NodeDefs { get; init; } = [];
+    public IReadOnlyList<JsonSchemaNode> NodeDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaDataTypeDef> DataTypeDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaProcessorDef> ProcessorDefs { get; init; } = [];
     public IReadOnlyList<JsonSchemaDocumentRef> Includes { get; init; } = [];
@@ -33,20 +33,6 @@ internal sealed class JsonSchemaDataTypeDef
 
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? AdditionalData { get; init; }
-}
-
-internal sealed class JsonSchemaNodeDef : JsonSchemaNode
-{
-    /// <summary>
-    /// The kind of node the nodeDef defines: field, group, repeat or choice.
-    /// </summary>
-    [JsonPropertyName("kind")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Kind { get; init; }
-    public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
-    public IReadOnlyList<JsonSchemaNode> Members { get; init; } = [];
-    [JsonPropertyName("datatype")]
-    public string? DataType { get; init; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]

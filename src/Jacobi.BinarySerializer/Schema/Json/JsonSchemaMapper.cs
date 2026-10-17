@@ -13,7 +13,7 @@ internal static class JsonSchemaMapper
         {
             Name = jsonSchema.Name,
             MemberList = members,
-            NodeDefs = jsonSchema.NodeDefs.Select(ToSchemaNodeDef).ToList(),
+            NodeDefs = jsonSchema.NodeDefs.Select(node => ToSchemaNode(node, true)).ToList(),
             DataTypeDefs = jsonSchema.DataTypeDefs.Select(ToSchemaDataTypeDef).ToList(),
             ProcessorDefs = jsonSchema.ProcessorDefs.Select(ToSchemaProcessorDef).ToList(),
             Includes = jsonSchema.Includes.Select(include => new SchemaDocumentRef
@@ -49,7 +49,7 @@ internal static class JsonSchemaMapper
         {
             Name = schema.Name,
             Members = schema.Members.Select(FromSchemaNode).ToList(),
-            NodeDefs = schema.NodeDefs.Select(FromSchemaNodeDef).ToList(),
+            NodeDefs = schema.NodeDefs.Select(FromSchemaNode).ToList(),
             DataTypeDefs = schema.DataTypeDefs.Select(FromSchemaDataTypeDef).ToList(),
             ProcessorDefs = schema.ProcessorDefs.Select(FromSchemaProcessorDef).ToList(),
             Includes = schema.Includes.Select(include => new JsonSchemaDocumentRef
@@ -103,19 +103,6 @@ internal static class JsonSchemaMapper
             return null;
         }
         return new SchemaName(nodeDef);
-    }
-
-    private static SchemaNodeDef ToSchemaNodeDef(JsonSchemaNodeDef jsonNodeDef)
-    {
-        return new SchemaNodeDef
-        {
-            Name = jsonNodeDef.Name,
-            Kind = ParseNodeKind(jsonNodeDef.Name, jsonNodeDef.Kind),
-            DataType = jsonNodeDef.DataType is { } dataType ? new SchemaName(dataType) : (SchemaName?)null,
-            Processors = jsonNodeDef.Processors.Select(ToSchemaProcessorRef).ToList(),
-            MemberList = jsonNodeDef.Members.Select(m => ToSchemaNode(m, true)).ToList(),
-            PropertyList = MergeProperties(jsonNodeDef.Properties, jsonNodeDef.AdditionalData)
-        };
     }
 
     private static SchemaDataTypeDef ToSchemaDataTypeDef(JsonSchemaDataTypeDef jsonDef)
@@ -212,7 +199,7 @@ internal static class JsonSchemaMapper
                 MemberList = members,
                 SelectedIndex = ToSchemaValueOrRef(choice.SelectedIndex),
                 MemberNodeDef = ToNodeDefName(choice.MemberNodeDef),
-                Pipeline = SchemaPipelineModes.Parse(choice.Pipeline, choice.Name),
+                PipelineOverride = choice.Pipeline is null ? null : SchemaPipelineModes.Parse(choice.Pipeline, choice.Name),
                 ByteSize = ToSchemaValueOrRef(choice.ByteSize),
                 ValueProcessorsList = choice.ValueProcessors.Select(ToSchemaProcessorRef).ToList(),
                 PropertyList = MergeProperties(choice.Properties, choice.AdditionalData)
@@ -285,35 +272,6 @@ internal static class JsonSchemaMapper
         };
     }
 
-    private static SchemaNodeKind ParseNodeKind(string name, string? kind)
-    {
-        if (String.IsNullOrWhiteSpace(kind))
-        {
-            throw new InvalidOperationException($"The nodeDef '{name}' must specify its kind (field, group, packedGroup, repeat or choice).");
-        }
-
-        if (Enum.TryParse<SchemaNodeKind>(kind, ignoreCase: true, out var parsed) &&
-            parsed is SchemaNodeKind.Field or SchemaNodeKind.Group or SchemaNodeKind.PackedGroup or SchemaNodeKind.Repeat or SchemaNodeKind.Choice)
-        {
-            return parsed;
-        }
-
-        throw new InvalidOperationException($"The nodeDef '{name}' has an unknown kind '{kind}' (field, group, packedGroup, repeat or choice).");
-    }
-
-    private static JsonSchemaNodeDef FromSchemaNodeDef(SchemaNodeDef nodeDef)
-    {
-        return new JsonSchemaNodeDef
-        {
-            Name = nodeDef.Name,
-            Kind = nodeDef.Kind == SchemaNodeKind.PackedGroup ? "packedGroup" : nodeDef.Kind.ToString().ToLowerInvariant(),
-            DataType = nodeDef.DataType?.FullName,
-            Processors = nodeDef.Processors.Select(FromSchemaProcessorRef).ToList(),
-            Members = nodeDef.Members.Select(FromSchemaNode).ToList(),
-            Properties = nodeDef.Properties.Select(FromSchemaProperty).ToList()
-        };
-    }
-
     private static JsonSchemaGroup CreateJsonGroupNode(SchemaGroup group)
     {
         if (group is SchemaPackedGroup packed)
@@ -355,7 +313,7 @@ internal static class JsonSchemaMapper
                 Members = choice.Members.Select(FromSchemaNode).ToList(),
                 SelectedIndex = FromSchemaValueOrRef(choice.SelectedIndex),
                 MemberNodeDef = choice.MemberNodeDef?.ToString(),
-                Pipeline = choice.Pipeline == SchemaPipelineMode.Integrate ? null : choice.Pipeline.ToString().ToLowerInvariant(),
+                Pipeline = choice.PipelineOverride?.ToString().ToLowerInvariant(),
                 ByteSize = FromSchemaValueOrRef(choice.ByteSize),
                 ValueProcessors = choice.ValueProcessors.Select(FromSchemaProcessorRef).ToList(),
                 Properties = choice.Properties.Select(FromSchemaProperty).ToList()

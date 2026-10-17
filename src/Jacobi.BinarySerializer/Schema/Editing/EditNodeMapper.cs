@@ -10,7 +10,6 @@ public static class EditNodeMapper
         EditNode edit = node switch
         {
             SchemaDocument document => ToEditDocument(document),
-            SchemaNodeDef definition => new EditNodeDef { Kind = definition.Kind, DataType = definition.DataType },
             SchemaField field => new EditField
             {
                 DataType = field.DataType, Value = Copy(field.Value),
@@ -20,7 +19,7 @@ public static class EditNodeMapper
             SchemaRepeat repeat => new EditRepeat { Count = Copy(repeat.Count) },
             SchemaChoice choice => new EditChoice
             {
-                SelectedIndex = Copy(choice.SelectedIndex), MemberNodeDef = choice.MemberNodeDef, Pipeline = choice.Pipeline
+                SelectedIndex = Copy(choice.SelectedIndex), MemberNodeDef = choice.MemberNodeDef, Pipeline = choice.PipelineOverride
             },
             SchemaGroup when node.GetType() == typeof(SchemaGroup) => new EditGroup(),
             _ => throw new NotSupportedException($"Unsupported schema node type: {node.GetType().Name}.")
@@ -39,10 +38,6 @@ public static class EditNodeMapper
                 break;
             case (SchemaGroup group, EditGroup target):
                 ReadGroup(group, target);
-                break;
-            case (SchemaNodeDef definition, EditNodeDef target):
-                target.Members.AddRange(definition.Members.Select(ToEditNode));
-                CopyProcessors(definition.Processors, target.Processors);
                 break;
         }
         if (node is SchemaRepeat sourceRepeat && edit is EditRepeat editRepeat)
@@ -66,7 +61,7 @@ public static class EditNodeMapper
         var edit = new EditDocument { Name = document.Name, NodeDef = document.NodeDef };
         CopyProperties(document.Properties, edit.Properties);
         ReadGroup(document, edit);
-        edit.NodeDefs.AddRange(document.NodeDefs.Select(definition => (EditNodeDef)ToEditNode(definition)));
+        edit.NodeDefs.AddRange(document.NodeDefs.Select(ToEditNode));
         foreach (var definition in document.DataTypeDefs)
         {
             var target = new EditDataTypeDef
@@ -95,11 +90,6 @@ public static class EditNodeMapper
         SchemaNode node = edit switch
         {
             EditDocument document => ToSchemaDocument(document),
-            EditNodeDef definition => new SchemaNodeDef
-            {
-                Name = edit.Name, NodeDef = edit.NodeDef, Kind = definition.Kind, DataType = definition.DataType,
-                MemberList = definition.Members.Select(ToSchemaNode).ToList(), Processors = WriteProcessors(definition.Processors)
-            },
             EditField field => new SchemaField
             {
                 Name = edit.Name, NodeDef = edit.NodeDef, DataType = field.DataType,
@@ -118,7 +108,7 @@ public static class EditNodeMapper
             EditChoice choice => new SchemaChoice
             {
                 Name = edit.Name, NodeDef = edit.NodeDef, SelectedIndex = Copy(choice.SelectedIndex),
-                MemberNodeDef = choice.MemberNodeDef, Pipeline = choice.Pipeline, ByteSize = Copy(choice.ByteSize),
+                MemberNodeDef = choice.MemberNodeDef, PipelineOverride = choice.Pipeline, ByteSize = Copy(choice.ByteSize),
                 ValueProcessorsList = WriteProcessors(choice.ValueProcessors)
             },
             EditGroup plainGroup when edit.GetType() == typeof(EditGroup) => new SchemaGroup
@@ -147,7 +137,7 @@ public static class EditNodeMapper
             Name = edit.Name, NodeDef = edit.NodeDef, ByteSize = Copy(edit.ByteSize),
             Roots = [], Groups = [], Fields = [],
             PropertyList = WriteProperties(edit.Properties),
-            NodeDefs = edit.NodeDefs.Select(definition => (SchemaNodeDef)ToSchemaNode(definition)).ToList(),
+            NodeDefs = edit.NodeDefs.Select(ToSchemaNode).ToList(),
             DataTypeDefs = edit.DataTypeDefs.Select(definition => new SchemaDataTypeDef
             {
                 Name = definition.Name, BasedOn = definition.BasedOn,

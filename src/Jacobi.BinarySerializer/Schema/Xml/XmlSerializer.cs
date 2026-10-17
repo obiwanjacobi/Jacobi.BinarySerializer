@@ -49,7 +49,15 @@ public static class XmlSerializer
     private static string NilToAttribute(string xml)
     {
         var document = XDocument.Parse(xml);
-        foreach (var node in document.Descendants().Where(element => element.Name.LocalName is "schema" or "nodeDef" or "dataTypeDef" or "field" or "group" or "packedGroup" or "repeat" or "choice").ToList())
+        foreach (var definition in document.Root?.Element("nodeDefs")?.Elements() ?? [])
+        {
+            if (definition.Name.Namespace != XNamespace.None
+                || definition.Name.LocalName is not ("field" or "group" or "packedGroup" or "repeat" or "choice"))
+            {
+                throw new InvalidOperationException("nodeDefs must contain typed field, group, packedGroup, repeat or choice elements; the legacy nodeDef/kind form is not supported.");
+            }
+        }
+        foreach (var node in document.Descendants().Where(element => element.Name.LocalName is "schema" or "dataTypeDef" or "field" or "group" or "packedGroup" or "repeat" or "choice").ToList())
         {
             var processors = node.Elements().Where(element => element.Name.LocalName == "processor"
                 || element.Name.LocalName == "processors").ToList();

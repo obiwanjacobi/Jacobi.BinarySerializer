@@ -11,13 +11,7 @@
             </xs:sequence>
           </xs:complexType>
         </xs:element>
-        <xs:element name="nodeDefs" minOccurs="0">
-          <xs:complexType>
-            <xs:sequence>
-              <xs:element name="nodeDef" type="nodeDef" minOccurs="0" maxOccurs="unbounded" />
-            </xs:sequence>
-          </xs:complexType>
-        </xs:element>
+        <xs:element name="nodeDefs" type="nodeList" minOccurs="0" />
         <xs:element name="dataTypeDefs" minOccurs="0">
           <xs:complexType>
             <xs:sequence>
@@ -106,27 +100,6 @@
     <xs:attribute name="scale" type="xs:decimal" />
     <xs:attribute name="shift" type="xs:decimal" />
     <xs:anyAttribute processContents="skip" />
-  </xs:complexType>
-
-  <xs:simpleType name="nodeKind">
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="field" />
-      <xs:enumeration value="group" />
-      <xs:enumeration value="packedGroup" />
-      <xs:enumeration value="repeat" />
-      <xs:enumeration value="choice" />
-    </xs:restriction>
-  </xs:simpleType>
-
-  <xs:complexType name="nodeDef">
-    <xs:sequence>
-      <xs:element name="properties" type="propertyList" minOccurs="0" />
-      <xs:element name="processors" type="processorList" minOccurs="0" />
-      <xs:element name="members" type="nodeList" minOccurs="0" />
-    </xs:sequence>
-    <xs:attribute name="name" type="xs:string" use="required" />
-    <xs:attribute name="kind" type="nodeKind" use="required" />
-    <xs:attribute name="datatype" type="xs:string" />
   </xs:complexType>
 
   <xs:complexType name="valueRef">

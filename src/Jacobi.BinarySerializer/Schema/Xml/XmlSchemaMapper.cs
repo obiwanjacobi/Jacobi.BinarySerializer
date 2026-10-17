@@ -78,16 +78,6 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaField.Properties)
     };
 
-    private static readonly HashSet<string> NodeDefKnownNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        nameof(XmlSchemaNodeDef.Name),
-        nameof(XmlSchemaNodeDef.Kind),
-        nameof(XmlSchemaNodeDef.DataType),
-        nameof(XmlSchemaNodeDef.Processors),
-        nameof(XmlSchemaNodeDef.Members),
-        nameof(XmlSchemaNodeDef.Properties)
-    };
-
     private static readonly HashSet<string> DataTypeDefKnownNames = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(XmlSchemaDataTypeDef.Name),
@@ -123,7 +113,7 @@ internal static class XmlSchemaMapper
         {
             Name = xmlSchema.Name,
             MemberList = members,
-            NodeDefs = (xmlSchema.NodeDefs ?? []).Select(ToSchemaNodeDef).ToList(),
+            NodeDefs = (xmlSchema.NodeDefs ?? []).Select(node => ToSchemaNode(node, true)).ToList(),
             DataTypeDefs = (xmlSchema.DataTypeDefs ?? []).Select(ToSchemaDataTypeDef).ToList(),
             ProcessorDefs = (xmlSchema.ProcessorDefs ?? []).Select(ToSchemaProcessorDef).ToList(),
             Includes = (xmlSchema.Includes ?? []).Select(include => new SchemaDocumentRef
@@ -160,7 +150,7 @@ internal static class XmlSchemaMapper
         {
             Name = schema.Name,
             Members = ToXmlList(schema.Members, FromSchemaNode),
-            NodeDefs = ToXmlList(schema.NodeDefs, FromSchemaNodeDef),
+            NodeDefs = ToXmlList(schema.NodeDefs, FromSchemaNode),
             DataTypeDefs = ToXmlList(schema.DataTypeDefs, FromSchemaDataTypeDef),
             ProcessorDefs = ToXmlList(schema.ProcessorDefs, FromSchemaProcessorDef),
             Includes = ToXmlList(schema.Includes, include => new XmlSchemaDocumentRef
@@ -258,29 +248,6 @@ internal static class XmlSchemaMapper
         };
     }
 
-    private static SchemaNodeDef ToSchemaNodeDef(XmlSchemaNodeDef xmlNodeDef)
-    {
-        SchemaName? dataType = null;
-        if (!String.IsNullOrWhiteSpace(xmlNodeDef.DataType))
-        {
-            dataType = new SchemaName(xmlNodeDef.DataType);
-        }
-
-        return new SchemaNodeDef
-        {
-            Name = xmlNodeDef.Name,
-            Kind = ParseNodeDefKind(xmlNodeDef.Name, xmlNodeDef.Kind),
-            DataType = dataType,
-            Processors = (xmlNodeDef.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
-            MemberList = (xmlNodeDef.Members ?? []).Select(member => ToSchemaNode(member, true)).ToList(),
-            PropertyList = MergeProperties(
-                xmlNodeDef.Properties,
-                xmlNodeDef.AdditionalAttributes,
-                xmlNodeDef.AdditionalElements,
-                NodeDefKnownNames)
-        };
-    }
-
     private static SchemaGroup ToSchemaGroup(XmlSchemaGroup xmlGroup)
     {
         var members = new List<SchemaNode>();
@@ -361,7 +328,7 @@ internal static class XmlSchemaMapper
             MemberList = members,
             SelectedIndex = ToSchemaValue(xmlChoice.SelectedIndex, xmlChoice.SelectedIndexRef),
             MemberNodeDef = ToNodeDefName(xmlChoice.MemberNodeDef),
-            Pipeline = SchemaPipelineModes.Parse(xmlChoice.Pipeline, xmlChoice.Name),
+            PipelineOverride = xmlChoice.Pipeline is null ? null : SchemaPipelineModes.Parse(xmlChoice.Pipeline, xmlChoice.Name),
             ByteSize = ToSchemaValue(xmlChoice.ByteSize, xmlChoice.ByteSizeRef),
             ValueProcessorsList = (xmlChoice.ValueProcessors ?? []).Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
@@ -479,7 +446,7 @@ internal static class XmlSchemaMapper
                 Members = ToXmlList(choice.Members, FromSchemaNode),
                 SelectedIndex = ToConstantText(choice.SelectedIndex),
                 MemberNodeDef = choice.MemberNodeDef?.ToString(),
-                Pipeline = choice.Pipeline == SchemaPipelineMode.Integrate ? null : choice.Pipeline.ToString().ToLowerInvariant(),
+                Pipeline = choice.PipelineOverride?.ToString().ToLowerInvariant(),
                 SelectedIndexRef = ToXmlValueRef(choice.SelectedIndex),
                 ByteSize = ToConstantText(choice.ByteSize),
                 ByteSizeRef = ToXmlValueRef(choice.ByteSize),
@@ -504,35 +471,6 @@ internal static class XmlSchemaMapper
         }
 
         throw new InvalidOperationException($"Unsupported schema node type '{node.GetType().Name}'.");
-    }
-
-    private static SchemaNodeKind ParseNodeDefKind(string name, string? kind)
-    {
-        if (String.IsNullOrWhiteSpace(kind))
-        {
-            throw new InvalidOperationException($"The nodeDef '{name}' must specify its kind (field, group, packedGroup, repeat or choice).");
-        }
-
-        if (Enum.TryParse<SchemaNodeKind>(kind, ignoreCase: true, out var parsed) &&
-            parsed is SchemaNodeKind.Field or SchemaNodeKind.Group or SchemaNodeKind.PackedGroup or SchemaNodeKind.Repeat or SchemaNodeKind.Choice)
-        {
-            return parsed;
-        }
-
-        throw new InvalidOperationException($"The nodeDef '{name}' has an unknown kind '{kind}' (field, group, packedGroup, repeat or choice).");
-    }
-
-    private static XmlSchemaNodeDef FromSchemaNodeDef(SchemaNodeDef nodeDef)
-    {
-        return new XmlSchemaNodeDef
-        {
-            Name = nodeDef.Name,
-            Kind = nodeDef.Kind == SchemaNodeKind.PackedGroup ? "packedGroup" : nodeDef.Kind.ToString().ToLowerInvariant(),
-            DataType = nodeDef.DataType?.FullName,
-            Processors = ToXmlList(nodeDef.Processors, FromSchemaProcessorRef),
-            Members = ToXmlList(nodeDef.Members, FromSchemaNode),
-            Properties = ToXmlList(nodeDef.Properties, FromSchemaProperty)
-        };
     }
 
     private static SchemaValueOrRef<int> ToSchemaValue(string? constant, XmlSchemaValueRef? valueRef)

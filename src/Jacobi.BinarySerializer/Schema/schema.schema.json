@@ -7,7 +7,7 @@
   "properties": {
     "name": { "type": "string" },
     "includes": { "type": "array", "items": { "$ref": "#/$defs/documentRef" } },
-    "nodeDefs": { "type": "array", "items": { "$ref": "#/$defs/nodeDef" } },
+    "nodeDefs": { "type": "array", "items": { "$ref": "#/$defs/node" } },
     "dataTypeDefs": { "type": "array", "items": { "$ref": "#/$defs/dataTypeDef" } },
     "processorDefs": { "type": "array", "items": { "$ref": "#/$defs/processorDef" } },
     "properties": { "type": "array", "items": { "$ref": "#/$defs/property" } },
@@ -89,27 +89,6 @@
         },
         "processors": { "$ref": "#/$defs/processors" },
         "properties": { "type": "array", "items": { "$ref": "#/$defs/property" } }
-      },
-      "additionalProperties": true
-    },
-    "nodeDef": {
-      "description": "A reusable type: an optional data type plus processors.",
-      "type": "object",
-      "required": [ "name", "kind" ],
-      "properties": {
-        "name": { "type": "string" },
-        "kind": { "enum": [ "field", "group", "packedGroup", "repeat", "choice" ], "description": "The kind of node the nodeDef defines." },
-        "datatype": { "type": "string" },
-        "processors": { "$ref": "#/$defs/processors" },
-        "members": { "type": "array", "items": { "$ref": "#/$defs/node" }, "description": "The members of a group, packedGroup, repeat or choice nodeDef. They precede the members of the referencing node." },
-        "properties": { "type": "array", "items": { "$ref": "#/$defs/property" } }
-      },
-      "if": { "properties": { "kind": { "const": "packedGroup" } } },
-      "then": {
-        "properties": {
-          "datatype": false,
-          "members": { "type": "array", "items": { "$ref": "#/$defs/packedField" } }
-        }
       },
       "additionalProperties": true
     },

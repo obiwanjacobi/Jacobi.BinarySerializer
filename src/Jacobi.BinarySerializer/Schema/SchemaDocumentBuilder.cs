@@ -10,7 +10,7 @@ public sealed class SchemaDocumentBuilder
 {
     private readonly string _name;
     private readonly GroupBuilder _root = new();
-    private readonly List<SchemaNodeDef> _nodeDefs = [];
+    private readonly List<SchemaNode> _nodeDefs = [];
     private readonly List<SchemaDataTypeDef> _dataTypeDefs = [];
     private readonly List<SchemaProcessorDef> _processorDefs = [];
     private readonly List<SchemaDocumentRef> _includes = [];
@@ -95,33 +95,22 @@ public sealed class SchemaDocumentBuilder
     }
 
     public SchemaDocumentBuilder Choice(string name, SchemaValueOrRef<int> selectedIndex, Action<GroupBuilder>? configure = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
-        SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? valueProcessors = null)
+        SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? valueProcessors = null,
+        SchemaPipelineMode? pipeline = null, string? memberNodeDef = null)
     {
-        _root.Choice(name, selectedIndex, configure, nodeDef, processors, byteSize, valueProcessors);
+        _root.Choice(name, selectedIndex, configure, nodeDef, processors, byteSize, valueProcessors, pipeline, memberNodeDef);
         return this;
     }
 
     /// <summary>
-    /// Adds a nodeDef of the specified kind. The members are only used for group, repeat and choice nodeDefs.
+    /// Builds reusable definitions with the same typed operations used for ordinary members.
     /// </summary>
-    public SchemaDocumentBuilder NodeDef(string name, SchemaNodeKind kind, Action<GroupBuilder>? configure = null, string? dataType = null, Action<ProcessorBuilder>? processors = null)
+    public SchemaDocumentBuilder NodeDefs(Action<GroupBuilder> configure)
     {
-        var nodeDef = new SchemaNodeDef
-        {
-            Name = name,
-            Kind = kind,
-            DataType = SchemaName(dataType),
-            Processors = CreateProcessorRefs(processors),
-        };
-
-        if (configure is not null)
-        {
-            var builder = new GroupBuilder();
-            configure(builder);
-            nodeDef.MemberList.AddRange(builder.Members);
-        }
-
-        _nodeDefs.Add(nodeDef);
+        ArgumentNullException.ThrowIfNull(configure);
+        var builder = new GroupBuilder();
+        configure(builder);
+        _nodeDefs.AddRange(builder.Members);
         return this;
     }
 
@@ -298,10 +287,12 @@ public sealed class SchemaDocumentBuilder
         /// The members of a choice are its alternatives (typically groups).
         /// </summary>
         public GroupBuilder Choice(string name, SchemaValueOrRef<int> selectedIndex, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
-            SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? valueProcessors = null)
+            SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? valueProcessors = null,
+            SchemaPipelineMode? pipeline = null, string? memberNodeDef = null)
             => Add(new SchemaChoice
             {
                 Name = name, SelectedIndex = selectedIndex, NodeDef = SchemaName(nodeDef), ByteSize = byteSize,
+                PipelineOverride = pipeline, MemberNodeDef = SchemaName(memberNodeDef),
                 ValueProcessorsList = CreateProcessorRefs(valueProcessors)
             }, members, processors);
 

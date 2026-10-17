@@ -46,6 +46,7 @@ Status:
 - [x] Connect the MIDI schema editor's commands and persistence to the authoring model.
 - [x] Accept inline/wrapped XML processor declarations and omit empty generated collections/unused namespaces.
 - [x] Preserve loaded XML comments and presentation in the MIDI editor without adding source trivia to runtime schema nodes.
+- [x] Reuse concrete nodes for definitions, with typed inheritance, independent instances and reference-cycle checks.
 
 ## Document layout
 
@@ -53,11 +54,43 @@ Status:
 |---------|---------|
 | `name` | Name of the document (namespace for references from other documents). |
 | `includes` | Other documents this one refers to. |
-| `nodeDefs` | Reusable group and field types: an optional data type (fields only) plus processors. |
+| `nodeDefs` | Reusable field, group, packed-group, repeat and choice nodes with all their typed settings. |
 | `dataTypeDefs` | New data types based on an existing one: facets (`min`, `max`, `scale`, `shift`, `options`) plus processors. |
 | `processorDefs` | Named processor configurations (a processor key with default properties). |
 | `properties` / `processors` | Document-level defaults. |
 | `members` | The root groups. |
+
+## Reusable nodes
+
+`Schema.NodeDefs` holds ordinary `SchemaNode` instances; `EditDocument.NodeDefs` holds the
+corresponding concrete `EditNode` instances. There is no separate definition model.
+JSON/YAML definitions use the same `kind` discriminator and properties as ordinary members.
+The JSON schema reuses the node `oneOf`; XML reuses the node-list `xs:choice`:
+
+```xml
+<nodeDefs>
+  <field name="sysex16" datatype="sys.uint16" byteLength="2">
+    <processor name="ref:midi.sysexbyte" />
+  </field>
+</nodeDefs>
+```
+
+The old `<nodeDef kind="field">` form is intentionally unsupported. Use
+`builder.NodeDefs(nodes => nodes.Field("sysex16", "sys.uint16", byteLength: 2))` for
+programmatic definitions; the callback offers the same typed operations as normal members.
+
+Compilation requires matching kinds. Explicit use-site scalars override the template;
+omitted values inherit, including physical sizes, field values/offsets, repeat counts and choice
+settings. Zero is an explicit value. An omitted choice pipeline inherits, while explicitly
+setting `integrate` overrides a template's `isolate`. Defaults are applied after merging.
+Properties and processors retain their existing override rules; template members precede local
+members. Each use receives independent inherited nodes. Local definition/type/processor references
+retain the declaring document's namespace. Chained definitions are supported; cycles, missing
+definitions, duplicate names and mismatched kinds are errors.
+
+Plain-group roots that declare a nodeDef retain their open-choice-contract behavior: they list
+their own members rather than importing contract members. Open-choice contracts must be plain
+group definitions. The reader/writer engine consumes the resulting effective nodes unchanged.
 
 ## Nodes
 

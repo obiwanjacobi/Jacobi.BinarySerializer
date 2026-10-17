@@ -7,22 +7,9 @@ public closed class SchemaNode
     public IReadOnlyList<SchemaProperty> Properties => PropertyList;
     internal List<SchemaProperty> PropertyList { get; init; } = [];
     /// <summary>
-    /// Optional reference to a SchemaNodeDef that defines the field's type and processors.
+    /// Optional reference to a reusable node in the schema's nodeDefs collection.
     /// </summary>
     public SchemaName? NodeDef { get; init; }
-}
-
-public sealed class SchemaNodeDef : SchemaNode
-{
-    public IReadOnlyList<SchemaProcessorRef> Processors { get; init; } = [];
-    public SchemaName? DataType { get; init; }
-
-    /// <summary>
-    /// The members of a group, repeat or choice nodeDef.
-    /// They are placed before the members of the node that references the nodeDef.
-    /// </summary>
-    public IReadOnlyList<SchemaNode> Members => MemberList;
-    internal List<SchemaNode> MemberList { get; init; } = [];
 }
 
 /// <summary>
@@ -172,7 +159,13 @@ public sealed class SchemaChoice : SchemaGroup
     /// <summary>
     /// Open choice only: whether the selected group inherits the processor pipeline of this choice (integrate) or not (isolate).
     /// </summary>
-    public SchemaPipelineMode Pipeline { get; init; }
+    public SchemaPipelineMode Pipeline
+    {
+        get => PipelineOverride ?? SchemaPipelineMode.Integrate;
+        init => PipelineOverride = value;
+    }
+
+    internal SchemaPipelineMode? PipelineOverride { get; init; }
 
     /// <summary>
     /// Semantic (value) processors that convert the referenced value into the (int) selected index.

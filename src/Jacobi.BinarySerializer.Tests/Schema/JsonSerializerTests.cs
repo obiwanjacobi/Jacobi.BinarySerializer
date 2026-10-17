@@ -227,8 +227,8 @@ public class JsonSerializerTests
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "deltaProcessor" && p.Processor.ToString() == "sys.scale" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
         Assert.That(document.NodeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.NodeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == "sys.int32"));
-        Assert.That(document.NodeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType is null));
+        Assert.That(document.NodeDefs.OfType<SchemaField>().Any(node => node.Name == "CommonField" && node.Processors.Any(processor => processor.Processor.FullName == "deltaProcessor") && node.DataType == "sys.int32"));
+        Assert.That(document.NodeDefs.OfType<SchemaGroup>().Any(node => node.Name == "CommonGroup" && node.Processors.Any(processor => processor.Processor.FullName == "rootProcessor")));
 
         // Resolver not implemented yet: usage remains as raw references.
         var rootGroup = document.Roots.Single();
@@ -322,7 +322,7 @@ public class JsonSerializerTests
         var document = JsonSerializer.Deserialize(json);
         var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
 
-        Assert.That(roundTripped.NodeDefs.Single().DataType, Is.Null);
+        Assert.That(roundTripped.NodeDefs.Single(), Is.TypeOf<SchemaGroup>());
     }
 
     [Test]

@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using Jacobi.BinarySerializer.Schema.Editing;
 using Jacobi.BinarySerializer.Schema.Json;
 using Jacobi.BinarySerializer.Schema.Xml;
 
@@ -8,6 +9,8 @@ namespace Jacobi.BinarySerializer.Schema;
 public sealed class SchemaSetBuilder
 {
     private readonly Dictionary<string, SchemaDocument> _documents = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<SchemaNode, SchemaNode> _resolvedNodeDefs = [];
+    private readonly HashSet<SchemaNode> _resolvingNodeDefs = [];
 
     public void AddDocument(SchemaDocument document)
     {
@@ -91,9 +94,24 @@ public sealed class SchemaSetBuilder
 
     public SchemaSet Compile()
     {
+        _resolvedNodeDefs.Clear();
+        _resolvingNodeDefs.Clear();
         foreach (var document in _documents.Values)
         {
             document.IsCompiled = false;
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var definition in document.NodeDefs)
+            {
+                if (definition is not SchemaField && definition is not SchemaGroup
+                    || definition is Schema || String.IsNullOrWhiteSpace(definition.Name))
+                {
+                    throw new InvalidOperationException($"Invalid node definition '{definition.Name}' in '{document.Name}'.");
+                }
+                if (!names.Add(definition.Name))
+                {
+                    throw new InvalidOperationException($"Duplicate node definition '{document.Name}.{definition.Name}'.");
+                }
+            }
         }
 
         var dependenciesByDocument = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -148,18 +166,7 @@ public sealed class SchemaSetBuilder
                     $"Failed to resolve references in schema '{document.Name}'.");
             }
 
-            foreach (var nodeDef in document.NodeDefs)
-            {
-                ValidatePackedGroups(nodeDef.Members);
-                if (nodeDef.Kind == SchemaNodeKind.PackedGroup)
-                {
-                    ValidatePackedMembers(nodeDef.Name, nodeDef.Members);
-                    if (nodeDef.DataType is not null)
-                    {
-                        throw new InvalidOperationException($"The PackedGroup nodeDef '{nodeDef.Name}' cannot declare a data type.");
-                    }
-                }
-            }
+            ValidatePackedGroups(document.NodeDefs.Select(definition => ResolveNodeDef(document, definition)));
             ValidatePackedGroups(document.Roots);
             document.RefreshIndexes();
 
@@ -206,10 +213,7 @@ public sealed class SchemaSetBuilder
     {
         foreach (var nodeDef in document.NodeDefs)
         {
-            foreach (var processor in nodeDef.Processors)
-            {
-                ExpandPropertyNames(processor);
-            }
+            ExpandPropertyNames(nodeDef);
         }
 
         foreach (var dataTypeDef in document.DataTypeDefs)
@@ -296,14 +300,7 @@ public sealed class SchemaSetBuilder
             }
         }
 
-        foreach (var nodeDef in document.NodeDefs)
-        {
-            AddSchemaDependency(nodeDef.NodeDef, document.Name, dependencies);
-            foreach (var processor in nodeDef.Processors)
-            {
-                AddSchemaDependency(processor, document.Name, dependencies);
-            }
-        }
+        CollectNodeDependencies(document.NodeDefs, document.Name, dependencies);
 
         foreach (var dataTypeDef in document.DataTypeDefs)
         {
@@ -316,7 +313,7 @@ public sealed class SchemaSetBuilder
 
         foreach (var root in document.Roots)
         {
-            CollectNodeDependencies(root.MemberList, document.Name, dependencies);
+            CollectNodeDependencies([root], document.Name, dependencies);
         }
 
         return dependencies;
@@ -391,18 +388,7 @@ public sealed class SchemaSetBuilder
 
         foreach (var nodeDef in document.NodeDefs)
         {
-            if (!ResolveReferences(document, nodeDef.MemberList))
-            {
-                allResolved = false;
-            }
-
-            foreach (var processor in nodeDef.Processors)
-            {
-                if (!TryResolveProcessorRef(document, processor))
-                {
-                    allResolved = false;
-                }
-            }
+            ResolveNodeDef(document, nodeDef);
         }
 
         foreach (var dataTypeDef in document.DataTypeDefs)
@@ -416,37 +402,8 @@ public sealed class SchemaSetBuilder
             }
         }
 
-        foreach (var group in document.Roots)
-        {
-            if (group is SchemaPackedGroup && group.NodeDef is { } rootNodeDef)
-            {
-                var definition = FindNodeDef(document, rootNodeDef, $"The PackedGroup '{group.Name}'");
-                if (definition.Kind != SchemaNodeKind.PackedGroup)
-                {
-                    throw new InvalidOperationException($"The PackedGroup '{group.Name}' references the nodeDef '{definition.Name}': the kinds must match.");
-                }
-                var properties = MergeProperties(definition.PropertyList, group.Properties);
-                var processors = MergeProcessors(definition.Processors, group.Processors);
-                group.PropertyList.Clear();
-                group.PropertyList.AddRange(properties);
-                group.ProcessorsList.Clear();
-                group.ProcessorsList.AddRange(processors);
-                group.MemberList.InsertRange(0, definition.Members.Where(m => !group.MemberList.Contains(m)));
-            }
-
-            foreach (var processor in group.Processors)
-            {
-                if (!TryResolveProcessorRef(document, processor))
-                {
-                    allResolved = false;
-                }
-            }
-
-            if (!ResolveReferences(document, group.MemberList))
-            {
-                allResolved = false;
-            }
-        }
+        allResolved &= ResolveReferences(document, document.MemberList, roots: true);
+        document.RefreshIndexes();
 
         return allResolved;
     }
@@ -470,7 +427,7 @@ public sealed class SchemaSetBuilder
         return allResolved;
     }
 
-    private bool ResolveReferences(SchemaDocument document, List<SchemaNode> schemaNodes)
+    private bool ResolveReferences(SchemaDocument document, List<SchemaNode> schemaNodes, bool roots = false)
     {
         bool allResolved = true;
         var resolvedNodes = new List<SchemaNode>(schemaNodes);
@@ -488,9 +445,12 @@ public sealed class SchemaSetBuilder
                         $"The {node.Kind} '{node.Name}' references the nodeDef '{nodeDef.Name}' that defines a {nodeDef.Kind}: the kinds must match.");
                 }
 
-                var replacementNode = InstantiateNodeDef(node, nodeDef);
-                resolvedNodes.Replace(node, replacementNode);
-                node = replacementNode;
+                if (!roots || node.GetType() != typeof(SchemaGroup))
+                {
+                    var replacementNode = InstantiateNodeDef(node, nodeDef);
+                    resolvedNodes.Replace(node, replacementNode);
+                    node = replacementNode;
+                }
             }
 
             if (node is SchemaField field)
@@ -663,70 +623,72 @@ public sealed class SchemaSetBuilder
             _ => []
         };
 
-    private SchemaNode InstantiateNodeDef(SchemaNode node, SchemaNodeDef nodeDef)
+    private SchemaNode InstantiateNodeDef(SchemaNode node, SchemaNode nodeDef)
     {
-        if (node is SchemaField fieldNode)
+        if (node is SchemaField fieldNode && nodeDef is SchemaField fieldDef)
         {
             return new SchemaField
             {
                 Name = node.Name,
-                DataType = nodeDef.DataType ?? fieldNode.DataType ?? throw new InvalidOperationException($"The nodeDef '{nodeDef.Name}' has no data type and cannot be applied to the field '{node.Name}'."),
-                Value = fieldNode.Value,
-                ByteLength = fieldNode.ByteLength,
-                ByteOffset = fieldNode.ByteOffset,
+                DataType = fieldNode.DataType ?? fieldDef.DataType ?? throw new InvalidOperationException($"The nodeDef '{nodeDef.Name}' has no data type and cannot be applied to the field '{node.Name}'."),
+                Value = Inherit(fieldNode.Value, fieldDef.Value),
+                ByteLength = Inherit(fieldNode.ByteLength, fieldDef.ByteLength),
+                ByteOffset = fieldNode.ByteOffset ?? fieldDef.ByteOffset,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(nodeDef.Processors, fieldNode.Processors),
+                ProcessorsList = MergeProcessors(fieldDef.Processors, fieldNode.Processors),
             };
         }
-        if (node is SchemaRepeat repeatNode)
+        if (node is SchemaRepeat repeatNode && nodeDef is SchemaRepeat repeatDef)
         {
             return new SchemaRepeat
             {
                 Name = node.Name,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(nodeDef.Processors, repeatNode.Processors),
-                MemberList = [.. nodeDef.MemberList, .. repeatNode.MemberList],
-                Count = repeatNode.Count,
-                ByteSize = repeatNode.ByteSize,
-                ValueProcessorsList = [.. repeatNode.ValueProcessors],
+                ProcessorsList = MergeProcessors(repeatDef.Processors, repeatNode.Processors),
+                MemberList = [.. repeatDef.Members.Select(CloneNode), .. repeatNode.MemberList],
+                Count = Inherit(repeatNode.Count, repeatDef.Count),
+                ByteSize = Inherit(repeatNode.ByteSize, repeatDef.ByteSize),
+                ValueProcessorsList = MergeProcessors(repeatDef.ValueProcessors, repeatNode.ValueProcessors),
             };
         }
-        if (node is SchemaChoice choiceNode)
+        if (node is SchemaChoice choiceNode && nodeDef is SchemaChoice choiceDef)
         {
             return new SchemaChoice
             {
                 Name = node.Name,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(nodeDef.Processors, choiceNode.Processors),
-                MemberList = [.. nodeDef.MemberList, .. choiceNode.MemberList],
-                SelectedIndex = choiceNode.SelectedIndex,
-                MemberNodeDef = choiceNode.MemberNodeDef,
-                Pipeline = choiceNode.Pipeline,
-                ByteSize = choiceNode.ByteSize,
-                ValueProcessorsList = [.. choiceNode.ValueProcessors],
+                ProcessorsList = MergeProcessors(choiceDef.Processors, choiceNode.Processors),
+                MemberList = [.. choiceDef.Members.Select(CloneNode), .. choiceNode.MemberList],
+                SelectedIndex = Inherit(choiceNode.SelectedIndex, choiceDef.SelectedIndex),
+                MemberNodeDef = choiceNode.MemberNodeDef ?? choiceDef.MemberNodeDef,
+                PipelineOverride = choiceNode.PipelineOverride ?? choiceDef.PipelineOverride,
+                ByteSize = Inherit(choiceNode.ByteSize, choiceDef.ByteSize),
+                ValueProcessorsList = MergeProcessors(choiceDef.ValueProcessors, choiceNode.ValueProcessors),
             };
         }
-        if (node is SchemaPackedGroup packedNode)
+        if (node is SchemaPackedGroup packedNode && nodeDef is SchemaPackedGroup packedDef)
         {
             return new SchemaPackedGroup
             {
                 Name = node.Name,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(nodeDef.Processors, packedNode.Processors),
-                MemberList = [.. nodeDef.MemberList, .. packedNode.MemberList],
-                ByteLength = packedNode.ByteLength,
-                ByteSize = packedNode.ByteSize,
+                ProcessorsList = MergeProcessors(packedDef.Processors, packedNode.Processors),
+                MemberList = [.. packedDef.Members.Select(CloneNode), .. packedNode.MemberList],
+                ByteLength = Inherit(packedNode.ByteLength, packedDef.ByteLength),
+                ByteSize = Inherit(packedNode.ByteSize, packedDef.ByteSize),
             };
         }
-        if (node is SchemaGroup groupNode)
+        if (node.GetType() == typeof(SchemaGroup) && nodeDef.GetType() == typeof(SchemaGroup))
         {
+            var groupNode = (SchemaGroup)node;
+            var groupDef = (SchemaGroup)nodeDef;
             return new SchemaGroup
             {
                 Name = node.Name,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(nodeDef.Processors, groupNode.Processors),
-                MemberList = [.. nodeDef.MemberList, .. groupNode.MemberList],
-                ByteSize = groupNode.ByteSize,
+                ProcessorsList = MergeProcessors(groupDef.Processors, groupNode.Processors),
+                MemberList = [.. groupDef.Members.Select(CloneNode), .. groupNode.MemberList],
+                ByteSize = Inherit(groupNode.ByteSize, groupDef.ByteSize),
             };
         }
 
@@ -791,7 +753,7 @@ public sealed class SchemaSetBuilder
     }
 
     // A name without a namespace (or with the document's own name) must resolve in the local document.
-    private SchemaNodeDef FindNodeDef(SchemaDocument document, SchemaName schemaName, string referrer)
+    private SchemaNode FindNodeDef(SchemaDocument document, SchemaName schemaName, string referrer)
     {
         var ns = schemaName.Namespace;
         var isLocal = String.IsNullOrEmpty(ns) || String.Equals(ns, document.Name, StringComparison.OrdinalIgnoreCase);
@@ -808,13 +770,87 @@ public sealed class SchemaSetBuilder
                 : $"{referrer} references the nodeDef '{fullName}' that is not defined in the schema '{definingDocument.Name}'.");
         }
 
-        return nodeDef;
+        return ResolveNodeDef(definingDocument!, nodeDef);
+    }
+
+    private static SchemaValueOrRef<T> Inherit<T>(SchemaValueOrRef<T> use, SchemaValueOrRef<T> definition)
+        => use is T or SchemaNodeRef or SchemaPubRef ? use : definition;
+
+    private static SchemaNode CloneNode(SchemaNode node)
+        => EditNodeMapper.ToSchemaNode(EditNodeMapper.ToEditNode(node));
+
+    private SchemaNode ResolveNodeDef(SchemaDocument document, SchemaNode definition)
+    {
+        if (_resolvedNodeDefs.TryGetValue(definition, out var resolved))
+        {
+            return resolved;
+        }
+        if (!_resolvingNodeDefs.Add(definition))
+        {
+            throw new InvalidOperationException($"Circular node definition '{document.Name}.{definition.Name}'.");
+        }
+        try
+        {
+            var edit = EditNodeMapper.ToEditNode(definition);
+            QualifyDefinition(edit, document.Name);
+            var nodes = new List<SchemaNode> { EditNodeMapper.ToSchemaNode(edit) };
+            if (!ResolveReferences(document, nodes))
+            {
+                throw new InvalidOperationException($"Failed to resolve node definition '{document.Name}.{definition.Name}'.");
+            }
+            _resolvedNodeDefs.Add(definition, nodes[0]);
+            return nodes[0];
+        }
+        finally
+        {
+            _resolvingNodeDefs.Remove(definition);
+        }
+    }
+
+    private static void QualifyDefinition(EditNode node, string documentName)
+    {
+        static SchemaName Qualify(SchemaName name, string owner)
+            => String.IsNullOrEmpty(name.Namespace)
+                ? new SchemaName($"{(name.IsReference ? "ref:" : String.Empty)}{owner}.{name.Name}")
+                : name;
+
+        if (node.NodeDef is { } nodeDef)
+        {
+            node.NodeDef = Qualify(nodeDef, documentName);
+        }
+        if (node is EditField field && field.DataType is { } dataType)
+        {
+            field.DataType = Qualify(dataType, documentName);
+        }
+        if (node is EditChoice choice && choice.MemberNodeDef is { } memberNodeDef)
+        {
+            choice.MemberNodeDef = Qualify(memberNodeDef, documentName);
+        }
+        IEnumerable<EditProcessorRef> processors = node switch
+        {
+            EditField value => value.Processors,
+            EditRepeat repeat => repeat.Processors.Concat(repeat.ValueProcessors),
+            EditChoice value => value.Processors.Concat(value.ValueProcessors),
+            EditGroup group => group.Processors,
+            _ => []
+        };
+        foreach (var processor in processors.Where(processor => processor.Processor.IsReference))
+        {
+            processor.Processor = Qualify(processor.Processor, documentName);
+        }
+        if (node is EditGroup container)
+        {
+            foreach (var child in container.Members)
+            {
+                QualifyDefinition(child, documentName);
+            }
+        }
     }
 }
 
 internal static class SchemaDocumentExtensions
 {
-    public static bool TryFindNodeDef(this SchemaDocument document, SchemaName schemaName, [NotNullWhen(true)] out SchemaNodeDef? node)
+    public static bool TryFindNodeDef(this SchemaDocument document, SchemaName schemaName, [NotNullWhen(true)] out SchemaNode? node)
     {
         if (String.IsNullOrEmpty(schemaName.Namespace))
         {

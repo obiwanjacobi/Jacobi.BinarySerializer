@@ -7,6 +7,15 @@ namespace Jacobi.BinarySerializer.Tests.Schema;
 public class XmlSerializerTests
 {
   [Test]
+  public void Deserialize_LegacyNodeDef_FailsInsteadOfDiscardingDefinition()
+  {
+    const string xml = """
+      <schema name="Doc"><nodeDefs><nodeDef name="Old" kind="field" datatype="sys.uint8" /></nodeDefs></schema>
+      """;
+    Assert.That(() => XmlSerializer.Deserialize(xml), Throws.InvalidOperationException.With.Message.Contains("typed field"));
+  }
+
+  [Test]
   public void Serialize_OmitsUnusedNamespacesAndEmptyCollections()
   {
     var schema = new SchemaDocumentBuilder("Test").Group("Root", group => group.Field("Value")).Build();
@@ -25,7 +34,7 @@ public class XmlSerializerTests
             <schema name="Test">
               <includes />
               <properties />
-              <nodeDefs><nodeDef name="Body" kind="group"><processors /><members /><properties /></nodeDef></nodeDefs>
+              <nodeDefs><group name="Body"><processors /><members /><properties /></group></nodeDefs>
               <dataTypeDefs><dataTypeDef name="Scaled" basedOn="sys.int16"><options /><processors /><properties /></dataTypeDef></dataTypeDefs>
               <processorDefs><processor name="Scale" processor="sys.scale"><properties /></processor></processorDefs>
               <members><group name="Root">
@@ -51,8 +60,8 @@ public class XmlSerializerTests
         {
             Assert.That(schema.Includes, Is.Empty);
             Assert.That(schema.Properties, Is.Empty);
-            Assert.That(schema.NodeDefs.Single().Members, Is.Empty);
-            Assert.That(schema.NodeDefs.Single().Processors, Is.Empty);
+            Assert.That(((SchemaGroup)schema.NodeDefs.Single()).Members, Is.Empty);
+            Assert.That(((SchemaGroup)schema.NodeDefs.Single()).Processors, Is.Empty);
             Assert.That(schema.DataTypeDefs.Single().Options, Is.Null);
             Assert.That(schema.DataTypeDefs.Single().Processors, Is.Empty);
             Assert.That(schema.ProcessorDefs.Single().Properties, Is.Empty);
@@ -71,7 +80,7 @@ public class XmlSerializerTests
         var dto = XmlSchemaMapper.FromSchema(fromEmpty);
         Assert.That(dto.Includes, Is.Null);
         Assert.That(dto.Properties, Is.Null);
-        var nodeDefinition = dto.NodeDefs!.Single();
+        var nodeDefinition = (XmlSchemaGroup)dto.NodeDefs!.Single();
         Assert.That(nodeDefinition.Members, Is.Null);
         Assert.That(nodeDefinition.Processors, Is.Null);
         Assert.That(dto.DataTypeDefs!.Single().Options, Is.Null);
@@ -84,9 +93,9 @@ public class XmlSerializerTests
         var document = XmlSerializer.Deserialize("""
             <schema name="Roland">
               <nodeDefs>
-                <nodeDef name="sysex16" kind="field" datatype="sys.uint16" byteLength="2">
+                <field name="sysex16" datatype="sys.uint16" byteLength="2">
                   <processor name="ref:midi.sysexbyte" />
-                </nodeDef>
+                </field>
               </nodeDefs>
               <members><group name="Message"><members>
                 <field name="Address" nodeDef="sysex16">
@@ -98,10 +107,10 @@ public class XmlSerializerTests
         var restored = XmlSerializer.Deserialize(XmlSerializer.Serialize(document));
         foreach (var schema in new[] { document, restored })
         {
-            var definition = schema.NodeDefs.Single();
+            var definition = (SchemaField)schema.NodeDefs.Single();
             Assert.That(definition.Processors.Single().Processor.ToString(), Is.EqualTo("ref:midi.sysexbyte"));
             Assert.That(definition.Properties.Any(property => property.Name == "processor"), Is.False);
-            Assert.That(definition.Properties.Single(property => property.Name == "byteLength").Value, Is.EqualTo("2"));
+            Assert.That(definition.ByteLength is int byteLength && byteLength == 2, Is.True);
             Assert.That(schema.Fields.Single().Processors.Single().Processor.ToString(), Is.EqualTo("sys.scale"));
         }
     }
@@ -218,19 +227,19 @@ public class XmlSerializerTests
                 </processor>
               </processorDefs>
               <nodeDefs>
-                <nodeDef name="CommonField" kind="field" datatype="sys.int32">
+                <field name="CommonField" datatype="sys.int32">
                   <processors>
                     <processor name="ref:deltaProcessor" />
                   </processors>
                   <properties>
                     <property name="scale" value="100" />
                   </properties>
-                </nodeDef>
-                <nodeDef name="CommonGroup" kind="group">
+                </field>
+                <group name="CommonGroup">
                   <processors>
                     <processor name="ref:rootProcessor" />
                   </processors>
-                </nodeDef>
+                </group>
               </nodeDefs>
               <members>
                 <group name="RootGroup">
@@ -255,8 +264,8 @@ public class XmlSerializerTests
         Assert.That(document.ProcessorDefs.Any(p => p.Name == "deltaProcessor" && p.Processor.ToString() == "sys.scale" && p.Properties.Any(prop => prop.Name == "bits" && prop.Value == "7")));
 
         Assert.That(document.NodeDefs.Count, Is.EqualTo(2));
-        Assert.That(document.NodeDefs.Any(t => t.Name == "CommonField" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "deltaProcessor") && t.DataType == "sys.int32"));
-        Assert.That(document.NodeDefs.Any(t => t.Name == "CommonGroup" && t.Processors.Any(p => p.Processor.IsReference && p.Processor.FullName == "rootProcessor") && t.DataType is null));
+        Assert.That(document.NodeDefs.OfType<SchemaField>().Any(node => node.Name == "CommonField" && node.Processors.Any(processor => processor.Processor.FullName == "deltaProcessor") && node.DataType == "sys.int32"));
+        Assert.That(document.NodeDefs.OfType<SchemaGroup>().Any(node => node.Name == "CommonGroup" && node.Processors.Any(processor => processor.Processor.FullName == "rootProcessor")));
 
         var rootGroup = document.Roots.Single();
         var rootField = rootGroup.Members.OfType<SchemaField>().Single();

@@ -6,27 +6,157 @@ namespace Jacobi.BinarySerializer.Tests.Schema;
 public class SchemaSetTests
 {
         [Test]
-        public void Compile_NodeDefByteLength_IsInheritedUnlessFieldOverridesIt()
+        public void Compile_ConcreteDefinition_InheritsFieldLengthAndHonorsOverride()
         {
                 var builder = new SchemaSetBuilder();
-                var document = builder.LoadFromXml("""
-                        <schema name="Test">
-                            <nodeDefs><nodeDef name="Payload" kind="field" datatype="sys.bytes" byteLength="2" /></nodeDefs>
-                            <members><group name="Root"><members>
-                                <field name="Inherited" nodeDef="Payload" />
-                                <field name="Override" nodeDef="Payload" byteLength="3" />
-                            </members></group></members>
-                        </schema>
+                var document = builder.LoadFromJson("""
+                        { "name": "Doc", "nodeDefs": [
+                                { "kind": "field", "name": "Bytes", "datatype": "sys.bytes", "byteLength": 2 }
+                            ], "members": [
+                                { "kind": "group", "name": "Root", "members": [
+                                    { "kind": "field", "name": "Inherited", "nodeDef": "Bytes" },
+                                    { "kind": "field", "name": "Override", "nodeDef": "Bytes", "byteLength": 3 }
+                                ] }
+                            ] }
                         """);
-
+                Assert.That(document.NodeDefs.Single(), Is.TypeOf<SchemaField>());
                 builder.Compile();
-
-                var inherited = document.Fields.Single(field => field.Name == "Inherited");
-                var overridden = document.Fields.Single(field => field.Name == "Override");
-                Assert.That(inherited.ByteLength is int length && length == 2, Is.True);
-                Assert.That(overridden.ByteLength is int overrideLength && overrideLength == 3, Is.True);
-                Assert.That(inherited.Properties.Any(property => property.Name == "byteLength"), Is.False);
+                Assert.That(document.Fields[0].ByteLength is int inherited && inherited == 2, Is.True);
+                Assert.That(document.Fields[1].ByteLength is int overridden && overridden == 3, Is.True);
         }
+
+    [Test]
+    public void Compile_ConcreteDefinitions_InheritEveryNodeKindAndHonorZeroOverrides()
+    {
+        var document = new SchemaDocumentBuilder("Doc")
+            .NodeDefs(definitions => definitions
+                .Field("Field", "sys.bytes", value: "AA", byteLength: 2, byteOffset: -1)
+                .Group("Group", members => members.Field("Inherited"), byteSize: 6)
+                .Repeat("Repeat", 2, members => members.Field("Item"), byteSize: 8,
+                    valueProcessors: processors => processors.Add("sys.map"))
+                .Choice("Choice", 1, members => members.Field("Alternative"), byteSize: 4,
+                    valueProcessors: processors => processors.Add("sys.map"))
+                .PackedGroup("Packed", 2, members => members.Field("Bit"), byteSize: 3))
+            .Group("Root", members => members
+                .Field("FieldUse", dataType: null, nodeDef: "Field", value: String.Empty, byteLength: 0, byteOffset: 0)
+                .Group("GroupUse", group => group.Field("Local"), nodeDef: "Group", byteSize: 0)
+                .Repeat("RepeatUse", 0, nodeDef: "Repeat", byteSize: 0)
+                .Choice("ChoiceUse", 0, nodeDef: "Choice", byteSize: 0)
+                .PackedGroup("PackedUse", nodeDef: "Packed"))
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(document);
+        builder.Compile();
+        var nodes = document.Roots.Single().Members;
+        var field = (SchemaField)nodes[0];
+        Assert.That(field.Value is string value && value == String.Empty, Is.True);
+        Assert.That(field.ByteLength is int length && length == 0, Is.True);
+        Assert.That(field.ByteOffset, Is.Zero);
+        var group = (SchemaGroup)nodes[1];
+        Assert.That(group.ByteSize is int size && size == 0, Is.True);
+        Assert.That(group.Members.Select(member => member.Name), Is.EqualTo(new[] { "Inherited", "Local" }));
+        var repeat = (SchemaRepeat)nodes[2];
+        Assert.That(repeat.Count is int count && count == 0, Is.True);
+        Assert.That(repeat.ByteSize is int repeatSize && repeatSize == 0, Is.True);
+        Assert.That(repeat.ValueProcessors.Single().Processor.ToString(), Is.EqualTo("sys.map"));
+        var choice = (SchemaChoice)nodes[3];
+        Assert.That(choice.SelectedIndex is int index && index == 0, Is.True);
+        Assert.That(choice.ByteSize is int choiceSize && choiceSize == 0, Is.True);
+        Assert.That(choice.ValueProcessors.Single().Processor.ToString(), Is.EqualTo("sys.map"));
+        var packed = (SchemaPackedGroup)nodes[4];
+        Assert.That(packed.ByteLength is int carrier && carrier == 2, Is.True);
+        Assert.That(packed.ByteSize is int packedSize && packedSize == 3, Is.True);
+    }
+
+    [Test]
+    public void Compile_DefinitionChains_CloneMembersAndPreserveReferenceValues()
+    {
+        var reference = new SchemaNodeRef { Path = "Root.Length" };
+        var document = new SchemaDocumentBuilder("Doc")
+            .NodeDefs(definitions => definitions
+                .Field("Base", "sys.bytes", byteLength: reference)
+                .Field("Derived", dataType: null, nodeDef: "Base", value: new SchemaPubRef { Namespace = "header", Name = "value" })
+                .Group("Container", members => members.Field("Value", dataType: null, nodeDef: "Derived")))
+            .Group("Root", members => members
+                .Field("Length")
+                .Group("First", nodeDef: "Container")
+                .Group("Second", nodeDef: "Container"))
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(document);
+        builder.Compile();
+        var root = document.Roots.Single();
+        var first = (SchemaField)((SchemaGroup)root.Members[1]).Members.Single();
+        var second = (SchemaField)((SchemaGroup)root.Members[2]).Members.Single();
+        Assert.That(first, Is.Not.SameAs(second));
+        Assert.That(first.ByteLength is SchemaNodeRef length && length.Path == "Root.Length", Is.True);
+        Assert.That(first.Value is SchemaPubRef value && value.ToString() == "pub:header.value", Is.True);
+        var template = (SchemaGroup)document.NodeDefs[2];
+        Assert.That(template.Members.Single().NodeDef?.ToString(), Is.EqualTo("Derived"));
+        Assert.That(first, Is.Not.SameAs(template.Members.Single()));
+    }
+
+    [Test]
+    public void Compile_Definitions_KeepTheirDeclaringNamespace()
+    {
+        var shared = new SchemaDocumentBuilder("Shared")
+            .DataTypeDef("Scaled", "sys.uint8")
+            .ProcessorDef("Mapping", "sys.map")
+            .NodeDefs(definitions => definitions.Group("Template", members => members
+                .Field("Value", "Scaled", processors: processors => processors.Add("ref:Mapping"))))
+            .Build();
+        var main = new SchemaDocumentBuilder("Main")
+            .Group("Root", members => members.Group("Use", nodeDef: "Shared.Template"))
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(main);
+        builder.AddDocument(shared);
+        builder.Compile();
+        var field = main.Fields.Single();
+        Assert.That(field.DataType?.ToString(), Is.EqualTo("Shared.Scaled"));
+        Assert.That(field.Processors.Single().Definition, Is.SameAs(shared.ProcessorDefs.Single()));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Compile_OpenChoiceDefinition_DistinguishesOmittedAndExplicitDefaultPipeline(bool explicitDefault)
+    {
+        var document = new SchemaDocumentBuilder("Doc")
+            .NodeDefs(definitions => definitions.Group("Body").OpenChoice("Envelope", "Body", SchemaPipelineMode.Isolate))
+            .Group("Root", members => members.Choice("Use", default, nodeDef: "Envelope",
+                pipeline: explicitDefault ? SchemaPipelineMode.Integrate : null))
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(document);
+        builder.Compile();
+        var choice = (SchemaChoice)document.Roots.Single().Members.Single();
+        Assert.That(choice.MemberNodeDef?.ToString(), Is.EqualTo("Doc.Body"));
+        Assert.That(choice.Pipeline, Is.EqualTo(explicitDefault ? SchemaPipelineMode.Integrate : SchemaPipelineMode.Isolate));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Compile_CircularDefinitions_FailClearly(bool throughMembers)
+    {
+        var document = new SchemaDocumentBuilder("Doc")
+            .NodeDefs(definitions =>
+            {
+                if (throughMembers)
+                {
+                    definitions.Group("Loop", members => members.Group("Again", nodeDef: "Loop"));
+                }
+                else
+                {
+                    definitions.Field("First", dataType: null, nodeDef: "Second")
+                        .Field("Second", dataType: null, nodeDef: "First");
+                }
+            })
+            .Group("Root")
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(document);
+        Assert.That(() => builder.Compile(), Throws.InvalidOperationException.With.Message.Contains("Circular node definition"));
+    }
 
     [Test]
     public void FindNode_NestedPath_ReturnsNode()
@@ -101,12 +231,11 @@ public class SchemaSetTests
     {
         var schemaBuilder = new SchemaSetBuilder();
 
-        var commonNodeDef = new SchemaNodeDef
+        var commonNodeDef = new SchemaField
         {
             Name = "CommonField",
-            Kind = SchemaNodeKind.Field,
             DataType = "sys.int32",
-            Processors = []
+            ProcessorsList = []
         };
 
         var rootGroup = CreateGroup("Root");
@@ -126,7 +255,7 @@ public class SchemaSetTests
 
         var resolvedField = rootGroup.Members.OfType<SchemaField>().Single();
         Assert.That(main.IsCompiled, Is.True);
-        Assert.That(resolvedField.DataType, Is.EqualTo(new SchemaName("sys.int32")));
+        Assert.That(resolvedField.DataType, Is.EqualTo(new SchemaName("sys.uint8")));
     }
 
     [Test]
@@ -225,7 +354,7 @@ public class SchemaSetTests
     public void Compile_NodeDefInstantiation_KeepsTheFieldValue()
     {
         var schemaBuilder = new SchemaSetBuilder();
-        var nodeDef = new SchemaNodeDef { Name = "CommonField", Kind = SchemaNodeKind.Field, DataType = "sys.int32", Processors = [] };
+        var nodeDef = new SchemaField { Name = "CommonField", DataType = "sys.int32" };
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField
         {
@@ -372,19 +501,21 @@ public class SchemaSetTests
     {
         var def = new SchemaProcessorDef { Name = "aligned", Processor = new ProcessorKey("sys.align") };
         var processor = new SchemaProcessorRef { Processor = new SchemaName("ref:aligned") };
-        var nodeDef = new SchemaNodeDef
+        var nodeDef = new SchemaField
         {
             Name = "CommonField",
-            Kind = SchemaNodeKind.Field,
             DataType = "sys.int32",
-            Processors = [processor]
+            ProcessorsList = [processor]
         };
 
         var schemaBuilder = new SchemaSetBuilder();
-        schemaBuilder.AddDocument(CreateDocument("Main", nodeDefs: [nodeDef], processorDefs: [def]));
+        var root = CreateGroup("Root");
+        AddChild(root, new SchemaField { Name = "Value", NodeDef = new SchemaName("CommonField") });
+        schemaBuilder.AddDocument(CreateDocument("Main", roots: [root], nodeDefs: [nodeDef], processorDefs: [def]));
         var schemaSet = schemaBuilder.Compile();
 
-        Assert.That(processor.Definition, Is.SameAs(def));
+        Assert.That(((SchemaField)root.Members.Single()).Processors.Single().Definition, Is.SameAs(def));
+        Assert.That(processor.Definition, Is.Null);
     }
 
     [Test]
@@ -405,7 +536,7 @@ public class SchemaSetTests
     [Test]
     public void Compile_UnqualifiedNodeDef_OnlyResolvesInTheOwnDocument()
     {
-        var shared = CreateDocument("Shared", nodeDefs: [new SchemaNodeDef { Name = "CommonField", Kind = SchemaNodeKind.Field, DataType = "sys.int32", Processors = [] }]);
+        var shared = CreateDocument("Shared", nodeDefs: [new SchemaField { Name = "CommonField", DataType = "sys.int32" }]);
         var rootGroup = CreateGroup("Root");
         AddChild(rootGroup, new SchemaField { Name = "Value", DataType = "sys.uint8", NodeDef = new SchemaName("commonfield"), ProcessorsList = [] });
         var main = CreateDocument("Main", roots: [rootGroup], includes: [new SchemaDocumentRef { Schema = "Shared" }]);
@@ -419,7 +550,7 @@ public class SchemaSetTests
     private static SchemaDocument CreateDocument(
         string name,
         IReadOnlyList<SchemaNode>? roots = null,
-        IReadOnlyList<SchemaNodeDef>? nodeDefs = null,
+        IReadOnlyList<SchemaNode>? nodeDefs = null,
         IReadOnlyList<SchemaDataTypeDef>? dataTypeDefs = null,
         IReadOnlyList<SchemaProcessorDef>? processorDefs = null,
         IReadOnlyList<SchemaDocumentRef>? includes = null)

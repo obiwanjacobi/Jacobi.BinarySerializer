@@ -8,6 +8,55 @@ namespace Jacobi.BinarySerializer.Tests.Schema;
 
 public class EditNodeTests
 {
+  [TestCase("json")]
+  [TestCase("xml")]
+  [TestCase("yaml")]
+  public void RoundTrip_ConcreteDefinitions_PreserveTypedSettingsAndPipelinePresence(string format)
+  {
+    var original = new SchemaDocumentBuilder("Doc")
+      .NodeDefs(definitions => definitions
+        .Field("Value", "sys.bytes", value: "240", byteLength: new SchemaPubRef { Namespace = "header", Name = "length" }, byteOffset: -1)
+        .Group("Body", members => members.Field("Code"), byteSize: 6)
+        .Repeat("Rows", new SchemaNodeRef { Path = "Root.Count" }, members => members.Field("Row"), byteSize: 8,
+          valueProcessors: processors => processors.Add("sys.map"))
+        .Choice("Variant", 1, members => members.Group("Alternative"), byteSize: 4,
+          valueProcessors: processors => processors.Add("sys.map"))
+        .PackedGroup("Flags", 2, members => members.Field("Bit"), byteSize: 3)
+        .OpenChoice("Open", "Body", SchemaPipelineMode.Isolate))
+      .Group("Root", members => members
+        .Field("Count")
+        .Choice("Inherited", default, nodeDef: "Open")
+        .Choice("Explicit", default, nodeDef: "Open", pipeline: SchemaPipelineMode.Integrate))
+      .Build();
+    var edit = EditNodeMapper.ToEditDocument(original);
+    Assert.That(edit.NodeDefs.Select(node => node.GetType()), Is.EqualTo(new[]
+    {
+      typeof(EditField), typeof(EditGroup), typeof(EditRepeat), typeof(EditChoice), typeof(EditPackedGroup), typeof(EditChoice)
+    }));
+    var snapshot = new SchemaDocumentBuilder(edit).Build();
+    var reloaded = format switch
+    {
+      "xml" => XmlSerializer.Deserialize(XmlSerializer.Serialize(snapshot)),
+      "yaml" => YamlSerializer.Deserialize(YamlSerializer.Serialize(snapshot)),
+      _ => JsonSerializer.Deserialize(JsonSerializer.Serialize(snapshot))
+    };
+    Assert.That(JsonSerializer.Serialize(reloaded), Is.EqualTo(JsonSerializer.Serialize(original)));
+    Assert.That(reloaded.NodeDefs.Select(node => node.Kind), Is.EqualTo(new[]
+    {
+      SchemaNodeKind.Field, SchemaNodeKind.Group, SchemaNodeKind.Repeat,
+      SchemaNodeKind.Choice, SchemaNodeKind.PackedGroup, SchemaNodeKind.Choice
+    }));
+    var field = (SchemaField)reloaded.NodeDefs[0];
+    Assert.That(field.ByteLength is SchemaPubRef length && length.ToString() == "pub:header.length", Is.True);
+    Assert.That(field.ByteOffset, Is.EqualTo(-1));
+    var builder = new SchemaSetBuilder();
+    builder.AddDocument(reloaded);
+    builder.Compile();
+    var choices = reloaded.Roots.Single().Members.OfType<SchemaChoice>().ToArray();
+    Assert.That(choices[0].Pipeline, Is.EqualTo(SchemaPipelineMode.Isolate));
+    Assert.That(choices[1].Pipeline, Is.EqualTo(SchemaPipelineMode.Integrate));
+  }
+
     [TestCase("json")]
     [TestCase("xml")]
     [TestCase("yaml")]
@@ -77,7 +126,7 @@ public class EditNodeTests
     public void Builder_ExpressesVirtualFieldsOpenChoicesAndBoundedRepeats()
     {
         var document = new SchemaDocumentBuilder("Doc")
-            .NodeDef("Body", SchemaNodeKind.Group)
+            .NodeDefs(definitions => definitions.Group("Body"))
             .SizedGroup("Envelope", 20, group => group
                 .VirtualField("Status", "sys.uint8", -1)
                 .RepeatToEnd("Data", members => members.Field("Value"), byteSize: 8)

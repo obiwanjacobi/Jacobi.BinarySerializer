@@ -38,24 +38,16 @@ public sealed class EditChoice : EditGroup
 {
     public SchemaValueOrRef<int> SelectedIndex { get; set; }
     public SchemaName? MemberNodeDef { get; set; }
-    public SchemaPipelineMode Pipeline { get; set; }
+    public SchemaPipelineMode? Pipeline { get; set; }
     public List<EditProcessorRef> ValueProcessors { get; } = [];
 }
 
 public sealed class EditDocument : EditGroup
 {
-    public List<EditNodeDef> NodeDefs { get; } = [];
+    public List<EditNode> NodeDefs { get; } = [];
     public List<EditDataTypeDef> DataTypeDefs { get; } = [];
     public List<EditProcessorDef> ProcessorDefs { get; } = [];
     public List<EditDocumentRef> Includes { get; } = [];
-}
-
-public sealed class EditNodeDef : EditNode
-{
-    public SchemaNodeKind Kind { get; set; }
-    public SchemaName? DataType { get; set; }
-    public List<EditNode> Members { get; } = [];
-    public List<EditProcessorRef> Processors { get; } = [];
 }
 
 public sealed class EditDataTypeDef

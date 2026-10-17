@@ -7,7 +7,7 @@ public closed class Schema : SchemaGroup
         Kind = SchemaNodeKind.Schema;
     }
 
-    public required IReadOnlyList<SchemaNodeDef> NodeDefs { get; init; }
+    public required IReadOnlyList<SchemaNode> NodeDefs { get; init; }
     public IReadOnlyList<SchemaDataTypeDef> DataTypeDefs { get; init; } = [];
     public required IReadOnlyList<SchemaProcessorDef> ProcessorDefs { get; init; }
 
@@ -16,10 +16,11 @@ public closed class Schema : SchemaGroup
 
 public sealed class SchemaDocument : Schema
 {
+    private IReadOnlyList<SchemaGroup> _roots = [];
     private IReadOnlyList<SchemaGroup> _groups = [];
     private IReadOnlyList<SchemaField> _fields = [];
 
-    public required IReadOnlyList<SchemaGroup> Roots { get; init; }
+    public required IReadOnlyList<SchemaGroup> Roots { get => _roots; init => _roots = value; }
 
     public required IReadOnlyList<SchemaGroup> Groups { get => _groups; init => _groups = value; }
     public required IReadOnlyList<SchemaField> Fields { get => _fields; init => _fields = value; }
@@ -32,6 +33,7 @@ public sealed class SchemaDocument : Schema
     internal void RefreshIndexes()
     {
         var indexed = SchemaDocumentMapper.ToDocument(this);
+        _roots = indexed.Roots;
         _groups = indexed.Groups;
         _fields = indexed.Fields;
     }

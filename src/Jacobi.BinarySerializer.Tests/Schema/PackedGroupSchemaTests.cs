@@ -119,10 +119,10 @@ public class PackedGroupSchemaTests
         var document = new SchemaDocumentBuilder("Doc")
             .ProcessorDef("packing", "test.packing", ("order", "little"))
             .DataTypeDef("Scaled", "sys.uint8", processors: p => p.Add("sys.scale"))
-            .NodeDef("Mode", SchemaNodeKind.Field, dataType: "Scaled")
-            .NodeDef("FlagsDef", SchemaNodeKind.PackedGroup,
-                g => g.Field("Mode", dataType: null, nodeDef: "Mode"),
-                processors: p => p.Add("ref:packing"));
+            .NodeDefs(definitions => definitions
+              .Field("Mode", "Scaled")
+              .PackedGroup("FlagsDef", members: group => group.Field("Mode", dataType: null, nodeDef: "Mode"),
+                processors: processors => processors.Add("ref:packing")));
         if (root)
         {
             document.PackedGroup("Flags", 1, g => g.Field("Channel"), nodeDef: "FlagsDef");
@@ -233,21 +233,21 @@ public class PackedGroupSchemaTests
     {
         var builder = new SchemaSetBuilder();
         builder.AddDocument(new SchemaDocumentBuilder("Doc")
-            .NodeDef("Plain", SchemaNodeKind.Group)
+            .NodeDefs(definitions => definitions.Group("Plain"))
             .Group("Root", g => g.PackedGroup("Flags", 1, nodeDef: "Plain"))
             .Build());
         Assert.That(() => builder.Compile(), Throws.InvalidOperationException.With.Message.Contains("kinds must match"));
     }
 
     [Test]
-    public void Compile_PackedNodeDefWithDataType_Fails()
+    public void Compile_PackedNodeDefWithInvalidMembers_Fails()
     {
         var builder = new SchemaSetBuilder();
         builder.AddDocument(new SchemaDocumentBuilder("Doc")
-            .NodeDef("Flags", SchemaNodeKind.PackedGroup, dataType: "sys.uint8")
+            .NodeDefs(definitions => definitions.PackedGroup("Flags", members: group => group.Group("Invalid")))
             .Group("Root")
             .Build());
-        Assert.That(() => builder.Compile(), Throws.InvalidOperationException.With.Message.Contains("cannot declare a data type"));
+        Assert.That(() => builder.Compile(), Throws.InvalidOperationException.With.Message.Contains("can only contain fields"));
     }
 
     [TestCase("byteLength=\"1\"", "")]
@@ -257,9 +257,9 @@ public class PackedGroupSchemaTests
     {
         var xml = $"""
             <schema name="Doc">
-              <nodeDefs><nodeDef name="FlagsDef" kind="packedGroup"><members>
+              <nodeDefs><packedGroup name="FlagsDef"><members>
                 <field name="Mode" datatype="sys.uint8" />
-              </members></nodeDef></nodeDefs>
+              </members></packedGroup></nodeDefs>
               <members>
                 <packedGroup name="Flags" nodeDef="FlagsDef" {attribute}>{element}</packedGroup>
                 <group name="Root"><members>

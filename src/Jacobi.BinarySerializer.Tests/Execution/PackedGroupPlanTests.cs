@@ -151,7 +151,7 @@ public class PackedGroupPlanTests
     {
         var document = new SchemaDocumentBuilder("Doc")
             .DataTypeDef("Scaled", "sys.uint8", processors: p => p.Add(invalid ? "test.field" : "test.value"))
-            .NodeDef("FlagsDef", SchemaNodeKind.PackedGroup, g => g.Field("Mode", "Scaled"), processors: p => p.Add("test.pack"))
+            .NodeDefs(definitions => definitions.PackedGroup("FlagsDef", members: group => group.Field("Mode", "Scaled"), processors: processors => processors.Add("test.pack")))
             .Group("Root", g => g.PackedGroup("Flags", 2, nodeDef: "FlagsDef"))
             .Build();
         var schemas = new SchemaSetBuilder();

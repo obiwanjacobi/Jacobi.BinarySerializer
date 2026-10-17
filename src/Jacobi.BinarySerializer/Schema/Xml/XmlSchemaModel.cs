@@ -18,8 +18,12 @@ public sealed class XmlSchema
     public List<XmlSchemaNode>? Members { get; set; }
 
     [XmlArray("nodeDefs")]
-    [XmlArrayItem("nodeDef")]
-    public List<XmlSchemaNodeDef>? NodeDefs { get; set; }
+    [XmlArrayItem("field", typeof(XmlSchemaField))]
+    [XmlArrayItem("group", typeof(XmlSchemaGroup))]
+    [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
+    [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
+    [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
+    public List<XmlSchemaNode>? NodeDefs { get; set; }
 
     [XmlArray("dataTypeDefs")]
     [XmlArrayItem("dataTypeDef")]
@@ -97,46 +101,6 @@ public sealed class XmlSchemaOption
 
     [XmlAttribute("name")]
     public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// A reusable type: an optional data type plus processors.
-/// </summary>
-public sealed class XmlSchemaNodeDef
-{
-    [XmlAttribute("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>
-    /// The kind of node the nodeDef defines: field, group, repeat or choice. Required.
-    /// </summary>
-    [XmlAttribute("kind")]
-    public string? Kind { get; set; }
-
-    [XmlAttribute("datatype")]
-    public string? DataType { get; set; }
-
-    [XmlArray("processors")]
-    [XmlArrayItem("processor")]
-    public List<XmlSchemaProcessorRef>? Processors { get; set; }
-
-    [XmlArray("members")]
-    [XmlArrayItem("field", typeof(XmlSchemaField))]
-    [XmlArrayItem("group", typeof(XmlSchemaGroup))]
-    [XmlArrayItem("packedGroup", typeof(XmlSchemaPackedGroup))]
-    [XmlArrayItem("repeat", typeof(XmlSchemaRepeat))]
-    [XmlArrayItem("choice", typeof(XmlSchemaChoice))]
-    public List<XmlSchemaNode>? Members { get; set; }
-
-    [XmlArray("properties")]
-    [XmlArrayItem("property")]
-    public List<XmlSchemaProperty>? Properties { get; set; }
-
-    [XmlAnyAttribute]
-    public XmlAttribute[]? AdditionalAttributes { get; set; }
-
-    [XmlAnyElement]
-    public XmlElement[]? AdditionalElements { get; set; }
 }
 
 public abstract class XmlSchemaNode
