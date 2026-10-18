@@ -165,7 +165,10 @@ public sealed class SchemaChoice : SchemaGroup
         init => PipelineOverride = value;
     }
 
-    internal SchemaPipelineMode? PipelineOverride { get; init; }
+    /// <summary>
+    /// The explicitly authored pipeline mode, or null to inherit it from a node definition.
+    /// </summary>
+    public SchemaPipelineMode? PipelineOverride { get; init; }
 
     /// <summary>
     /// Semantic (value) processors that convert the referenced value into the (int) selected index.

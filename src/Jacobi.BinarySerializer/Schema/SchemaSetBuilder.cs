@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-using Jacobi.BinarySerializer.Schema.Editing;
 using Jacobi.BinarySerializer.Schema.Json;
 using Jacobi.BinarySerializer.Schema.Xml;
 
@@ -777,7 +776,94 @@ public sealed class SchemaSetBuilder
         => use is T or SchemaNodeRef or SchemaPubRef ? use : definition;
 
     private static SchemaNode CloneNode(SchemaNode node)
-        => EditNodeMapper.ToSchemaNode(EditNodeMapper.ToEditNode(node));
+        => CloneNode(node, null);
+
+    private static SchemaNode CloneNode(SchemaNode node, string? documentName)
+    {
+        var properties = node.Properties.Select(property => new SchemaProperty
+        {
+            Name = property.Name,
+            Value = property.Value
+        }).ToList();
+        var nodeDef = Qualify(node.NodeDef, documentName);
+        if (node is SchemaField field)
+        {
+            return new SchemaField
+            {
+                Name = node.Name,
+                NodeDef = nodeDef,
+                PropertyList = properties,
+                DataType = Qualify(field.DataType, documentName),
+                Value = CloneValue(field.Value),
+                ByteLength = CloneValue(field.ByteLength),
+                ByteOffset = field.ByteOffset,
+                ProcessorsList = CloneProcessors(field.Processors, documentName)
+            };
+        }
+
+        var group = (SchemaGroup)node;
+        var members = group.Members.Select(member => CloneNode(member, documentName)).ToList();
+        var processors = CloneProcessors(group.Processors, documentName);
+        var byteSize = CloneValue(group.ByteSize);
+        return group switch
+        {
+            SchemaPackedGroup packed => new SchemaPackedGroup
+            {
+                Name = node.Name, NodeDef = nodeDef, PropertyList = properties,
+                MemberList = members, ProcessorsList = processors, ByteSize = byteSize,
+                ByteLength = CloneValue(packed.ByteLength)
+            },
+            SchemaRepeat repeat => new SchemaRepeat
+            {
+                Name = node.Name, NodeDef = nodeDef, PropertyList = properties,
+                MemberList = members, ProcessorsList = processors, ByteSize = byteSize,
+                Count = CloneValue(repeat.Count),
+                ValueProcessorsList = CloneProcessors(repeat.ValueProcessors, documentName)
+            },
+            SchemaChoice choice => new SchemaChoice
+            {
+                Name = node.Name, NodeDef = nodeDef, PropertyList = properties,
+                MemberList = members, ProcessorsList = processors, ByteSize = byteSize,
+                SelectedIndex = CloneValue(choice.SelectedIndex),
+                MemberNodeDef = Qualify(choice.MemberNodeDef, documentName),
+                PipelineOverride = choice.PipelineOverride,
+                ValueProcessorsList = CloneProcessors(choice.ValueProcessors, documentName)
+            },
+            _ when group.GetType() == typeof(SchemaGroup) => new SchemaGroup
+            {
+                Name = node.Name, NodeDef = nodeDef, PropertyList = properties,
+                MemberList = members, ProcessorsList = processors, ByteSize = byteSize
+            },
+            _ => throw new NotSupportedException($"Unsupported schema node type: {node.GetType().Name}.")
+        };
+    }
+
+    private static SchemaValueOrRef<T> CloneValue<T>(SchemaValueOrRef<T> value) => value switch
+    {
+        SchemaNodeRef reference => new SchemaNodeRef { Path = reference.Path, Indices = reference.Indices.ToArray() },
+        SchemaPubRef reference => new SchemaPubRef { Namespace = reference.Namespace, Name = reference.Name },
+        T constant => constant,
+        _ => default
+    };
+
+    private static SchemaName? Qualify(SchemaName? name, string? documentName)
+        => name is { } value && documentName is not null && String.IsNullOrEmpty(value.Namespace)
+            ? new SchemaName($"{(value.IsReference ? "ref:" : String.Empty)}{documentName}.{value.Name}")
+            : name;
+
+    private static List<SchemaProcessorRef> CloneProcessors(IEnumerable<SchemaProcessorRef> processors, string? documentName)
+        => processors.Select(processor => new SchemaProcessorRef
+        {
+            Processor = processor.Processor.IsReference
+                ? Qualify(processor.Processor, documentName)!.Value
+                : processor.Processor,
+            PublishNamespace = processor.PublishNamespace,
+            PropertyList = processor.Properties.Select(property => new SchemaProperty
+            {
+                Name = property.Name,
+                Value = property.Value
+            }).ToList()
+        }).ToList();
 
     private SchemaNode ResolveNodeDef(SchemaDocument document, SchemaNode definition)
     {
@@ -791,9 +877,7 @@ public sealed class SchemaSetBuilder
         }
         try
         {
-            var edit = EditNodeMapper.ToEditNode(definition);
-            QualifyDefinition(edit, document.Name);
-            var nodes = new List<SchemaNode> { EditNodeMapper.ToSchemaNode(edit) };
+            var nodes = new List<SchemaNode> { CloneNode(definition, document.Name) };
             if (!ResolveReferences(document, nodes))
             {
                 throw new InvalidOperationException($"Failed to resolve node definition '{document.Name}.{definition.Name}'.");
@@ -807,45 +891,6 @@ public sealed class SchemaSetBuilder
         }
     }
 
-    private static void QualifyDefinition(EditNode node, string documentName)
-    {
-        static SchemaName Qualify(SchemaName name, string owner)
-            => String.IsNullOrEmpty(name.Namespace)
-                ? new SchemaName($"{(name.IsReference ? "ref:" : String.Empty)}{owner}.{name.Name}")
-                : name;
-
-        if (node.NodeDef is { } nodeDef)
-        {
-            node.NodeDef = Qualify(nodeDef, documentName);
-        }
-        if (node is EditField field && field.DataType is { } dataType)
-        {
-            field.DataType = Qualify(dataType, documentName);
-        }
-        if (node is EditChoice choice && choice.MemberNodeDef is { } memberNodeDef)
-        {
-            choice.MemberNodeDef = Qualify(memberNodeDef, documentName);
-        }
-        IEnumerable<EditProcessorRef> processors = node switch
-        {
-            EditField value => value.Processors,
-            EditRepeat repeat => repeat.Processors.Concat(repeat.ValueProcessors),
-            EditChoice value => value.Processors.Concat(value.ValueProcessors),
-            EditGroup group => group.Processors,
-            _ => []
-        };
-        foreach (var processor in processors.Where(processor => processor.Processor.IsReference))
-        {
-            processor.Processor = Qualify(processor.Processor, documentName);
-        }
-        if (node is EditGroup container)
-        {
-            foreach (var child in container.Members)
-            {
-                QualifyDefinition(child, documentName);
-            }
-        }
-    }
 }
 
 internal static class SchemaDocumentExtensions

@@ -1,5 +1,4 @@
 using Jacobi.BinarySerializer.Processor;
-using Jacobi.BinarySerializer.Schema.Editing;
 
 namespace Jacobi.BinarySerializer.Schema;
 
@@ -14,27 +13,10 @@ public sealed class SchemaDocumentBuilder
     private readonly List<SchemaDataTypeDef> _dataTypeDefs = [];
     private readonly List<SchemaProcessorDef> _processorDefs = [];
     private readonly List<SchemaDocumentRef> _includes = [];
-    private readonly SchemaDocument? _template;
 
     public SchemaDocumentBuilder(string name)
     {
         _name = name;
-    }
-
-    public SchemaDocumentBuilder(SchemaDocument document)
-    {
-        _template = EditNodeMapper.ToSchemaDocument(EditNodeMapper.ToEditDocument(document));
-        _name = _template.Name;
-        _root.Members.AddRange(_template.Members);
-        _nodeDefs.AddRange(_template.NodeDefs);
-        _dataTypeDefs.AddRange(_template.DataTypeDefs);
-        _processorDefs.AddRange(_template.ProcessorDefs);
-        _includes.AddRange(_template.Includes);
-    }
-
-    public SchemaDocumentBuilder(EditDocument document)
-        : this(EditNodeMapper.ToSchemaDocument(document))
-    {
     }
 
     public SchemaDocumentBuilder VirtualField(string name, string dataType, int byteOffset = 0, Action<ProcessorBuilder>? processors = null)
@@ -162,10 +144,6 @@ public sealed class SchemaDocumentBuilder
         var document = new SchemaDocument
         {
             Name = _name,
-            NodeDef = _template?.NodeDef,
-            ByteSize = _template is null ? default : _template.ByteSize,
-            PropertyList = _template?.Properties.ToList() ?? [],
-            ProcessorsList = _template?.Processors.ToList() ?? [],
             NodeDefs = _nodeDefs,
             DataTypeDefs = _dataTypeDefs,
             ProcessorDefs = _processorDefs,
@@ -175,7 +153,7 @@ public sealed class SchemaDocumentBuilder
             Fields = fields,
         };
         document.MemberList.AddRange(_root.Members);
-        return EditNodeMapper.ToSchemaDocument(EditNodeMapper.ToEditDocument(document));
+        return document;
     }
 
     private static void Collect(SchemaNode node, List<SchemaGroup> groups, List<SchemaField> fields)

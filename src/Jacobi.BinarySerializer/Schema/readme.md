@@ -9,27 +9,15 @@ A schema describes the structure of a binary format: which fields exist, in what
 - A document has one or more **roots**. A root is a group that is selected by name when the serializer asks for an `ExecutionPlan`.
 - The schema is data: it holds no logic. Everything that is not plain structure is expressed by a **processor** (with properties) or by a **reference**.
 
-## Editing and snapshots
+## Schema construction
 
-`Schema.Editing` contains the mutable authoring model: `EditDocument`, `EditNode`,
-typed field/group/repeat/choice/packed-group nodes, definitions, processors and properties.
-It has no UI dependencies or change notifications; selection, validation messages and
-binding notifications belong to the editor's view models.
+`SchemaDocumentBuilder` constructs a schema directly from fluent operations. It does not
+import documents, manage mutable editing drafts or create deep-copy snapshots. Editing models
+and their conversion to runtime schemas belong to the consuming application.
+Schema collections can also be initialized directly; their initializers copy the supplied
+collections, not the contained nodes. Applications constructing documents directly must provide
+consistent `Roots`, `Groups` and `Fields` indexes.
 
-Load through the existing format reader, then call `EditNodeMapper.ToEditDocument(document)`.
-Edit that draft as the source of truth. Call `new SchemaDocumentBuilder(draft).Build()`
-or `EditNodeMapper.ToSchemaDocument(draft)` to create an independent, uncompiled snapshot
-for saving or runtime compilation. No ongoing two-way synchronization is required.
-`ToEditNode` and `ToSchemaNode` perform the corresponding node-level conversions.
-
-The mapping preserves authored properties (including null values), definitions, includes,
-processor publish namespaces, and unset/literal/node-reference/published-reference distinctions.
-Derived indexes are rebuilt; resolved references and compiled state are not copied.
-Importing a compiled document is rejected: compilation may have expanded inherited members
-and properties, so keep the uncompiled source document or draft for editing.
-
-The builder can also import an existing uncompiled `SchemaDocument`. Builds are independent
-snapshots, including when more nodes are appended after an earlier build.
 `VirtualField`, `OpenChoice`, `SizedGroup` and `RepeatToEnd` name special authoring cases.
 Field values/lengths, group sizes and repeat/choice value processors are available as typed
 optional arguments. An omitted packed-group length remains unset (effective default: 1).
@@ -40,12 +28,10 @@ serializer omits their containers. Missing and explicitly empty XML collections 
 non-null empty schema collections. No element-name-based output cleanup is required.
 
 Status:
-- [x] Mutable authoring model and bidirectional schema mapping.
-- [x] Builder import and typed special-case configuration.
-- [x] JSON/XML/YAML round-trip and snapshot-isolation tests.
-- [x] Connect the MIDI schema editor's commands and persistence to the authoring model.
+- [x] Direct schema construction without editor-model dependencies.
+- [x] Typed special-case builder configuration.
+- [x] JSON/XML/YAML round-trip tests.
 - [x] Accept inline/wrapped XML processor declarations and omit empty generated collections/unused namespaces.
-- [x] Preserve loaded XML comments and presentation in the MIDI editor without adding source trivia to runtime schema nodes.
 - [x] Reuse concrete nodes for definitions, with typed inheritance, independent instances and reference-cycle checks.
 
 ## Document layout
@@ -62,8 +48,7 @@ Status:
 
 ## Reusable nodes
 
-`Schema.NodeDefs` holds ordinary `SchemaNode` instances; `EditDocument.NodeDefs` holds the
-corresponding concrete `EditNode` instances. There is no separate definition model.
+`Schema.NodeDefs` holds ordinary `SchemaNode` instances. There is no separate definition model.
 JSON/YAML definitions use the same `kind` discriminator and properties as ordinary members.
 The JSON schema reuses the node `oneOf`; XML reuses the node-list `xs:choice`:
 
