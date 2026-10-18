@@ -14,9 +14,10 @@ A schema describes the structure of a binary format: which fields exist, in what
 `SchemaDocumentBuilder` constructs a schema directly from fluent operations. It does not
 import documents, manage mutable editing drafts or create deep-copy snapshots. Editing models
 and their conversion to runtime schemas belong to the consuming application.
-Schema collections can also be initialized directly; their initializers copy the supplied
-collections, not the contained nodes. Applications constructing documents directly must provide
-consistent `Roots`, `Groups` and `Fields` indexes.
+Node collections remain getter-only. Use `Members` and `NodeDefs` callbacks to populate them;
+the builder maintains the document's `Roots`, `Groups` and `Fields` indexes. Node operations
+accept properties, processor declarations preserve publish namespaces, and includes accept paths.
+The constructor accepts document-level settings, properties and processors.
 
 `VirtualField`, `OpenChoice`, `SizedGroup` and `RepeatToEnd` name special authoring cases.
 Field values/lengths, group sizes and repeat/choice value processors are available as typed
@@ -30,6 +31,7 @@ non-null empty schema collections. No element-name-based output cleanup is requi
 Status:
 - [x] Direct schema construction without editor-model dependencies.
 - [x] Typed special-case builder configuration.
+- [x] Builder support for authored metadata while keeping node collections read-only.
 - [x] JSON/XML/YAML round-trip tests.
 - [x] Accept inline/wrapped XML processor declarations and omit empty generated collections/unused namespaces.
 - [x] Reuse concrete nodes for definitions, with typed inheritance, independent instances and reference-cycle checks.
