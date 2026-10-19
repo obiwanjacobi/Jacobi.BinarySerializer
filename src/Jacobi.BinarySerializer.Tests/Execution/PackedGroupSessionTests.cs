@@ -103,7 +103,7 @@ public class PackedGroupSessionTests
         var packed = new SchemaPackedGroup
         {
             Name = "Flags", ByteLength = 1, ByteSize = 6,
-            ProcessorsList = [new SchemaProcessorRef { Processor = "test.pack" }, Ref("bytepacker"), Ref("align", ("bytes", "2")), Ref("crc")],
+            ProcessorsList = [new SchemaProcessorRef { Processor = "test.pack" }, Ref("crc"), Ref("align", ("bytes", "2")), Ref("bytepacker")],
             MemberList = [Field("A", "sys.uint8"), Field("B", "sys.uint8")]
         };
         var plan = BuildPlan(packed);
@@ -286,7 +286,7 @@ public class PackedGroupSessionTests
     [TestCase("readOnlyMemory", true)]
     public void RoundTrip_MemoryCarrier_UsesExistingLayoutHeads(string mode, bool crcHead)
     {
-        var layouts = crcHead ? new[] { Ref("crc") } : new[] { Ref("bytepacker", ("byteorder", "big")), Ref("crc") };
+        var layouts = crcHead ? new[] { Ref("crc") } : new[] { Ref("crc"), Ref("bytepacker", ("byteorder", "big")) };
         var (bytes, sink) = RoundTrip(BuildPlan(Packed(2, layouts), mode),
             new FlatValues(new() { ["Flags.A"] = (byte)3, ["Flags.B"] = (byte)12 }));
         Assert.That(bytes.Length, Is.EqualTo(6));

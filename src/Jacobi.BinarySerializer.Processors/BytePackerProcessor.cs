@@ -9,7 +9,7 @@ namespace Jacobi.BinarySerializer.Processors;
 /// Lays out fields as whole bytes in declaration order, in the configured byte order.
 /// Group property 'endian' ('little' or 'big') sets the byte order of fixed-width values (default: little, the canonical form).
 /// Values without a fixed width (strings) are passed on unchanged.
-/// Usable as the layout head, or chained after a head: the bytes of a fixed-width field are then converted in place.
+/// Usable as the innermost layout processor or as an outer byte wrapper: fixed-width field bytes are converted in place.
 /// </summary>
 internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
     ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>

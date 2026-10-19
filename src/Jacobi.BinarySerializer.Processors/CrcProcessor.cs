@@ -11,7 +11,7 @@ namespace Jacobi.BinarySerializer.Processors;
 /// Appends a CRC over all bytes of the group when writing and validates it when reading. No field represents the CRC.
 /// Properties: 'algorithm' (a <see cref="CrcCodec"/> preset name, default 'crc32'), 'byteorder' ('big' (default) or 'little'),
 /// and optional overrides 'width', 'poly', 'init', 'refin', 'refout', 'xorout' (numbers may be hex with 0x).
-/// Usable as the layout head, or chained after a head (e.g. the byte packer).
+/// Usable as the innermost layout processor or as an outer byte wrapper (e.g. around the byte packer).
 /// </summary>
 internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>

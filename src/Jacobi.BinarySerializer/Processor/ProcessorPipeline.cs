@@ -47,7 +47,7 @@ public sealed class ProcessorPipeline
         OwnLayoutProcessors = layout ?? [];
         if (layout is not null && parent is { LayoutProcessors.Count: > 0 })
         {
-            // a field reads through every layout processor declared from the root down: the outermost is the head, inner ones follow it.
+            // a field reads through every layout processor declared from the root down: ancestors and earlier declarations wrap later ones.
             // a processor that is already in the chain is not added again.
             var accumulated = new List<ProcessorBinding>(parent.LayoutProcessors);
             foreach (var binding in layout)
@@ -76,7 +76,7 @@ public sealed class ProcessorPipeline
     public IReadOnlyList<ProcessorBinding> PackingProcessors { get; }
 
     /// <summary>
-    /// The layout chain a field reads through: the processors declared from the root down to this level, outermost (head) first.
+    /// The layout chain a field reads through: the processors declared from the root down to this level, outermost first.
     /// </summary>
     public IReadOnlyList<ProcessorBinding> LayoutProcessors { get; }
 

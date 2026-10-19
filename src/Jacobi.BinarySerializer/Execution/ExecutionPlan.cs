@@ -636,16 +636,16 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         }
     }
 
-    /// <summary>A layout chain is the head (first) followed by processors that implement the chained (bytes to bytes) interfaces.</summary>
+    /// <summary>Every layout processor outside the innermost one wraps bytes and must implement the chained byte interfaces.</summary>
     private static void ValidateLayoutChain(IReadOnlyList<ProcessorBinding> chain, string path, BuildState state)
     {
-        for (var i = 1; i < chain.Count; i++)
+        for (var i = 0; i < chain.Count - 1; i++)
         {
             var processor = chain[i].Processor;
             if (processor is not ILayoutWriter<ReadOnlySpan<byte>> || processor is not ILayoutReader<ReadOnlyMemory<byte>>)
             {
                 state.Error(path,
-                    $"Processor '{processor.Key}' cannot follow '{chain[i - 1].Processor.Key}' in a layout chain: it does not implement the chained layout interfaces.");
+                    $"Processor '{processor.Key}' cannot wrap '{chain[i + 1].Processor.Key}' in a layout chain: it does not implement the chained layout interfaces.");
             }
         }
     }

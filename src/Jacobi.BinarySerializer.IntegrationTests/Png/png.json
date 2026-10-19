@@ -17,12 +17,6 @@
     {
       "name": "Png",
       "kind": "group",
-      "processors": [
-        {
-          "name": "sys.bytepacker",
-          "byteorder": "big"
-        }
-      ],
       "members": [
         {
           "name": "Signature",
@@ -38,14 +32,20 @@
             {
               "name": "Length",
               "kind": "field",
-              "datatype": "sys.uint32"
+              "datatype": "sys.uint32",
+              "processors": [
+                {
+                  "name": "sys.bytepacker",
+                  "byteorder": "big"
+                }
+              ]
             },
             {
               "name": "Body",
               "kind": "group",
               "processors": [
-                { "name": "sys.bytepacker" },
-                { "name": "sys.crc" }
+                { "name": "sys.crc" },
+                { "name": "sys.bytepacker" }
               ],
               "members": [
                 {

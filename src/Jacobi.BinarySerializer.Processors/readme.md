@@ -121,7 +121,7 @@ In the example `byteLength` could be left out (default 1) and `Flag` has no `bit
 
 ### `sys.bytepacker`
 
-Lays out fields as whole bytes in declaration order, in the configured byte order. Values without a fixed width (strings) are passed on unchanged. Usually the head of a layout chain.
+Lays out fields as whole bytes in declaration order, in the configured byte order. Values without a fixed width (strings) are passed on unchanged. It can be the innermost field-to-bytes processor or an outer byte wrapper.
 
 | Property | Required | Description |
 |----------|----------|-------------|
@@ -129,7 +129,7 @@ Lays out fields as whole bytes in declaration order, in the configured byte orde
 
 ### `sys.align`
 
-Pads with zero bytes so each value, and the end of the group, starts on a multiple of `bytes`. Usable as the layout head or chained after a head such as the byte packer. On a group that contains a packed group, the finished carrier is aligned like any other encoded value.
+Pads with zero bytes so each value, and the end of the group, starts on a multiple of `bytes`. It can be the innermost field-to-bytes processor or an outer byte wrapper such as around the byte packer. On a group that contains a packed group, the finished carrier is aligned like any other encoded value.
 
 | Property | Required | Description |
 |----------|----------|-------------|
@@ -138,7 +138,7 @@ Pads with zero bytes so each value, and the end of the group, starts on a multip
 
 ### `sys.crc`
 
-Appends a CRC over all bytes of the group when writing and validates it when reading. No field represents the CRC. Usable as the layout head or chained after a head (e.g. the byte packer).
+Appends a CRC over all bytes of the group when writing and validates it when reading. No field represents the CRC. It can be the innermost field-to-bytes processor or an outer byte wrapper such as around the byte packer.
 
 | Property | Required | Description |
 |----------|----------|-------------|

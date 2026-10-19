@@ -20,6 +20,8 @@ internal sealed class ReaderSession : SessionState
     private InstancePath _instance;
     private (GroupInfo Group, IValueSink Scope)? _openBody;
     private readonly Stack<long> _groupStarts = new();
+    private readonly Dictionary<ProcessorBinding, long> _layoutPositions = [];
+    private readonly Dictionary<ProcessorBinding, Stack<long>> _layoutGroupStarts = [];
     private readonly Stack<int> _choiceIndexes = new();
     private readonly Stack<(GroupInfo Group, long End, int AncestorTail)> _windows = new();
     private readonly Stack<int> _tails = new();
@@ -88,6 +90,8 @@ internal sealed class ReaderSession : SessionState
 
         var reader = new SequenceReader<byte>(payload);
         _groupStarts.Clear();
+        _layoutPositions.Clear();
+        _layoutGroupStarts.Clear();
         _windows.Clear();
         _tails.Clear();
         _tailTotal = 0;
@@ -376,7 +380,13 @@ internal sealed class ReaderSession : SessionState
             reader.Rewind(-byteOffset);
         }
 
+        var fieldStart = reader.Consumed;
         var result = ReadField(field, scope, ref reader);
+        var bytesConsumed = reader.Consumed - fieldStart;
+        if (bytesConsumed > 0)
+        {
+            RewindLayoutPositions(field.Pipeline.LayoutProcessors, bytesConsumed);
+        }
 
         var delta = reader.Consumed - start;
         if (delta > 0)
@@ -451,6 +461,7 @@ internal sealed class ReaderSession : SessionState
                 if (fieldResult.Status != ReadResult.Success)
                 {
                     reader.Rewind(provided / 8);
+                    RewindLayoutPositions(pipeline.LayoutProcessors, provided / 8);
                     needsLargerWindow = fieldResult.Status == ReadResult.NeedMoreData && reader.Remaining > provided / 8;
                     return fieldResult.Status;
                 }
@@ -461,7 +472,9 @@ internal sealed class ReaderSession : SessionState
                 }
 
                 // give back the part of the window the processor did not use.
-                reader.Rewind((provided - fieldResult.BitsConsumed) / 8);
+                var unusedBytes = (provided - fieldResult.BitsConsumed) / 8;
+                reader.Rewind(unusedBytes);
+                RewindLayoutPositions(pipeline.LayoutProcessors, unusedBytes);
                 logical = fieldResult.Value;
                 break;
         }
@@ -561,8 +574,14 @@ internal sealed class ReaderSession : SessionState
             case 1:
                 var binding = pipeline.LayoutProcessors[0];
                 Prepare(_layoutContext, binding);
-                SetPosition(reader.Consumed);
-                return ((ILayoutProcessor)binding.Processor).Read(ref reader, _layoutContext);
+                SetPosition(reader.Consumed, binding);
+                var start = reader.Consumed;
+                var singleResult = ((ILayoutProcessor)binding.Processor).Read(ref reader, _layoutContext);
+                if (singleResult.Status == ReadResult.Success)
+                {
+                    AdvanceReadPosition(pipeline.LayoutProcessors, 0, reader.Consumed - start);
+                }
+                return singleResult;
             default:
                 return ReadChained(pipeline.LayoutProcessors, ref reader);
         }
@@ -589,12 +608,21 @@ internal sealed class ReaderSession : SessionState
         _layoutContext.ReservedTail = 0;
         _layoutContext.CanReserveTail = true;
         SetGroupData(group, itemIndex, itemCount);
-        var chain = group.Pipeline.OwnLayoutProcessors;
-        for (var i = chain.Count - 1; i >= 0; i--)
+        var chain = group.Pipeline.LayoutProcessors;
+        foreach (var binding in group.Pipeline.OwnLayoutProcessors)
         {
-            Prepare(_layoutContext, chain[i], "BeginRead");
-            SetPosition(reader.Consumed);
-            ((ILayoutProcessor)chain[i].Processor).BeginRead(ref reader, _layoutContext);
+            var index = IndexOf(chain, binding);
+            if (index < 0)
+            {
+                continue;
+            }
+            var activeBinding = chain[index];
+            BeginLayoutScope(activeBinding);
+            Prepare(_layoutContext, activeBinding, "BeginRead");
+            SetPosition(reader.Consumed, activeBinding);
+            var start = reader.Consumed;
+            ((ILayoutProcessor)activeBinding.Processor).BeginRead(ref reader, _layoutContext);
+            AdvanceReadPosition(chain, index, reader.Consumed - start);
         }
         _layoutContext.CanReserveTail = false;
         _tails.Push(_layoutContext.ReservedTail);
@@ -612,11 +640,22 @@ internal sealed class ReaderSession : SessionState
         _layoutContext.Group = group;
         _layoutContext.Field = null;
         SetGroupData(group, itemIndex, itemCount);
-        foreach (var binding in group.Pipeline.OwnLayoutProcessors)
+        var chain = group.Pipeline.LayoutProcessors;
+        for (var i = group.Pipeline.OwnLayoutProcessors.Count - 1; i >= 0; i--)
         {
-            Prepare(_layoutContext, binding, "EndRead");
-            SetPosition(reader.Consumed);
-            ((ILayoutProcessor)binding.Processor).EndRead(ref reader, _layoutContext);
+            var binding = group.Pipeline.OwnLayoutProcessors[i];
+            var index = IndexOf(chain, binding);
+            if (index < 0)
+            {
+                continue;
+            }
+            var activeBinding = chain[index];
+            Prepare(_layoutContext, activeBinding, "EndRead");
+            SetPosition(reader.Consumed, activeBinding);
+            var start = reader.Consumed;
+            ((ILayoutProcessor)activeBinding.Processor).EndRead(ref reader, _layoutContext);
+            AdvanceReadPosition(chain, index, reader.Consumed - start);
+            EndLayoutScope(activeBinding);
         }
         _groupStarts.Pop();
     }
@@ -650,38 +689,112 @@ internal sealed class ReaderSession : SessionState
         _layoutContext.GroupData.Position = consumed - (_groupStarts.Count > 0 ? _groupStarts.Peek() : 0);
     }
 
+    private void SetPosition(long rootPosition, ProcessorBinding binding)
+    {
+        _layoutContext.GroupData.RootPosition = rootPosition;
+        _layoutContext.GroupData.Position = LayoutPosition(binding) - GroupStart(binding);
+    }
+
+    private long LayoutPosition(ProcessorBinding binding)
+        => _layoutPositions.TryGetValue(binding, out var position) ? position : 0;
+
+    private long GroupStart(ProcessorBinding binding)
+        => _layoutGroupStarts.TryGetValue(binding, out var starts) && starts.Count > 0 ? starts.Peek() : 0;
+
+    private void AdvanceReadPosition(IReadOnlyList<ProcessorBinding> chain, int index, long count)
+    {
+        for (var i = 0; i <= index; i++)
+        {
+            _layoutPositions[chain[i]] = LayoutPosition(chain[i]) + count;
+        }
+    }
+
+    private void AdvanceFieldPositions(IReadOnlyList<ProcessorBinding> chain, IReadOnlyList<long> consumed)
+    {
+        long downstream = 0;
+        for (var i = chain.Count - 1; i >= 0; i--)
+        {
+            downstream += consumed[i];
+            _layoutPositions[chain[i]] = LayoutPosition(chain[i]) + downstream;
+        }
+    }
+
+    private void RewindLayoutPositions(IReadOnlyList<ProcessorBinding> chain, long count)
+    {
+        foreach (var binding in chain)
+        {
+            _layoutPositions[binding] = LayoutPosition(binding) - count;
+        }
+    }
+
+    private void BeginLayoutScope(ProcessorBinding binding)
+    {
+        if (!_layoutGroupStarts.TryGetValue(binding, out var starts))
+        {
+            starts = new Stack<long>();
+            _layoutGroupStarts.Add(binding, starts);
+        }
+        starts.Push(LayoutPosition(binding));
+    }
+
+    private void EndLayoutScope(ProcessorBinding binding)
+        => _layoutGroupStarts[binding].Pop();
+
+    private static int IndexOf(IReadOnlyList<ProcessorBinding> chain, ProcessorBinding binding)
+    {
+        var matchingKey = -1;
+        for (var i = 0; i < chain.Count; i++)
+        {
+            if (ReferenceEquals(chain[i], binding))
+            {
+                return i;
+            }
+            if (matchingKey < 0 && chain[i].Processor.Key == binding.Processor.Key)
+            {
+                matchingKey = i;
+            }
+        }
+        return matchingKey;
+    }
+
     /// <summary>
-    /// Reads a field through a chain: the last processor sees the actual input first and passes the unread rest on (towards the head).
-    /// The chained stages only strip what they own (e.g. padding); the head reads the field. The actual reader advances by what was consumed in total.
+    /// Reads bytes through the layout wrappers
+    /// and returns the remainder for the next stage; the innermost processor extracts the encoded field.
     /// </summary>
     private LayoutReadResult<EncodedField> ReadChained(IReadOnlyList<ProcessorBinding> chain, ref SequenceReader<byte> reader)
     {
         var start = reader.Consumed;
-        var initialRemaining = reader.Remaining;
         var current = reader.UnreadSequence;
+        var consumed = new long[chain.Count];
+        var rootPosition = start;
 
-        for (var j = chain.Count - 1; j >= 1; j--)
+        for (var i = 0; i < chain.Count - 1; i++)
         {
             var stageReader = new SequenceReader<byte>(current);
-            Prepare(_layoutContext, chain[j]);
-            SetPosition(start + (initialRemaining - current.Length));
-            var result = ((ILayoutReader<ReadOnlyMemory<byte>>)chain[j].Processor).Read(ref stageReader, _layoutContext);
+            Prepare(_layoutContext, chain[i]);
+            SetPosition(rootPosition, chain[i]);
+            var result = ((ILayoutReader<ReadOnlyMemory<byte>>)chain[i].Processor).Read(ref stageReader, _layoutContext);
             if (result.Status != ReadResult.Success)
             {
                 return LayoutReadResult<EncodedField>.WithStatus(result.Status);
             }
+            consumed[i] = stageReader.Consumed;
+            rootPosition += stageReader.Consumed;
             current = new ReadOnlySequence<byte>(result.Value);
         }
 
-        var headReader = new SequenceReader<byte>(current);
-        Prepare(_layoutContext, chain[0]);
-        SetPosition(start + (initialRemaining - current.Length));
-        var headResult = ((ILayoutProcessor)chain[0].Processor).Read(ref headReader, _layoutContext);
-        if (headResult.Status == ReadResult.Success)
+        var inner = chain.Count - 1;
+        var innerReader = new SequenceReader<byte>(current);
+        Prepare(_layoutContext, chain[inner]);
+        SetPosition(rootPosition, chain[inner]);
+        var innerResult = ((ILayoutProcessor)chain[inner].Processor).Read(ref innerReader, _layoutContext);
+        if (innerResult.Status == ReadResult.Success)
         {
-            reader.Advance(initialRemaining - headReader.Remaining);
+            consumed[inner] = innerReader.Consumed;
+            AdvanceFieldPositions(chain, consumed);
+            reader.Advance(consumed.Sum());
         }
-        return headResult;
+        return innerResult;
     }
 
     /// <summary>Runs the stream stage (reverse order of writing) over the transport input into the payload.</summary>

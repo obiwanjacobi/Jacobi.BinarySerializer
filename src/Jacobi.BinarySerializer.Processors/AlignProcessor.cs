@@ -8,7 +8,7 @@ namespace Jacobi.BinarySerializer.Processors;
 /// <summary>
 /// Pads with zero bytes so that each value, and the end of the group, starts on a multiple of 'bytes'.
 /// Processor property 'bytes' (required, &gt; 0) is the alignment; 'relative' ('group' (default) or 'root') is what the position is relative to.
-/// Usable as the layout head, or chained after a head (e.g. the byte packer).
+/// Usable as the innermost layout processor or as an outer byte wrapper (e.g. around the byte packer).
 /// </summary>
 /// <remarks>
 /// Chained after a bit packer, only the bytes the packer emits are aligned. On read, the aligner cannot tell which fields

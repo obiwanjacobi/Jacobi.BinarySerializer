@@ -31,6 +31,8 @@ internal sealed class WriterSession : SessionState
     private IBufferWriter<byte> _target;
     private CountingBufferWriter _counter;
     private readonly Stack<long> _groupStarts = new();
+    private readonly Dictionary<ProcessorBinding, long> _layoutPositions = [];
+    private readonly Dictionary<ProcessorBinding, Stack<long>> _layoutGroupStarts = [];
     private readonly Stack<int> _choiceIndexes = new();
     private readonly Stack<long> _sizeStarts = new();
     private readonly Stack<DeferredSize> _deferred = new();
@@ -86,6 +88,8 @@ internal sealed class WriterSession : SessionState
         _counter = new CountingBufferWriter((IBufferWriter<byte>?)payload ?? _output);
         _target = _counter;
         _groupStarts.Clear();
+        _layoutPositions.Clear();
+        _layoutGroupStarts.Clear();
         _sizeStarts.Clear();
         _deferred.Clear();
         EngineLogger.WriteStarted(root.Path.ToString());
@@ -609,8 +613,11 @@ internal sealed class WriterSession : SessionState
             case 1:
                 var layoutBinding = pipeline.LayoutProcessors[0];
                 Prepare(_layoutContext, layoutBinding);
-                SetPosition();
-                return ((ILayoutProcessor)layoutBinding.Processor).Write(_target, encoded, _layoutContext);
+                SetPosition(layoutBinding);
+                var start = _counter.Written;
+                var singleResult = ((ILayoutProcessor)layoutBinding.Processor).Write(_target, encoded, _layoutContext);
+                AdvanceLayoutPosition(layoutBinding, _counter.Written - start);
+                return singleResult;
             default:
                 return WriteChained(pipeline.LayoutProcessors, encoded);
         }
@@ -636,6 +643,35 @@ internal sealed class WriterSession : SessionState
         _layoutContext.GroupData.Position = _counter.Written - (_groupStarts.Count > 0 ? _groupStarts.Peek() : 0);
     }
 
+    private void SetPosition(ProcessorBinding binding)
+    {
+        _layoutContext.GroupData.RootPosition = _counter.Written;
+        var position = LayoutPosition(binding);
+        _layoutContext.GroupData.Position = position - GroupStart(binding);
+    }
+
+    private long LayoutPosition(ProcessorBinding binding)
+        => _layoutPositions.TryGetValue(binding, out var position) ? position : 0;
+
+    private long GroupStart(ProcessorBinding binding)
+        => _layoutGroupStarts.TryGetValue(binding, out var starts) && starts.Count > 0 ? starts.Peek() : 0;
+
+    private void AdvanceLayoutPosition(ProcessorBinding binding, long count)
+        => _layoutPositions[binding] = LayoutPosition(binding) + count;
+
+    private void BeginLayoutScope(ProcessorBinding binding)
+    {
+        if (!_layoutGroupStarts.TryGetValue(binding, out var starts))
+        {
+            starts = new Stack<long>();
+            _layoutGroupStarts.Add(binding, starts);
+        }
+        starts.Push(LayoutPosition(binding));
+    }
+
+    private void EndLayoutScope(ProcessorBinding binding)
+        => _layoutGroupStarts[binding].Pop();
+
     private List<ArrayBufferWriter<byte>> RentBuffers(int count)
     {
         while (_chainBuffers.Count < count)
@@ -649,31 +685,42 @@ internal sealed class WriterSession : SessionState
         return _chainBuffers;
     }
 
-    /// <summary>The head writes into the first buffer, each following stage reads the previous buffer; the last one writes to the target.</summary>
+    /// <summary>The innermost processor creates bytes; each outer processor wraps them on the way to the target.</summary>
     private WriteResult WriteChained(IReadOnlyList<ProcessorBinding> chain, EncodedField encoded)
     {
         var buffers = RentBuffers(chain.Count - 1);
-        Prepare(_layoutContext, chain[0]);
-        SetPosition();
-        var result = ((ILayoutProcessor)chain[0].Processor).Write(buffers[0], encoded, _layoutContext);
-        return result != WriteResult.Success ? result : ForwardWrite(chain, 1, buffers);
+        var inner = chain.Count - 1;
+        var innerOutput = buffers[inner - 1];
+        Prepare(_layoutContext, chain[inner]);
+        SetPosition(chain[inner]);
+        var innerStart = innerOutput.WrittenCount;
+        var result = ((ILayoutProcessor)chain[inner].Processor).Write(innerOutput, encoded, _layoutContext);
+        AdvanceLayoutPosition(chain[inner], innerOutput.WrittenCount - innerStart);
+        return result != WriteResult.Success ? result : ForwardWrite(chain, inner - 1, buffers);
     }
 
-    /// <summary>Pushes the bytes buffered by stage (from - 1) through the stages from..last.</summary>
+    /// <summary>Pushes bytes from an inner stage outward through stages starting at <paramref name="from"/>.</summary>
     private WriteResult ForwardWrite(IReadOnlyList<ProcessorBinding> chain, int from, List<ArrayBufferWriter<byte>> buffers)
     {
-        for (var j = from; j < chain.Count; j++)
+        for (var i = from; i >= 0; i--)
         {
-            var input = buffers[j - 1];
+            var input = buffers[i];
             if (input.WrittenCount == 0)
             {
                 break;
             }
 
-            Prepare(_layoutContext, chain[j]);
-            SetPosition();
-            var output = j == chain.Count - 1 ? _target : buffers[j];
-            var result = ((ILayoutWriter<ReadOnlySpan<byte>>)chain[j].Processor).Write(output, input.WrittenSpan, _layoutContext);
+            Prepare(_layoutContext, chain[i]);
+            SetPosition(chain[i]);
+            if (i > 0)
+            {
+                buffers[i - 1].Clear();
+            }
+            var output = i == 0 ? _target : buffers[i - 1];
+            var outputStart = i == 0 ? _counter.Written : buffers[i - 1].WrittenCount;
+            var result = ((ILayoutWriter<ReadOnlySpan<byte>>)chain[i].Processor).Write(output, input.WrittenSpan, _layoutContext);
+            var outputEnd = i == 0 ? _counter.Written : buffers[i - 1].WrittenCount;
+            AdvanceLayoutPosition(chain[i], outputEnd - outputStart);
             input.Clear();
             if (result != WriteResult.Success)
             {
@@ -686,7 +733,6 @@ internal sealed class WriterSession : SessionState
 
     private void ForwardGroupWrite(GroupInfo group, IReadOnlyList<ProcessorBinding> chain, int from, List<ArrayBufferWriter<byte>> buffers)
     {
-        // restore: the forward calls are group-level (no field)
         _layoutContext.Group = group;
         _layoutContext.Field = null;
         _layoutContext.PackedGroup = null;
@@ -694,6 +740,65 @@ internal sealed class WriterSession : SessionState
         if (result != WriteResult.Success)
         {
             throw EngineLogger.Fail($"'{group.Path}': a chained layout processor failed ({result}) while writing group-level output.");
+        }
+    }
+
+    private int IndexOf(IReadOnlyList<ProcessorBinding> chain, ProcessorBinding binding)
+    {
+        var matchingKey = -1;
+        for (var i = 0; i < chain.Count; i++)
+        {
+            if (ReferenceEquals(chain[i], binding))
+            {
+                return i;
+            }
+            if (matchingKey < 0 && chain[i].Processor.Key == binding.Processor.Key)
+            {
+                matchingKey = i;
+            }
+        }
+        return matchingKey;
+    }
+
+    private void InvokeGroupHook(GroupInfo group, IReadOnlyList<ProcessorBinding> chain, ProcessorBinding binding, string hook)
+    {
+        var index = IndexOf(chain, binding);
+        if (index < 0)
+        {
+            return;
+        }
+        var activeBinding = chain[index];
+
+        var buffers = RentBuffers(chain.Count - 1);
+        var output = index == 0 ? _target : buffers[index - 1];
+        if (index > 0)
+        {
+            buffers[index - 1].Clear();
+        }
+        if (hook == "BeginWrite")
+        {
+            BeginLayoutScope(activeBinding);
+        }
+        Prepare(_layoutContext, activeBinding, hook);
+        SetPosition(activeBinding);
+        var outputStart = index == 0 ? _counter.Written : buffers[index - 1].WrittenCount;
+        if (hook == "BeginWrite")
+        {
+            ((ILayoutProcessor)activeBinding.Processor).BeginWrite(output, _layoutContext);
+        }
+        else
+        {
+            ((ILayoutProcessor)activeBinding.Processor).EndWrite(output, _layoutContext);
+        }
+        var outputEnd = index == 0 ? _counter.Written : buffers[index - 1].WrittenCount;
+        AdvanceLayoutPosition(activeBinding, outputEnd - outputStart);
+        if (index > 0)
+        {
+            ForwardGroupWrite(group, chain, index - 1, buffers);
+        }
+        if (hook == "EndWrite")
+        {
+            EndLayoutScope(activeBinding);
         }
     }
 
@@ -711,14 +816,10 @@ internal sealed class WriterSession : SessionState
         _layoutContext.FieldData.ByteLength = null;
         _layoutContext.GroupData.ByteSize = null;
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
-        var chain = group.Pipeline.OwnLayoutProcessors;
-        var buffers = RentBuffers(chain.Count - 1);
-        for (var i = chain.Count - 1; i >= 0; i--)
+        var chain = group.Pipeline.LayoutProcessors;
+        foreach (var binding in group.Pipeline.OwnLayoutProcessors)
         {
-            Prepare(_layoutContext, chain[i], "BeginWrite");
-            SetPosition();
-            ((ILayoutProcessor)chain[i].Processor).BeginWrite(i == chain.Count - 1 ? _target : buffers[i], _layoutContext);
-            ForwardGroupWrite(group, chain, i + 1, buffers);
+            InvokeGroupHook(group, chain, binding, "BeginWrite");
         }
     }
 
@@ -737,14 +838,10 @@ internal sealed class WriterSession : SessionState
         _layoutContext.GroupData.ByteSize = group is not RepeatInfo && group.HasByteSize && _sizeStarts.Count > 0
             ? checked((int)(_counter.Written - _sizeStarts.Peek()))
             : null;
-        var chain = group.Pipeline.OwnLayoutProcessors;
-        var buffers = RentBuffers(chain.Count - 1);
-        for (var i = 0; i < chain.Count; i++)
+        var chain = group.Pipeline.LayoutProcessors;
+        for (var i = group.Pipeline.OwnLayoutProcessors.Count - 1; i >= 0; i--)
         {
-            Prepare(_layoutContext, chain[i], "EndWrite");
-            SetPosition();
-            ((ILayoutProcessor)chain[i].Processor).EndWrite(i == chain.Count - 1 ? _target : buffers[i], _layoutContext);
-            ForwardGroupWrite(group, chain, i + 1, buffers);
+            InvokeGroupHook(group, chain, group.Pipeline.OwnLayoutProcessors[i], "EndWrite");
         }
         _groupStarts.Pop();
     }

@@ -86,15 +86,15 @@ public readonly record struct FieldReadResult<T>(ReadResult Status, T Value, int
 }
 
 // Layout pipeline stage: bit packing, alignment, endian conversion, etc.
-// Every layout processor is a chain head (ILayoutProcessor: field <-> bytes).
-// A processor that can also FOLLOW another one in a chain additionally implements the byte-to-byte variants
-// ILayoutWriter<ReadOnlySpan<byte>> and ILayoutReader<ReadOnlyMemory<byte>> (the plan builder checks this).
-// Chain order = declaration order: the first processor is the head, the last one writes to / reads from the actual stream.
-// The engine owns the buffers between the stages; processors stay stateless.
-// Write: Begin runs last-to-first, End runs first-to-last; the bytes a stage emits (also in Begin/End) flow through the later stages.
-// Read: Begin/End work on the actual reader (same order as write). A chained field Read gets a reader over the unread input:
-//       it consumes the bytes it owns (e.g. padding) and returns the rest (see LayoutChain.Unread) for the next stage; keep the length.
-// Context.GroupData.RootPosition / Position tell where in the actual stream the call happens.
+// Chain order = declaration order, outermost to innermost. The innermost processor implements ILayoutProcessor
+// (encoded field <-> bytes); each outer wrapper additionally implements the byte-to-byte interfaces.
+// The engine owns the buffers between stages; processors stay stateless.
+// Begin hooks run outer-to-inner and End hooks inner-to-outer, scoped to the group where each processor is declared.
+// On write, bytes flow from the innermost processor outward. On read, wrappers process the input outer-to-inner;
+// each wrapper consumes bytes it owns and returns the unread remainder for the next stage (LayoutChain.Unread), preserving its byte mapping.
+// Whole-message length-changing transforms belong in stream processors. RootPosition is the layout-input position;
+// Position is relative to the owning group and this processor's byte view.
+
 public interface ILayoutProcessor : ILayoutWriter<EncodedField>, ILayoutReader<EncodedField> { }
 public interface ILayoutWriter<InT> : IProcessor where InT : allows ref struct
 {

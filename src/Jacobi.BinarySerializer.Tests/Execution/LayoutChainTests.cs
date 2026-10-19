@@ -60,7 +60,7 @@ public class LayoutChainTests
     }
 
     [Test]
-    public void Chain_BeginRunsLastToFirst_EndRunsFirstToLast()
+    public void Chain_BeginRunsOuterToInner_EndRunsInnerToOuter()
     {
         var log = new List<string>();
         var plan = Build(Group("Root", [Ref("head"), Ref("align")], Field("A")), log);
@@ -68,19 +68,33 @@ public class LayoutChainTests
         Write(plan, new() { ["Root.A"] = (byte)1 });
 
         var lifecycle = log.Where(l => l.StartsWith("Begin") || l.StartsWith("End")).ToArray();
-        Assert.That(lifecycle, Is.EqualTo(new[] { "Begin:align", "Begin:head", "End:head", "End:align" }));
+        Assert.That(lifecycle, Is.EqualTo(new[] { "Begin:head", "Begin:align", "End:align", "End:head" }));
     }
 
     [Test]
-    public void Chain_HeadGroupOutputFlowsThroughLaterStages()
+    public void Chain_InnerGroupOutputFlowsThroughOuterStages()
     {
         var log = new List<string>();
-        var plan = Build(Group("Root", [Ref("trailhead"), Ref("align")], Field("A")), log);
+        var plan = Build(Group("Root", [Ref("trailhead"), Ref("prefixhead")], Field("A")), log);
 
         var bytes = Write(plan, new() { ["Root.A"] = (byte)1 });
 
-        // the head emits 0xEE in EndWrite; it passes through the aligner (pad 1 -> 4), then the aligner pads the end (5 -> 8).
-        Assert.That(bytes, Is.EqualTo(new byte[] { 1, 0, 0, 0, 0xEE, 0, 0, 0 }));
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0xAA, 1, 0xEE }));
+        Assert.That(log.Where(l => l.StartsWith("Begin") || l.StartsWith("End")),
+            Is.EqualTo(new[] { "Begin:trailhead", "Begin:prefixhead", "End:prefixhead", "End:trailhead" }));
+    }
+
+    [Test]
+    public void Chain_NestedGroupPositionIsRelativeToOuterProcessorOutput()
+    {
+        var log = new List<string>();
+        var plan = Build(
+            Group("Root", [Ref("prefixhead")], Group("G", [Ref("align")], Field("X"))), log);
+
+        var bytes = Write(plan, new() { ["Root.G.X"] = (byte)9 });
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0xAA, 9, 0, 0, 0 }));
+        Assert.That(Read(plan, bytes), Is.EqualTo(new Dictionary<string, object?> { ["Root.G.X"] = (byte)9 }));
     }
 
     [Test]
@@ -145,7 +159,7 @@ public class LayoutChainTests
         var log = new List<string>();
 
         var ex = Assert.Throws<ExecutionPlanException>(
-            () => Build(Group("Root", [Ref("head"), Ref("plainhead")], Field("A")), log));
+            () => Build(Group("Root", [Ref("plainhead"), Ref("head")], Field("A")), log));
 
         Assert.That(ex!.Message, Does.Contain("ch.plainhead").And.Contain("chained"));
     }
@@ -158,15 +172,16 @@ public class LayoutChainTests
         {
             "head" => new Head(log, "head", false),
             "trailhead" => new Head(log, "trailhead", true),
-            "plainhead" => new Head(log, "plainhead", false),
+            "prefixhead" => new Head(log, "prefixhead", false, true),
+            "plainhead" => new PlainHead(),
             "align" => new Align(log),
             "probe" => new Probe(log),
             _ => null
         };
     }
 
-    /// <summary>A chain head that only implements the standard layout interface.</summary>
-    private sealed class Head(List<string> log, string id, bool trailer) : ILayoutProcessor
+    /// <summary>A layout processor that can act as the innermost field codec or an outer byte wrapper.</summary>
+    private sealed class Head(List<string> log, string id, bool trailer, bool prefix = false) : ILayoutProcessor, ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
     {
         public ProcessorKey Key => new(Ns, id);
         public string Name => id;
@@ -174,10 +189,23 @@ public class LayoutChainTests
         public IReadOnlyList<PropertyDescriptor> Properties => [];
 
         public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
-            => log.Add($"Begin:{id}");
+        {
+            log.Add($"Begin:{id}");
+            if (prefix)
+            {
+                writer.GetSpan(1)[0] = 0xAA;
+                writer.Advance(1);
+            }
+        }
 
         public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
             => DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
+
+        public WriteResult Write(IBufferWriter<byte> writer, ReadOnlySpan<byte> bytes, LayoutProcessorContext context)
+        {
+            log.Add($"Write:{context.GroupData.RootPosition}/{context.GroupData.Position}");
+            return LayoutChain.PassThroughWrite(writer, bytes);
+        }
 
         public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
         {
@@ -190,7 +218,13 @@ public class LayoutChainTests
         }
 
         public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-            => log.Add($"Begin:{id}");
+        {
+            log.Add($"Begin:{id}");
+            if (prefix && (!reader.TryRead(out var value) || value != 0xAA))
+            {
+                throw new InvalidOperationException("The outer layout prefix is missing.");
+            }
+        }
 
         public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
@@ -198,8 +232,31 @@ public class LayoutChainTests
             return DefaultProcessors.LayoutProcessor.Read(ref reader, context);
         }
 
+        LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            log.Add($"Read:{context.GroupData.RootPosition}/{context.GroupData.Position}");
+            return LayoutChain.PassThroughRead(ref reader);
+        }
+
         public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
             => log.Add($"End:{id}");
+    }
+
+    private sealed class PlainHead : ILayoutProcessor
+    {
+        public ProcessorKey Key => new(Ns, "plainhead");
+        public string Name => "plainhead";
+        public PipelineStage Stage => PipelineStage.Layout;
+        public IReadOnlyList<PropertyDescriptor> Properties => [];
+
+        public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
+        public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
+            => DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
+        public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
+        public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
+        public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+            => DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+        public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
     }
 
     private sealed class ConstSource : IFieldSource
@@ -267,7 +324,10 @@ public class LayoutChainTests
             => log.Add("Begin:align");
 
         public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
-            => DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
+        {
+            Pad(writer, Padding(context));
+            return DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
+        }
 
         public WriteResult Write(IBufferWriter<byte> writer, ReadOnlySpan<byte> bytes, LayoutProcessorContext context)
         {
@@ -287,18 +347,33 @@ public class LayoutChainTests
             => log.Add("Begin:align");
 
         public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-            => DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+        {
+            if (!TrySkip(ref reader, context))
+            {
+                return LayoutReadResult<EncodedField>.NeedMoreData();
+            }
+            return DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+        }
 
         LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
             log.Add($"Read:{context.GroupData.RootPosition}/{context.GroupData.Position}");
-            var padding = Padding(context);
-            if (reader.Remaining < padding)
+            if (!TrySkip(ref reader, context))
             {
                 return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData();
             }
-            reader.Advance(padding);
             return LayoutReadResult<ReadOnlyMemory<byte>>.Success(LayoutChain.Unread(reader));
+        }
+
+        private static bool TrySkip(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            var padding = Padding(context);
+            if (reader.Remaining < padding)
+            {
+                return false;
+            }
+            reader.Advance(padding);
+            return true;
         }
 
         public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)

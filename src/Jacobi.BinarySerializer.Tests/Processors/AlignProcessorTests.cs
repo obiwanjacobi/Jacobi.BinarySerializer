@@ -35,9 +35,9 @@ public class AlignProcessorTests
     }
 
     [Test]
-    public void RoundTrip_ChainedAfterBytePacker_AlignsTheReorderedBytes()
+    public void RoundTrip_OuterAlign_WrapsReorderedBytes()
     {
-        var root = Group("Root", [Ref("bytepacker", ("byteorder", "big")), Ref("align", ("bytes", "2"))],
+        var root = Group("Root", [Ref("align", ("bytes", "2")), Ref("bytepacker", ("byteorder", "big"))],
             Field("A", "sys.uint8"),
             Field("B", "sys.uint16"),
             Field("C", "sys.uint8"));

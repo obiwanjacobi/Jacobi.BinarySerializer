@@ -32,10 +32,10 @@ public sealed class GroupData
     /// </summary>
     public int? ByteSize { get; internal set; }
 
-    /// <summary>Bytes written/read since the start of the message (the layout payload), at the start of the current call.</summary>
+    /// <summary>Bytes written/read since the start of the layout input, at the start of the current call.</summary>
     public long RootPosition { get; internal set; }
 
-    /// <summary>Bytes written/read since the start of the group that owns the layout (see <see cref="RootPosition"/> for the whole message), at the start of the current call.</summary>
+    /// <summary>Bytes written/read in this processor's byte view since the start of its owning group scope.</summary>
     public long Position { get; internal set; }
 
     /// <summary>
