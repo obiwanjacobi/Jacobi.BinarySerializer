@@ -138,7 +138,9 @@ public class LayoutWindowSessionTests
         var plan = Plan(root);
         var values = new Dictionary<string, object?>
         {
-            ["Root.Peek"] = (ushort)0x1234, ["Root.Value"] = (ushort)0x1234, ["Root.After"] = (byte)9
+            ["Root.Peek"] = (ushort)0x1234,
+            ["Root.Value"] = (ushort)0x1234,
+            ["Root.After"] = (byte)9
         };
         var output = new ArrayBufferWriter<byte>();
         Assert.That(new WriterSession(plan, output).Write(new DictSource(values)), Is.EqualTo(WriteResult.Success));
@@ -149,7 +151,9 @@ public class LayoutWindowSessionTests
 
         Assert.That(sink.Values, Is.EqualTo(new Dictionary<string, object?>
         {
-            ["Root.Peek"] = (ushort)0x1234, ["Root.Value"] = (ushort)0x1234, ["Root.After"] = (byte)9
+            ["Root.Peek"] = (ushort)0x1234,
+            ["Root.Value"] = (ushort)0x1234,
+            ["Root.After"] = (byte)9
         }));
         Assert.That(output.WrittenSpan[..3].ToArray(), Is.EqualTo(new byte[] { 0x12, 0x34, 9 }));
         Assert.That(reader.BytesRead, Is.EqualTo(output.WrittenCount));
@@ -211,16 +215,16 @@ public class LayoutWindowSessionTests
         public virtual WriteResult Write(IBufferWriter<byte> writer, EncodedField value, LayoutProcessorContext context)
             => DefaultProcessors.LayoutProcessor.Write(writer, value, context);
         public virtual void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
-        public virtual LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) => LayoutReadResult<EncodedField>.Success();
+        public virtual LayoutReadResult BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) => LayoutReadResult.Success();
         public virtual LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
             => DefaultProcessors.LayoutProcessor.Read(ref reader, context);
-        public virtual LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) => LayoutReadResult<EncodedField>.Success();
+        public virtual LayoutReadResult EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) => LayoutReadResult.Success();
     }
 
     private sealed class EmptyLayout() : Layout("empty")
     {
         public override LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-            => LayoutReadResult<EncodedField>.Success();
+            => LayoutReadResult<EncodedField>.Success(default!);
     }
 
     private sealed class WideLayout(List<long> windows, bool counted) : Layout("wide")
@@ -241,16 +245,6 @@ public class LayoutWindowSessionTests
 
     private sealed class XorLayout() : Layout("xor"), ILayoutReader<ReadOnlyMemory<byte>>, ILayoutWriter<ReadOnlySpan<byte>>
     {
-        LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        {
-            var result = BeginRead(ref reader, context);
-            return new(result.Status, RequestedByteCount: result.RequestedByteCount);
-        }
-        LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        {
-            var result = EndRead(ref reader, context);
-            return new(result.Status, RequestedByteCount: result.RequestedByteCount);
-        }
         LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
             var result = LayoutChain.PassThroughRead(ref reader, context.InputByteLength);
@@ -271,16 +265,6 @@ public class LayoutWindowSessionTests
 
     private sealed class BurstLayout(List<int> calls) : Layout("burst"), ILayoutReader<ReadOnlyMemory<byte>>, ILayoutWriter<ReadOnlySpan<byte>>
     {
-        LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        {
-            var result = BeginRead(ref reader, context);
-            return new(result.Status, RequestedByteCount: result.RequestedByteCount);
-        }
-        LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        {
-            var result = EndRead(ref reader, context);
-            return new(result.Status, RequestedByteCount: result.RequestedByteCount);
-        }
         LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
             var result = LayoutChain.PassThroughRead(ref reader, 2);
@@ -296,16 +280,16 @@ public class LayoutWindowSessionTests
 
     private sealed class FramedLayout() : Layout("frame")
     {
-        public override LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) => ReadMarker(ref reader, 0xAB);
-        public override LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) => ReadMarker(ref reader, 0xCD);
-        private static LayoutReadResult<EncodedField> ReadMarker(ref SequenceReader<byte> reader, byte expected)
+        public override LayoutReadResult BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) => ReadMarker(ref reader, 0xAB);
+        public override LayoutReadResult EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) => ReadMarker(ref reader, 0xCD);
+        private static LayoutReadResult ReadMarker(ref SequenceReader<byte> reader, byte expected)
         {
             if (!reader.TryRead(out var value))
             {
-                return LayoutReadResult<EncodedField>.NeedMoreData(1);
+                return LayoutReadResult.NeedMoreData(1);
             }
             Assert.That(value, Is.EqualTo(expected));
-            return LayoutReadResult<EncodedField>.Success();
+            return LayoutReadResult.Success();
         }
     }
 }

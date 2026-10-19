@@ -99,7 +99,7 @@ internal sealed class BitPackerProcessor : ProcessorBase, ILayoutProcessor
         EndScope(scopes, context);
     }
 
-    public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var scopes = context.GetOrCreateState<State>().Scopes;
         if (scopes.TryPeek(out var parent))
@@ -110,7 +110,7 @@ internal sealed class BitPackerProcessor : ProcessorBase, ILayoutProcessor
         Begin(context);
         context.ByteBlockSize = 1;
         context.HasBufferedInput = false;
-        return LayoutReadResult<EncodedField>.Success();
+        return LayoutReadResult.Success();
     }
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
@@ -152,18 +152,18 @@ internal sealed class BitPackerProcessor : ProcessorBase, ILayoutProcessor
         return LayoutReadResult<EncodedField>.Success(new(field.Name, typeof(byte[]), encoded, size * 8));
     }
 
-    public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var scopes = context.GetOrCreateState<State>().Scopes;
         var scope = scopes.Peek();
         var padding = scope.Capacity is { } capacity ? capacity - (scope.Position + 7) / 8 : 0;
         if (reader.Remaining < padding)
         {
-            return LayoutReadResult<EncodedField>.NeedMoreData((int)padding);
+            return LayoutReadResult.NeedMoreData((int)padding);
         }
         reader.Advance(padding);
         EndScope(scopes, context);
-        return LayoutReadResult<EncodedField>.Success();
+        return LayoutReadResult.Success();
     }
 
     private static void EndScope(Stack<Scope> scopes, LayoutProcessorContext context)

@@ -106,8 +106,8 @@ internal sealed class DefaultLayoutProcessor : ILayoutProcessor
     }
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
 
-    public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        => LayoutReadResult<EncodedField>.Success();
+    public LayoutReadResult BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        => LayoutReadResult.Success();
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
@@ -161,8 +161,8 @@ internal sealed class DefaultLayoutProcessor : ILayoutProcessor
         reader.Advance(remaining.Length);
         return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), remaining, remaining.Length * 8));
     }
-    public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        => LayoutReadResult<EncodedField>.Success();
+    public LayoutReadResult EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        => LayoutReadResult.Success();
 }
 
 /// <summary>Pass-through: copies the unread input to the output unchanged.

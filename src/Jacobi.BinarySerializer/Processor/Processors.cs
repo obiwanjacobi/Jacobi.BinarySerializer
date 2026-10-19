@@ -88,10 +88,10 @@ public interface ILayoutReader<OutT> : IProcessor
 {
     /// <summary>Begins reading a value using the layout processor.The sequence reader for the data to read.The context for the layout processor.</summary>
     /// <returns>The result of the layout read.</returns>
-    LayoutReadResult<OutT> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
+    LayoutReadResult BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
     LayoutReadResult<OutT> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context);
     /// <returns>Value is null.</returns>
-    LayoutReadResult<OutT> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
+    LayoutReadResult EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
 }
 
 /// <summary>
@@ -100,13 +100,28 @@ public interface ILayoutReader<OutT> : IProcessor
 /// </summary>
 /// <param name="RequestedByteCount">Minimum total unread input needed by this operation, not an additional byte count.
 /// Null lets the engine choose the next input window. Only valid with NeedMoreData.</param>
-public record struct LayoutReadResult<T>(ReadResult Status, T? Value = default, int? RequestedByteCount = null)
+public record struct LayoutReadResult(ReadResult Status, int? RequestedByteCount = null)
 {
-    public static LayoutReadResult<T> Success(T? value = default) => new(ReadResult.Success, value);
-    public static LayoutReadResult<T> NeedMoreData(int? minimumBytes = null) => new(ReadResult.NeedMoreData, default, minimumBytes);
-    public static LayoutReadResult<T> EndOfData() => new(ReadResult.EndOfData);
-    public static LayoutReadResult<T> Failure() => new(ReadResult.Failure);
-    public static LayoutReadResult<T> WithStatus(ReadResult status) => new(status);
+    public static LayoutReadResult Success() => new(ReadResult.Success);
+    public static LayoutReadResult NeedMoreData(int? minimumBytes = null) => new(ReadResult.NeedMoreData, minimumBytes);
+    public static LayoutReadResult EndOfData() => new(ReadResult.EndOfData);
+    public static LayoutReadResult Failure() => new(ReadResult.Failure);
+    public static LayoutReadResult WithStatus(ReadResult status) => new(status);
+}
+
+/// <summary>
+/// A layout read result with its output value. Input consumption is measured from the reader by the engine.
+/// NeedMoreData leaves private state unchanged so the engine can refill and retry.
+/// </summary>
+/// <param name="RequestedByteCount">Minimum total unread input needed by this operation, not an additional byte count.
+/// Null lets the engine choose the next input window. Only valid with NeedMoreData.</param>
+public record struct LayoutReadResult<T>(ReadResult Status, T Value, int? RequestedByteCount = null)
+{
+    public static LayoutReadResult<T> Success(T value) => new(ReadResult.Success, value);
+    public static LayoutReadResult<T> NeedMoreData(int? minimumBytes = null) => new(ReadResult.NeedMoreData, default!, minimumBytes);
+    public static LayoutReadResult<T> EndOfData() => new(ReadResult.EndOfData, default!);
+    public static LayoutReadResult<T> Failure() => new(ReadResult.Failure, default!);
+    public static LayoutReadResult<T> WithStatus(ReadResult status) => new(status, default!);
 }
 
 // Stream pipeline stage: framing, compression, encryption, etc.

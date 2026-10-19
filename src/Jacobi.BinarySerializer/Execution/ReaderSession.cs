@@ -540,8 +540,16 @@ internal sealed class ReaderSession : SessionState
     private LayoutReadResult<EncodedField> ReadLayout(ProcessorPipeline pipeline, ref SequenceReader<byte> reader,
         int? byteLength = null, bool continuation = false)
     {
-        return RunLayout(pipeline.LayoutProcessors, Math.Max(0, pipeline.LayoutProcessors.Count - 1),
-            LayoutOperation.Field, ref reader, byteLength, continuation);
+        var result = RunLayout(pipeline.LayoutProcessors, Math.Max(0, pipeline.LayoutProcessors.Count - 1),
+            LayoutOperation.Field, ref reader, out var value, byteLength, continuation);
+        if (result.Status != ReadResult.Success)
+        {
+            return result.Status == ReadResult.NeedMoreData
+                ? LayoutReadResult<EncodedField>.NeedMoreData(result.RequestedByteCount)
+                : LayoutReadResult<EncodedField>.WithStatus(result.Status);
+        }
+        return LayoutReadResult<EncodedField>.Success(value
+            ?? throw EngineLogger.Fail($"'{_layoutContext.Field?.Path}': the layout succeeded without an encoded field."));
     }
 
     private void SetGroupData(GroupInfo group, int? itemIndex, int? itemCount)
@@ -569,7 +577,7 @@ internal sealed class ReaderSession : SessionState
             var activeBinding = chain[index];
             BeginLayoutScope(activeBinding);
             _layoutContext.ReservedTail = 0;
-            var status = RunLayout(chain, index, LayoutOperation.Begin, ref reader).Status;
+            var status = RunLayout(chain, index, LayoutOperation.Begin, ref reader, out _).Status;
             if (status != ReadResult.Success)
             {
                 return status;
@@ -600,7 +608,7 @@ internal sealed class ReaderSession : SessionState
             var index = IndexOf(chain, group.Pipeline.OwnLayoutProcessors[i]);
             var binding = chain[index];
             _tailTotal -= _layoutTails[binding].Pop();
-            var status = RunLayout(chain, index, LayoutOperation.End, ref reader).Status;
+            var status = RunLayout(chain, index, LayoutOperation.End, ref reader, out _).Status;
             if (status != ReadResult.Success)
             {
                 return status;
@@ -696,9 +704,10 @@ internal sealed class ReaderSession : SessionState
         return input;
     }
 
-    private LayoutReadResult<EncodedField> RunLayout(IReadOnlyList<ProcessorBinding> chain, int index, LayoutOperation operation,
-        ref SequenceReader<byte> reader, int? byteLength = null, bool continuation = false)
+    private LayoutReadResult RunLayout(IReadOnlyList<ProcessorBinding> chain, int index, LayoutOperation operation,
+        ref SequenceReader<byte> reader, out EncodedField? value, int? byteLength = null, bool continuation = false)
     {
+        value = null;
         var blockSize = chain.Count > 0 ? _layoutContext.BlockSizes.GetValueOrDefault(chain[index]) : null;
         var frames = new Stack<LayoutFrame>();
         frames.Push(new LayoutFrame(index, operation, byteLength, blockSize, continuation));
@@ -742,21 +751,25 @@ internal sealed class ReaderSession : SessionState
                 var reservedTail = _layoutContext.ReservedTail;
                 var processor = (ILayoutProcessor?)binding?.Processor ?? DefaultProcessors.LayoutProcessor;
                 ReadOnlyMemory<byte> output = default;
-                LayoutReadResult<EncodedField> result;
-                if (frame.Operation == LayoutOperation.Bytes)
+                LayoutReadResult result;
+                switch (frame.Operation)
                 {
-                    var bytes = ((ILayoutReader<ReadOnlyMemory<byte>>)processor).Read(ref trial, _layoutContext);
-                    output = bytes.Value;
-                    result = new(bytes.Status, RequestedByteCount: bytes.RequestedByteCount);
-                }
-                else
-                {
-                    result = frame.Operation switch
-                    {
-                        LayoutOperation.Begin => processor.BeginRead(ref trial, _layoutContext),
-                        LayoutOperation.End => processor.EndRead(ref trial, _layoutContext),
-                        _ => processor.Read(ref trial, _layoutContext)
-                    };
+                    case LayoutOperation.Bytes:
+                        var bytes = ((ILayoutReader<ReadOnlyMemory<byte>>)processor).Read(ref trial, _layoutContext);
+                        output = bytes.Value;
+                        result = new(bytes.Status, bytes.RequestedByteCount);
+                        break;
+                    case LayoutOperation.Begin:
+                        result = processor.BeginRead(ref trial, _layoutContext);
+                        break;
+                    case LayoutOperation.End:
+                        result = processor.EndRead(ref trial, _layoutContext);
+                        break;
+                    default:
+                        var field = processor.Read(ref trial, _layoutContext);
+                        value = field.Value;
+                        result = new(field.Status, field.RequestedByteCount);
+                        break;
                 }
                 _layoutContext.CanReserveTail = false;
                 if (result.Status == ReadResult.NeedMoreData)
@@ -774,7 +787,7 @@ internal sealed class ReaderSession : SessionState
                         var next = (int)Math.Min(available, target);
                         if (next <= offered)
                         {
-                            return LayoutReadResult<EncodedField>.NeedMoreData(result.RequestedByteCount);
+                            return LayoutReadResult.NeedMoreData(result.RequestedByteCount);
                         }
                         frame.Window = next;
                     }

@@ -98,18 +98,12 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
         writer.Write(stored);
     }
 
-    public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var codec = GetCodec(context);
         context.ReserveTail(codec.ByteLength);
         context.GetOrCreateState<CrcState>().Scopes.Push(new CrcScope(codec));
-        return LayoutReadResult<EncodedField>.Success();
-    }
-
-    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-    {
-        var result = BeginRead(ref reader, context);
-        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
+        return LayoutReadResult.Success();
     }
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
@@ -137,14 +131,14 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
         return result;
     }
 
-    public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var scopes = context.GetOrCreateState<CrcState>().Scopes;
         var scope = scopes.Peek();
         var size = scope.Codec.ByteLength;
         if (reader.Remaining < size)
         {
-            return LayoutReadResult<EncodedField>.NeedMoreData(size);
+            return LayoutReadResult.NeedMoreData(size);
         }
 
         var actual = scope.Codec.Finish(scope.Crc);
@@ -159,13 +153,7 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
         context.Publish(PublishedCrc, actual);
         scopes.Pop();
         Update(context, stored);
-        return LayoutReadResult<EncodedField>.Success();
-    }
-
-    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-    {
-        var result = EndRead(ref reader, context);
-        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
+        return LayoutReadResult.Success();
     }
 
     private static void Update(LayoutProcessorContext context, ReadOnlySpan<byte> bytes)

@@ -74,10 +74,10 @@ internal static class SessionTestHelpers
         public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
             => log.Add($"End:{context.Group.Path}");
 
-        public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        public LayoutReadResult BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
             log.Add($"Begin:{context.Group.Path}");
-            return LayoutReadResult<EncodedField>.Success();
+            return LayoutReadResult.Success();
         }
 
         public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
@@ -94,10 +94,10 @@ internal static class SessionTestHelpers
             return result;
         }
 
-        public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        public LayoutReadResult EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
             log.Add($"End:{context.Group.Path}");
-            return LayoutReadResult<EncodedField>.Success();
+            return LayoutReadResult.Success();
         }
     }
 

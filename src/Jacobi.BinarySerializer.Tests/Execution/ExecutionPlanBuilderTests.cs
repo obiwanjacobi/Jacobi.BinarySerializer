@@ -343,12 +343,12 @@ public class ExecutionPlanBuilderTests
         public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
             => WriteResult.Success;
         public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
-        public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-            => LayoutReadResult<EncodedField>.Success();
+        public LayoutReadResult BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+            => LayoutReadResult.Success();
         public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
             => LayoutReadResult<EncodedField>.Success(new EncodedField(string.Empty, typeof(object), null, 0));
-        public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-            => LayoutReadResult<EncodedField>.Success();
+        public LayoutReadResult EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+            => LayoutReadResult.Success();
     }
 
     /// <summary>Declares the Layout stage but does not implement ILayoutProcessor.</summary>

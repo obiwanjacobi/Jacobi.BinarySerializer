@@ -41,14 +41,8 @@ internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
         => Pad(writer, context);
 
-    public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        => LayoutReadResult<EncodedField>.Success();
-
-    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-    {
-        var result = BeginRead(ref reader, context);
-        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
-    }
+    public LayoutReadResult BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        => LayoutReadResult.Success();
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
@@ -66,20 +60,14 @@ internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
             : result;
     }
 
-    public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var padding = ReadPadding(context);
         if (!TrySkip(ref reader, context))
         {
-            return LayoutReadResult<EncodedField>.NeedMoreData(padding);
+            return LayoutReadResult.NeedMoreData(padding);
         }
-        return LayoutReadResult<EncodedField>.Success();
-    }
-
-    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-    {
-        var result = EndRead(ref reader, context);
-        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
+        return LayoutReadResult.Success();
     }
 
     // chained

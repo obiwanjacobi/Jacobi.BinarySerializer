@@ -34,14 +34,8 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
         => DefaultProcessors.LayoutProcessor.EndWrite(writer, context);
 
-    public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         => DefaultProcessors.LayoutProcessor.BeginRead(ref reader, context);
-
-    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-    {
-        var result = BeginRead(ref reader, context);
-        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
-    }
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
@@ -57,14 +51,8 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
         return result;
     }
 
-    public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         => DefaultProcessors.LayoutProcessor.EndRead(ref reader, context);
-
-    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-    {
-        var result = EndRead(ref reader, context);
-        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
-    }
 
     // chained
     public WriteResult Write(IBufferWriter<byte> writer, ReadOnlySpan<byte> bytes, LayoutProcessorContext context)
