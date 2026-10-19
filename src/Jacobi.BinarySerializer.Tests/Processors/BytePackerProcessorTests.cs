@@ -86,13 +86,16 @@ public class BytePackerProcessorTests
     }
 
     [Test]
-    public void Write_BitPackerOnAnOrdinaryGroup_IsRejected()
+    public void RoundTrip_BitPackerOnAnOrdinaryGroup_UsesLayoutChain()
     {
         var root = Group("Root", [Ref("align", ("bytes", "1"))],
             Group("G", [Ref("bitpacker")], Field("A", "sys.uint8")));
+        var values = new Dictionary<string, object?> { ["Root.G.A"] = (byte)1 };
 
-        Assert.That(() => Write(root, new Dictionary<string, object?> { ["Root.G.A"] = (byte)1 }, out _),
-            Throws.InstanceOf<Jacobi.BinarySerializer.Execution.ExecutionPlanException>());
+        var (bytes, read) = RoundTrip(root, values);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 1 }));
+        Assert.That(read, Is.EqualTo(values));
     }
 
     [Test]

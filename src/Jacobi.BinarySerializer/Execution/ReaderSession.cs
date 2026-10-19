@@ -21,10 +21,39 @@ internal sealed class ReaderSession : SessionState
     private (GroupInfo Group, IValueSink Scope)? _openBody;
     private readonly Stack<long> _groupStarts = new();
     private readonly Dictionary<ProcessorBinding, long> _layoutPositions = [];
-    private readonly Dictionary<ProcessorBinding, Stack<long>> _layoutGroupStarts = [];
+    private readonly Dictionary<ProcessorBinding, Stack<(long Position, int? BlockSize)>> _layoutGroupStarts = [];
+    private readonly Dictionary<ProcessorBinding, LayoutInput> _layoutInputs = [];
+
+    private sealed class LayoutInput
+    {
+        public ArrayBufferWriter<byte> Buffer { get; } = new();
+        public int Consumed { get; set; }
+        public long RootPosition { get; set; }
+        public int Remaining => Buffer.WrittenCount - Consumed;
+
+        public SequenceReader<byte> Reader()
+        {
+            var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(Buffer.WrittenMemory));
+            reader.Advance(Consumed);
+            return reader;
+        }
+    }
+
+    private enum LayoutOperation { Field, Bytes, Begin, End }
+
+    private sealed class LayoutFrame(int index, LayoutOperation operation, int? byteLength, int? blockSize, bool continuation)
+    {
+        public int Index { get; } = index;
+        public LayoutOperation Operation { get; } = operation;
+        public int? ByteLength { get; } = byteLength;
+        public int? BlockSize { get; } = blockSize;
+        public bool Continuation { get; } = continuation;
+        public int Window { get; set; }
+        public int ParentCalls { get; set; }
+    }
     private readonly Stack<int> _choiceIndexes = new();
     private readonly Stack<(GroupInfo Group, long End, int AncestorTail)> _windows = new();
-    private readonly Stack<int> _tails = new();
+    private readonly Dictionary<ProcessorBinding, Stack<int>> _layoutTails = [];
     private readonly Dictionary<GroupInfo, int> _minItemBytes = new();
     private int _tailTotal;
     private long _transportConsumed;
@@ -36,7 +65,6 @@ internal sealed class ReaderSession : SessionState
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
-    private readonly PackingProcessorContext _packingContext;
     private readonly LayoutProcessorContext _layoutContext;
     private readonly StreamProcessorContext _streamContext;
 
@@ -53,7 +81,6 @@ internal sealed class ReaderSession : SessionState
 
         _valueContext = new ValueProcessorContext(this) { Services = _services, Stage = PipelineStage.Semantic };
         _fieldContext = new FieldProcessorContext(this) { Services = _services, Stage = PipelineStage.Representation };
-        _packingContext = new PackingProcessorContext(this) { Services = _services, Stage = PipelineStage.Packing };
         _layoutContext = new LayoutProcessorContext(this) { Services = _services, Stage = PipelineStage.Layout };
         _streamContext = new StreamProcessorContext(this) { Services = _services, Stage = PipelineStage.Stream };
     }
@@ -92,8 +119,13 @@ internal sealed class ReaderSession : SessionState
         _groupStarts.Clear();
         _layoutPositions.Clear();
         _layoutGroupStarts.Clear();
+        _layoutContext.BufferedInputs.Clear();
+        _layoutContext.BlockSizes.Clear();
+        _layoutInputs.Clear();
+        _layoutContext.InputByteLength = null;
+        _layoutContext.IsReadContinuation = false;
         _windows.Clear();
-        _tails.Clear();
+        _layoutTails.Clear();
         _tailTotal = 0;
         EngineLogger.ReadStarted(root.Path.ToString());
         var cursor = new PlanCursor<IValueSink>(root, range, EngineLogger);
@@ -191,7 +223,11 @@ internal sealed class ReaderSession : SessionState
                         }
                         if (group is not RepeatInfo and not ChoiceInfo { IsOpen: true })
                         {
-                            BeginLayout(group, ref reader);
+                            var status = BeginLayout(group, ref reader);
+                            if (status != ReadResult.Success)
+                            {
+                                return status;
+                            }
                         }
                         break;
                     }
@@ -211,18 +247,6 @@ internal sealed class ReaderSession : SessionState
                         break;
                     }
 
-                case CursorStepKind.PackedGroup:
-                    {
-                        var group = (PackedGroupInfo)step.Node!;
-                        var result = ReadPackedGroup(group, step.Scope!, ref reader);
-                        if (result != ReadResult.Success)
-                        {
-                            EngineLogger.ReadStopped(group.Path.ToString(), result);
-                            return result;
-                        }
-                        break;
-                    }
-
                 case CursorStepKind.EnterItem:
                     {
                         var repeat = (RepeatInfo)step.Node!;
@@ -230,12 +254,20 @@ internal sealed class ReaderSession : SessionState
                             new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index, step.Count);
                         cursor.Enter(item);
                         SetInstance(cursor.Instance);
-                        BeginLayout(repeat, ref reader, step.Index, step.Count);
+                        var status = BeginLayout(repeat, ref reader, step.Index, step.Count);
+                        if (status != ReadResult.Success)
+                        {
+                            return status;
+                        }
                         break;
                     }
 
                 case CursorStepKind.ExitItem:
-                    EndLayout((GroupInfo)step.Node!, ref reader, step.Index, step.Count);
+                    var endStatus = EndLayout((GroupInfo)step.Node!, ref reader, step.Index, step.Count);
+                    if (endStatus != ReadResult.Success)
+                    {
+                        return endStatus;
+                    }
                     step.Scope!.ExitItem(
                         new RepeatContext { Node = (RepeatInfo)step.Node!, Services = _services, Instance = _instance }, step.Index, step.Count);
                     break;
@@ -243,7 +275,11 @@ internal sealed class ReaderSession : SessionState
                 case CursorStepKind.ExitGroup:
                     if (step.Node is not RepeatInfo and not ChoiceInfo { IsOpen: true })
                     {
-                        EndLayout((GroupInfo)step.Node!, ref reader);
+                        var status = EndLayout((GroupInfo)step.Node!, ref reader);
+                        if (status != ReadResult.Success)
+                        {
+                            return status;
+                        }
                         if (step.Node is ChoiceInfo exitChoice)
                         {
                             step.Scope!.ExitChoice(
@@ -280,13 +316,14 @@ internal sealed class ReaderSession : SessionState
 
     private bool AtOpenRepeatEnd(ref SequenceReader<byte> reader, RepeatInfo repeat)
     {
-        if (ContainsPackedGroup(repeat))
+        if (repeat.Pipeline.LayoutProcessors.Any(binding => _layoutContext.BufferedInputs.GetValueOrDefault(binding)
+            || _layoutInputs.TryGetValue(binding, out var input) && input.Remaining > 0))
         {
-            return reader.Consumed >= PackedReadEnd(ref reader);
+            return false;
         }
-        if (_windows.Count > 0)
+        if (_windows.Count > 0 || repeat.Members.Any(UsesLayout))
         {
-            return reader.Consumed >= _windows.Peek().End;
+            return reader.Consumed >= ReadableEnd(ref reader);
         }
         if (!_minItemBytes.TryGetValue(repeat, out var min))
         {
@@ -296,10 +333,10 @@ internal sealed class ReaderSession : SessionState
         return reader.Remaining - _tailTotal < Math.Max(min, 1);
     }
 
-    private static bool ContainsPackedGroup(GroupInfo group)
-        => group is PackedGroupInfo || group.Members.OfType<GroupInfo>().Any(ContainsPackedGroup);
+    private static bool UsesLayout(NodeInfo node)
+        => node.Pipeline.LayoutProcessors.Count > 0 || node is GroupInfo group && group.Members.Any(UsesLayout);
 
-    private long PackedReadEnd(ref SequenceReader<byte> reader)
+    private long ReadableEnd(ref SequenceReader<byte> reader)
     {
         var end = reader.Sequence.Length - _tailTotal;
         foreach (var window in _windows)
@@ -320,8 +357,6 @@ internal sealed class ReaderSession : SessionState
             FieldInfo { HasByteLength: true } => 0,
             FieldInfo field => field.Pipeline.FieldProcessors.Count == 0 ? field.DataType.FixedSize ?? 0 : 0,
             GroupInfo { ByteSize: int size } => size,
-            PackedGroupInfo { ByteLength: int length } => length,
-            PackedGroupInfo => 0,
             ChoiceInfo => 0,
             RepeatInfo { Count: int count } repeat => checked(count * repeat.Members.Sum(MinBytes)),
             RepeatInfo => 0,
@@ -371,116 +406,108 @@ internal sealed class ReaderSession : SessionState
             return ReadResult.NeedMoreData;
         }
 
+        var lookahead = reader;
         if (byteOffset >= 0)
         {
-            reader.Advance(byteOffset);
+            lookahead.Advance(byteOffset);
         }
         else
         {
-            reader.Rewind(-byteOffset);
+            lookahead.Rewind(-byteOffset);
         }
-
-        var fieldStart = reader.Consumed;
-        var result = ReadField(field, scope, ref reader);
-        var bytesConsumed = reader.Consumed - fieldStart;
-        if (bytesConsumed > 0)
+        var saved = field.Pipeline.LayoutProcessors.Select(binding =>
+            (Binding: binding, Position: LayoutPosition(binding), Input: _layoutInputs.GetValueOrDefault(binding))).ToArray();
+        foreach (var entry in saved)
         {
-            RewindLayoutPositions(field.Pipeline.LayoutProcessors, bytesConsumed);
+            _layoutInputs.Remove(entry.Binding);
         }
-
-        var delta = reader.Consumed - start;
-        if (delta > 0)
+        try
         {
-            reader.Rewind(delta);
+            return ReadField(field, scope, ref lookahead);
         }
-        else if (delta < 0)
+        finally
         {
-            reader.Advance(-delta);
+            foreach (var entry in saved)
+            {
+                _layoutPositions[entry.Binding] = entry.Position;
+                if (entry.Input is null)
+                {
+                    _layoutInputs.Remove(entry.Binding);
+                }
+                else
+                {
+                    _layoutInputs[entry.Binding] = entry.Input;
+                }
+            }
         }
-        return result;
     }
 
     private ReadResult ReadField(FieldInfo field, IValueSink scope, ref SequenceReader<byte> reader)
     {
-        // A field processor decides its own width. When it needs more data than the window offered and the input has more,
-        // retry with a bigger window; only when the window already covered all unread input is it NeedMoreData for the caller.
-        var window = DefaultLayoutProcessor.OpenWidthWindowBytes;
-        while (true)
-        {
-            _layoutContext.FieldData.OpenWidthWindowBytes = window;
-            var result = ReadFieldWindow(field, scope, ref reader, out var needsLargerWindow);
-            if (!needsLargerWindow)
-            {
-                return result;
-            }
-            window = window > Int32.MaxValue / 2 ? Int32.MaxValue : window * 2;
-        }
-    }
-
-    private ReadResult ReadFieldWindow(FieldInfo field, IValueSink scope, ref SequenceReader<byte> reader, out bool needsLargerWindow)
-    {
-        needsLargerWindow = false;
         var pipeline = field.Pipeline;
-
-        // Layout: bytes -> encoded
         _layoutContext.Group = field.Parent!;
         _layoutContext.Field = field;
-        _layoutContext.PackedGroup = null;
+        _layoutContext.FieldData.OpenWidthWindowBytes = DefaultLayoutProcessor.OpenWidthWindowBytes;
         var fieldLength = BytesLength(field, ref reader);
         _layoutContext.FieldData.ByteLength = fieldLength;
         _fieldContext.FieldData.ByteLength = fieldLength;
-        if (fieldLength is { } bytesLength && reader.Remaining < bytesLength)
+        _fieldContext.Field = field;
+        var open = pipeline.FieldProcessors.Count > 0 && fieldLength is null;
+        var encodedBytes = new ArrayBufferWriter<byte>();
+        while (true)
         {
-            return ReadResult.NeedMoreData;
-        }
-        var layoutRead = ReadLayout(pipeline, ref reader);
-        if (layoutRead.Status != ReadResult.Success)
-        {
-            return layoutRead.Status;
-        }
-        var encoded = layoutRead.Value;
-
-        // Representation: encoded -> logical
-        LogicalField logical;
-        switch (pipeline.FieldProcessors.Count)
-        {
-            case 0:
+            var layoutRead = ReadLayout(pipeline, ref reader, open ? 1 : fieldLength, encodedBytes.WrittenCount > 0);
+            if (layoutRead.Status != ReadResult.Success)
+            {
+                var inputEnd = reader.Sequence.Length;
+                if (layoutRead.Status == ReadResult.NeedMoreData && _windows.Any(window => window.End <= inputEnd))
+                {
+                    throw EngineLogger.Fail($"'{field.Path}': the field does not fit in its enclosing byte-size window.");
+                }
+                return layoutRead.Status;
+            }
+            var encoded = layoutRead.Value
+                ?? throw EngineLogger.Fail($"'{field.Path}': the layout succeeded without an encoded field.");
+            if (pipeline.FieldProcessors.Count == 0)
+            {
                 if (encoded.Value is not byte[] bytes || field.DataType.Decode is not { } decode || !decode(bytes, out var value))
                 {
                     throw EngineLogger.Fail($"'{field.Path}': cannot decode the bytes as {field.DataType}.");
                 }
-                logical = new LogicalField(encoded.Name, field.DataType.ClrType, value);
-                break;
-            default:
-                var provided = encoded.BitWidth;
-                _fieldContext.Field = field;
-                var fieldResult = pipeline.FieldProcessors.Count == 1
-                    ? ReadSingle(pipeline.FieldProcessors[0], encoded)
-                    : ReadChained(pipeline.FieldProcessors, encoded, field);
-
-                if (fieldResult.Status != ReadResult.Success)
+                CompleteLogicalField(field, new LogicalField(encoded.Name, field.DataType.ClrType, value), scope);
+                return ReadResult.Success;
+            }
+            if (open && encoded.Value is byte[] chunk)
+            {
+                if (chunk.Length == 0)
                 {
-                    reader.Rewind(provided / 8);
-                    RewindLayoutPositions(pipeline.LayoutProcessors, provided / 8);
-                    needsLargerWindow = fieldResult.Status == ReadResult.NeedMoreData && reader.Remaining > provided / 8;
-                    return fieldResult.Status;
+                    throw EngineLogger.Fail($"'{field.Path}': the layout produced no encoded bytes for an incomplete field.");
                 }
-                if (fieldResult.BitsConsumed < 0 || fieldResult.BitsConsumed > provided || fieldResult.BitsConsumed % 8 != 0)
-                {
-                    throw EngineLogger.Fail(
-                        $"'{field.Path}': the field processor consumed {fieldResult.BitsConsumed} bits of the {provided} bits provided.");
-                }
-
-                // give back the part of the window the processor did not use.
-                var unusedBytes = (provided - fieldResult.BitsConsumed) / 8;
-                reader.Rewind(unusedBytes);
-                RewindLayoutPositions(pipeline.LayoutProcessors, unusedBytes);
-                logical = fieldResult.Value;
-                break;
+                encodedBytes.Write(chunk);
+                encoded = new EncodedField(encoded.Name, typeof(byte[]), encodedBytes.WrittenSpan.ToArray(), encodedBytes.WrittenCount * 8);
+            }
+            var fieldResult = pipeline.FieldProcessors.Count == 1
+                ? ReadSingle(pipeline.FieldProcessors[0], encoded)
+                : ReadChained(pipeline.FieldProcessors, encoded, field);
+            if (fieldResult.Status == ReadResult.NeedMoreData && open)
+            {
+                continue;
+            }
+            if (fieldResult.Status != ReadResult.Success)
+            {
+                return fieldResult.Status;
+            }
+            if (fieldResult.BitsConsumed < 0 || fieldResult.BitsConsumed > encoded.BitWidth || fieldResult.BitsConsumed % 8 != 0)
+            {
+                throw EngineLogger.Fail($"'{field.Path}': the field processor consumed {fieldResult.BitsConsumed} bits of the {encoded.BitWidth} bits provided.");
+            }
+            if (fieldResult.BitsConsumed != encoded.BitWidth)
+            {
+                throw EngineLogger.Fail($"'{field.Path}': the field processor left encoded bytes outside its field boundary.");
+            }
+            CompleteLogicalField(field, fieldResult.Value, scope);
+            return ReadResult.Success;
         }
-
-        CompleteLogicalField(field, logical, scope);
-        return ReadResult.Success;
     }
 
     private void CompleteLogicalField(FieldInfo field, LogicalField logical, IValueSink scope)
@@ -510,154 +537,78 @@ internal sealed class ReaderSession : SessionState
         }
     }
 
-    private ReadResult ReadPackedGroup(PackedGroupInfo group, IValueSink scope, ref SequenceReader<byte> reader)
+    private LayoutReadResult<EncodedField> ReadLayout(ProcessorPipeline pipeline, ref SequenceReader<byte> reader,
+        int? byteLength = null, bool continuation = false)
     {
-        var byteLength = Resolve(group.ByteLength, group.Path, _instance);
-        ValidateCarrierLength(group, byteLength);
-        var end = PackedReadEnd(ref reader);
-        if (end - reader.Consumed < byteLength)
-        {
-            return ReadResult.NeedMoreData;
-        }
-        var bounded = new SequenceReader<byte>(reader.Sequence.Slice(0, end));
-        bounded.Advance(reader.Consumed);
-        _layoutContext.Group = group;
-        _layoutContext.Field = null;
-        _layoutContext.PackedGroup = group;
-        _layoutContext.FieldData.ByteLength = byteLength;
-        var layout = ReadLayout(group.Pipeline, ref bounded);
-        if (layout.Status != ReadResult.Success)
-        {
-            return layout.Status == ReadResult.EndOfData ? ReadResult.NeedMoreData : layout.Status;
-        }
-        var carrier = PrepareCarrier(group, layout.Value, layout.Value?.BitWidth ?? 0, byteLength);
-        _packingContext.Group = group;
-        _packingContext.ByteLength = byteLength;
-        _packingContext.Instance = _instance;
-        Prepare(_packingContext, group.PackingProcessor);
-        var result = ((IPackingProcessor)group.PackingProcessor.Processor).Read(carrier, _packingContext);
-        if (result.Status != ReadResult.Success)
-        {
-            return result.Status == ReadResult.EndOfData ? ReadResult.NeedMoreData : result.Status;
-        }
-        if (result.BitsConsumed != checked(byteLength * 8))
-        {
-            throw EngineLogger.Fail($"'{group.Path}': the packing processor consumed {result.BitsConsumed} bits but the carrier requires {byteLength * 8}.");
-        }
-        if (result.Value is null || result.Value.Count != group.Fields.Count)
-        {
-            throw EngineLogger.Fail($"'{group.Path}': the packing processor must return exactly {group.Fields.Count} logical fields.");
-        }
-        for (var i = 0; i < group.Fields.Count; i++)
-        {
-            if (result.Value[i] is not { } logical || logical.Name != group.Fields[i].Name)
-            {
-                throw EngineLogger.Fail($"'{group.Path}': packed field {i} must be '{group.Fields[i].Name}' in declaration order.");
-            }
-        }
-        reader.Advance(bounded.Consumed - reader.Consumed);
-        for (var i = 0; i < group.Fields.Count; i++)
-        {
-            CompleteLogicalField(group.Fields[i], result.Value[i], scope);
-        }
-        return ReadResult.Success;
-    }
-
-    private LayoutReadResult<EncodedField> ReadLayout(ProcessorPipeline pipeline, ref SequenceReader<byte> reader)
-    {
-        switch (pipeline.LayoutProcessors.Count)
-        {
-            case 0:
-                Prepare(_layoutContext, null);
-                SetPosition(reader.Consumed);
-                return DefaultProcessors.LayoutProcessor.Read(ref reader, _layoutContext);
-            case 1:
-                var binding = pipeline.LayoutProcessors[0];
-                Prepare(_layoutContext, binding);
-                SetPosition(reader.Consumed, binding);
-                var start = reader.Consumed;
-                var singleResult = ((ILayoutProcessor)binding.Processor).Read(ref reader, _layoutContext);
-                if (singleResult.Status == ReadResult.Success)
-                {
-                    AdvanceReadPosition(pipeline.LayoutProcessors, 0, reader.Consumed - start);
-                }
-                return singleResult;
-            default:
-                return ReadChained(pipeline.LayoutProcessors, ref reader);
-        }
+        return RunLayout(pipeline.LayoutProcessors, Math.Max(0, pipeline.LayoutProcessors.Count - 1),
+            LayoutOperation.Field, ref reader, byteLength, continuation);
     }
 
     private void SetGroupData(GroupInfo group, int? itemIndex, int? itemCount)
     {
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
         _layoutContext.FieldData.ByteLength = null;
-        _layoutContext.PackedGroup = null;
+        _layoutContext.FieldData.OpenWidthWindowBytes = DefaultLayoutProcessor.OpenWidthWindowBytes;
         _layoutContext.GroupData.ByteSize = group is not RepeatInfo && group.HasByteSize ? Resolve(group.ByteSize, group.Path, _instance) : null;
     }
 
-    private void BeginLayout(GroupInfo group, ref SequenceReader<byte> reader, int? itemIndex = null, int? itemCount = null)
+    private ReadResult BeginLayout(GroupInfo group, ref SequenceReader<byte> reader, int? itemIndex = null, int? itemCount = null)
     {
         if (!WriterSession.OwnsLayout(group))
         {
-            return;
+            return ReadResult.Success;
         }
-
         _groupStarts.Push(reader.Consumed);
         _layoutContext.Group = group;
         _layoutContext.Field = null;
-        _layoutContext.ReservedTail = 0;
-        _layoutContext.CanReserveTail = true;
         SetGroupData(group, itemIndex, itemCount);
         var chain = group.Pipeline.LayoutProcessors;
         foreach (var binding in group.Pipeline.OwnLayoutProcessors)
         {
             var index = IndexOf(chain, binding);
-            if (index < 0)
-            {
-                continue;
-            }
             var activeBinding = chain[index];
             BeginLayoutScope(activeBinding);
-            Prepare(_layoutContext, activeBinding, "BeginRead");
-            SetPosition(reader.Consumed, activeBinding);
-            var start = reader.Consumed;
-            ((ILayoutProcessor)activeBinding.Processor).BeginRead(ref reader, _layoutContext);
-            AdvanceReadPosition(chain, index, reader.Consumed - start);
+            _layoutContext.ReservedTail = 0;
+            var status = RunLayout(chain, index, LayoutOperation.Begin, ref reader).Status;
+            if (status != ReadResult.Success)
+            {
+                return status;
+            }
+            if (!_layoutTails.TryGetValue(activeBinding, out var tails))
+            {
+                tails = new Stack<int>();
+                _layoutTails.Add(activeBinding, tails);
+            }
+            tails.Push(_layoutContext.ReservedTail);
+            _tailTotal += _layoutContext.ReservedTail;
         }
-        _layoutContext.CanReserveTail = false;
-        _tails.Push(_layoutContext.ReservedTail);
-        _tailTotal += _layoutContext.ReservedTail;
+        return ReadResult.Success;
     }
 
-    private void EndLayout(GroupInfo group, ref SequenceReader<byte> reader, int? itemIndex = null, int? itemCount = null)
+    private ReadResult EndLayout(GroupInfo group, ref SequenceReader<byte> reader, int? itemIndex = null, int? itemCount = null)
     {
         if (!WriterSession.OwnsLayout(group))
         {
-            return;
+            return ReadResult.Success;
         }
-
-        _tailTotal -= _tails.Pop();
         _layoutContext.Group = group;
         _layoutContext.Field = null;
         SetGroupData(group, itemIndex, itemCount);
         var chain = group.Pipeline.LayoutProcessors;
         for (var i = group.Pipeline.OwnLayoutProcessors.Count - 1; i >= 0; i--)
         {
-            var binding = group.Pipeline.OwnLayoutProcessors[i];
-            var index = IndexOf(chain, binding);
-            if (index < 0)
+            var index = IndexOf(chain, group.Pipeline.OwnLayoutProcessors[i]);
+            var binding = chain[index];
+            _tailTotal -= _layoutTails[binding].Pop();
+            var status = RunLayout(chain, index, LayoutOperation.End, ref reader).Status;
+            if (status != ReadResult.Success)
             {
-                continue;
+                return status;
             }
-            var activeBinding = chain[index];
-            Prepare(_layoutContext, activeBinding, "EndRead");
-            SetPosition(reader.Consumed, activeBinding);
-            var start = reader.Consumed;
-            ((ILayoutProcessor)activeBinding.Processor).EndRead(ref reader, _layoutContext);
-            AdvanceReadPosition(chain, index, reader.Consumed - start);
-            EndLayoutScope(activeBinding);
+            EndLayoutScope(binding);
         }
         _groupStarts.Pop();
+        return ReadResult.Success;
     }
 
     private FieldReadResult<LogicalField> ReadSingle(ProcessorBinding binding, EncodedField encoded)
@@ -699,46 +650,24 @@ internal sealed class ReaderSession : SessionState
         => _layoutPositions.TryGetValue(binding, out var position) ? position : 0;
 
     private long GroupStart(ProcessorBinding binding)
-        => _layoutGroupStarts.TryGetValue(binding, out var starts) && starts.Count > 0 ? starts.Peek() : 0;
-
-    private void AdvanceReadPosition(IReadOnlyList<ProcessorBinding> chain, int index, long count)
-    {
-        for (var i = 0; i <= index; i++)
-        {
-            _layoutPositions[chain[i]] = LayoutPosition(chain[i]) + count;
-        }
-    }
-
-    private void AdvanceFieldPositions(IReadOnlyList<ProcessorBinding> chain, IReadOnlyList<long> consumed)
-    {
-        long downstream = 0;
-        for (var i = chain.Count - 1; i >= 0; i--)
-        {
-            downstream += consumed[i];
-            _layoutPositions[chain[i]] = LayoutPosition(chain[i]) + downstream;
-        }
-    }
-
-    private void RewindLayoutPositions(IReadOnlyList<ProcessorBinding> chain, long count)
-    {
-        foreach (var binding in chain)
-        {
-            _layoutPositions[binding] = LayoutPosition(binding) - count;
-        }
-    }
+        => _layoutGroupStarts.TryGetValue(binding, out var starts) && starts.Count > 0 ? starts.Peek().Position : 0;
 
     private void BeginLayoutScope(ProcessorBinding binding)
     {
         if (!_layoutGroupStarts.TryGetValue(binding, out var starts))
         {
-            starts = new Stack<long>();
+            starts = new Stack<(long, int?)>();
             _layoutGroupStarts.Add(binding, starts);
         }
-        starts.Push(LayoutPosition(binding));
+        starts.Push((LayoutPosition(binding), _layoutContext.BlockSizes.GetValueOrDefault(binding)));
+        _layoutContext.BlockSizes[binding] = null;
     }
 
     private void EndLayoutScope(ProcessorBinding binding)
-        => _layoutGroupStarts[binding].Pop();
+    {
+        var scope = _layoutGroupStarts[binding].Pop();
+        _layoutContext.BlockSizes[binding] = scope.BlockSize;
+    }
 
     private static int IndexOf(IReadOnlyList<ProcessorBinding> chain, ProcessorBinding binding)
     {
@@ -757,44 +686,155 @@ internal sealed class ReaderSession : SessionState
         return matchingKey;
     }
 
-    /// <summary>
-    /// Reads bytes through the layout wrappers
-    /// and returns the remainder for the next stage; the innermost processor extracts the encoded field.
-    /// </summary>
-    private LayoutReadResult<EncodedField> ReadChained(IReadOnlyList<ProcessorBinding> chain, ref SequenceReader<byte> reader)
+    private LayoutInput InputFor(ProcessorBinding binding)
     {
-        var start = reader.Consumed;
-        var current = reader.UnreadSequence;
-        var consumed = new long[chain.Count];
-        var rootPosition = start;
-
-        for (var i = 0; i < chain.Count - 1; i++)
+        if (!_layoutInputs.TryGetValue(binding, out var input))
         {
-            var stageReader = new SequenceReader<byte>(current);
-            Prepare(_layoutContext, chain[i]);
-            SetPosition(rootPosition, chain[i]);
-            var result = ((ILayoutReader<ReadOnlyMemory<byte>>)chain[i].Processor).Read(ref stageReader, _layoutContext);
-            if (result.Status != ReadResult.Success)
+            input = new LayoutInput();
+            _layoutInputs.Add(binding, input);
+        }
+        return input;
+    }
+
+    private LayoutReadResult<EncodedField> RunLayout(IReadOnlyList<ProcessorBinding> chain, int index, LayoutOperation operation,
+        ref SequenceReader<byte> reader, int? byteLength = null, bool continuation = false)
+    {
+        var blockSize = chain.Count > 0 ? _layoutContext.BlockSizes.GetValueOrDefault(chain[index]) : null;
+        var frames = new Stack<LayoutFrame>();
+        frames.Push(new LayoutFrame(index, operation, byteLength, blockSize, continuation));
+        try
+        {
+            while (true)
             {
-                return LayoutReadResult<EncodedField>.WithStatus(result.Status);
+                var frame = frames.Peek();
+                var binding = chain.Count > 0 ? chain[frame.Index] : null;
+                var input = frame.Index > 0 ? InputFor(binding!) : null;
+                var end = Math.Max(reader.Consumed, ReadableEnd(ref reader));
+                var available = input?.Remaining ?? end - reader.Consumed;
+                var offered = input is null ? Math.Min(available, frame.Window) : available;
+                var trial = input is null
+                    ? new SequenceReader<byte>(reader.Sequence.Slice(0, reader.Consumed + offered))
+                    : input.Reader();
+                if (input is null)
+                {
+                    trial.Advance(reader.Consumed);
+                }
+                var start = trial.Consumed;
+                var rootStart = reader.Consumed;
+                Prepare(_layoutContext, binding, frame.Operation switch
+                {
+                    LayoutOperation.Begin => "BeginRead",
+                    LayoutOperation.End => "EndRead",
+                    _ => "read"
+                });
+                if (binding is null)
+                {
+                    SetPosition(rootStart);
+                }
+                else
+                {
+                    SetPosition(input is null ? rootStart : input.RootPosition + input.Consumed, binding);
+                }
+                _layoutContext.InputByteLength = frame.ByteLength;
+                _layoutContext.IsReadContinuation = frame.Continuation;
+                _layoutContext.BlockByteLength = frame.Operation == LayoutOperation.Bytes ? frame.BlockSize : null;
+                _layoutContext.CanReserveTail = frame.Operation == LayoutOperation.Begin;
+                var reservedTail = _layoutContext.ReservedTail;
+                var processor = (ILayoutProcessor?)binding?.Processor ?? DefaultProcessors.LayoutProcessor;
+                ReadOnlyMemory<byte> output = default;
+                LayoutReadResult<EncodedField> result;
+                if (frame.Operation == LayoutOperation.Bytes)
+                {
+                    var bytes = ((ILayoutReader<ReadOnlyMemory<byte>>)processor).Read(ref trial, _layoutContext);
+                    output = bytes.Value;
+                    result = new(bytes.Status, RequestedByteCount: bytes.RequestedByteCount);
+                }
+                else
+                {
+                    result = frame.Operation switch
+                    {
+                        LayoutOperation.Begin => processor.BeginRead(ref trial, _layoutContext),
+                        LayoutOperation.End => processor.EndRead(ref trial, _layoutContext),
+                        _ => processor.Read(ref trial, _layoutContext)
+                    };
+                }
+                _layoutContext.CanReserveTail = false;
+                if (result.Status == ReadResult.NeedMoreData)
+                {
+                    _layoutContext.ReservedTail = reservedTail;
+                    var initial = frame.ByteLength ?? DefaultLayoutProcessor.OpenWidthWindowBytes;
+                    var target = result.RequestedByteCount ?? Math.Max(initial, offered * 2);
+                    target = Math.Max(target, offered + 1);
+                    if (target > Int32.MaxValue)
+                    {
+                        throw EngineLogger.Fail("The layout input window exceeds the supported byte count.");
+                    }
+                    if (input is null)
+                    {
+                        var next = (int)Math.Min(available, target);
+                        if (next <= offered)
+                        {
+                            return LayoutReadResult<EncodedField>.NeedMoreData(result.RequestedByteCount);
+                        }
+                        frame.Window = next;
+                    }
+                    else
+                    {
+                        var length = (int)(target - available);
+                        if (frame.BlockSize is { } size)
+                        {
+                            length = Math.Min(size, length);
+                        }
+                        var requestedLength = result.RequestedByteCount is not null || frame.BlockSize is not null
+                            ? (int?)length : null;
+                        frames.Push(new LayoutFrame(frame.Index - 1, LayoutOperation.Bytes, requestedLength, frame.BlockSize,
+                            frame.BlockSize is null && (frame.Continuation || frame.ParentCalls > 0)));
+                    }
+                    continue;
+                }
+                if (result.Status != ReadResult.Success)
+                {
+                    return result;
+                }
+                var consumed = trial.Consumed - start;
+                if (input is null)
+                {
+                    reader.Advance(consumed);
+                }
+                else
+                {
+                    input.Consumed += checked((int)consumed);
+                }
+                if (binding is not null)
+                {
+                    _layoutPositions[binding] = LayoutPosition(binding) + consumed;
+                }
+                frames.Pop();
+                if (frames.Count == 0)
+                {
+                    return result;
+                }
+                if (output.IsEmpty && consumed == 0)
+                {
+                    throw EngineLogger.Fail("A layout wrapper succeeded without consuming input or producing output.");
+                }
+                var child = frames.Peek();
+                var childInput = InputFor(chain[child.Index]);
+                if (childInput.Remaining == 0)
+                {
+                    childInput.RootPosition = rootStart + Math.Max(0, reader.Consumed - rootStart - output.Length) - childInput.Consumed;
+                }
+                childInput.Buffer.Write(output.Span);
+                child.ParentCalls++;
             }
-            consumed[i] = stageReader.Consumed;
-            rootPosition += stageReader.Consumed;
-            current = new ReadOnlySequence<byte>(result.Value);
         }
-
-        var inner = chain.Count - 1;
-        var innerReader = new SequenceReader<byte>(current);
-        Prepare(_layoutContext, chain[inner]);
-        SetPosition(rootPosition, chain[inner]);
-        var innerResult = ((ILayoutProcessor)chain[inner].Processor).Read(ref innerReader, _layoutContext);
-        if (innerResult.Status == ReadResult.Success)
+        finally
         {
-            consumed[inner] = innerReader.Consumed;
-            AdvanceFieldPositions(chain, consumed);
-            reader.Advance(consumed.Sum());
+            _layoutContext.InputByteLength = null;
+            _layoutContext.IsReadContinuation = false;
+            _layoutContext.BlockByteLength = null;
+            _layoutContext.CanReserveTail = false;
         }
-        return innerResult;
     }
 
     /// <summary>Runs the stream stage (reverse order of writing) over the transport input into the payload.</summary>

@@ -35,7 +35,13 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
 
     private sealed class CrcState
     {
-        public ulong Crc;
+        public Stack<CrcScope> Scopes { get; } = new();
+    }
+
+    private sealed class CrcScope(CrcCodec codec)
+    {
+        public CrcCodec Codec { get; } = codec;
+        public ulong Crc { get; set; } = codec.Initial;
     }
 
     public ProcessorKey Key => new("sys.crc");
@@ -47,18 +53,26 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     ];
 
     public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
-    {
-        var state = context.GetOrCreateState<CrcState>();
-        state.Crc = GetCodec(context).Initial;
-    }
+        => context.GetOrCreateState<CrcState>().Scopes.Push(new CrcScope(GetCodec(context)));
 
     // head
     public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
     {
         var result = DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
-        if (result == WriteResult.Success && encodedValue.Value is byte[] bytes)
+        if (result == WriteResult.Success)
         {
-            Update(context, bytes);
+            switch (encodedValue.Value)
+            {
+                case byte[] bytes:
+                    Update(context, bytes);
+                    break;
+                case ReadOnlyMemory<byte> bytes:
+                    Update(context, bytes.Span);
+                    break;
+                case Memory<byte> bytes:
+                    Update(context, bytes.Span);
+                    break;
+            }
         }
         return result;
     }
@@ -73,58 +87,97 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
 
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
     {
-        var codec = GetCodec(context);
-        var crc = codec.Finish(context.GetOrCreateState<CrcState>().Crc);
+        var scopes = context.GetOrCreateState<CrcState>().Scopes;
+        var scope = scopes.Pop();
+        var crc = scope.Codec.Finish(scope.Crc);
         context.Publish(PublishedCrc, crc);
-        var length = codec.ByteLength;
-        EndianCodec.Write(crc, writer.GetSpan(length).Slice(0, length), GetEndianness(context));
-        writer.Advance(length);
+        var length = scope.Codec.ByteLength;
+        Span<byte> stored = stackalloc byte[length];
+        EndianCodec.Write(crc, stored, GetEndianness(context));
+        Update(context, stored);
+        writer.Write(stored);
     }
 
-    public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
-        context.ReserveTail(GetCodec(context).ByteLength);
+        var codec = GetCodec(context);
+        context.ReserveTail(codec.ByteLength);
+        context.GetOrCreateState<CrcState>().Scopes.Push(new CrcScope(codec));
+        return LayoutReadResult<EncodedField>.Success();
+    }
+
+    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    {
+        var result = BeginRead(ref reader, context);
+        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
     }
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        => DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+    {
+        var start = reader.Position;
+        var consumed = reader.Consumed;
+        var result = DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+        if (result.Status == ReadResult.Success)
+        {
+            foreach (var segment in reader.Sequence.Slice(start, reader.Consumed - consumed))
+            {
+                Update(context, segment.Span);
+            }
+        }
+        return result;
+    }
 
     LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        => LayoutReadResult<ReadOnlyMemory<byte>>.Success(LayoutChain.Unread(reader));
-
-    public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
-        var codec = GetCodec(context);
-        var length = context.GroupData.Position;
-        var data = reader.Sequence.Slice(reader.Consumed - length, length);
-        var state = codec.Initial;
-        foreach (var segment in data)
+        var result = LayoutChain.PassThroughRead(ref reader, context.InputByteLength);
+        if (result.Status == ReadResult.Success)
         {
-            state = codec.Update(state, segment.Span);
+            Update(context, result.Value.Span);
         }
-        var actual = codec.Finish(state);
-        context.Publish(PublishedCrc, actual);
+        return result;
+    }
 
-        var size = codec.ByteLength;
+    public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    {
+        var scopes = context.GetOrCreateState<CrcState>().Scopes;
+        var scope = scopes.Peek();
+        var size = scope.Codec.ByteLength;
         if (reader.Remaining < size)
         {
-            throw context.Logger.Fail($"Not enough data to read the {codec.Width}-bit CRC.");
+            return LayoutReadResult<EncodedField>.NeedMoreData(size);
         }
 
+        var actual = scope.Codec.Finish(scope.Crc);
         Span<byte> stored = stackalloc byte[size];
         reader.TryCopyTo(stored);
-        reader.Advance(size);
         var expected = EndianCodec.Read(stored, GetEndianness(context));
         if (expected != actual)
         {
             throw context.Logger.Fail($"CRC mismatch: stored 0x{expected:X}, calculated 0x{actual:X}.");
         }
+        reader.Advance(size);
+        context.Publish(PublishedCrc, actual);
+        scopes.Pop();
+        Update(context, stored);
+        return LayoutReadResult<EncodedField>.Success();
+    }
+
+    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    {
+        var result = EndRead(ref reader, context);
+        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
     }
 
     private static void Update(LayoutProcessorContext context, ReadOnlySpan<byte> bytes)
     {
-        var state = context.GetOrCreateState<CrcState>();
-        state.Crc = GetCodec(context).Update(state.Crc, bytes);
+        if (context.Field?.ByteOffset is not null)
+        {
+            return;
+        }
+        foreach (var scope in context.GetOrCreateState<CrcState>().Scopes)
+        {
+            scope.Crc = scope.Codec.Update(scope.Crc, bytes);
+        }
     }
 
     private static CrcCodec GetCodec(LayoutProcessorContext context)

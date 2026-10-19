@@ -114,6 +114,10 @@ public class FieldChainTests
 
         public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
         {
+            if (field.BitWidth < 32)
+            {
+                return FieldReadResult<LogicalField>.NeedMoreData();
+            }
             log.Add($"Read:{id}");
             return FieldReadResult<LogicalField>.Consumed(
                 new LogicalField(field.Name, typeof(int), BitConverter.ToInt32((byte[])field.Value!)), 32);
@@ -145,6 +149,10 @@ public class FieldChainTests
 
         FieldReadResult<EncodedField> IFieldReader<EncodedField, EncodedField>.Read(EncodedField field, FieldProcessorContext context)
         {
+            if (field.BitWidth < 32)
+            {
+                return FieldReadResult<EncodedField>.NeedMoreData();
+            }
             log.Add($"Read:{id}");
             return FieldReadResult<EncodedField>.Consumed(Transform(field), field.BitWidth);
         }

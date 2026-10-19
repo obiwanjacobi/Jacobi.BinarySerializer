@@ -133,29 +133,11 @@ public sealed class FieldProcessorContext : ProcessorContext
     public FieldData FieldData { get; } = new();
 }
 
-/// <summary>
-/// Metadata and resolved carrier length for one packed-group instance.
-/// </summary>
-public sealed class PackingProcessorContext : ProcessorContext
-{
-    public PackingProcessorContext(SessionState state) : base(state) { }
-
-    internal override string NodePath => Group?.Path.ToString() ?? String.Empty;
-
-    public PackedGroupInfo Group { get; internal set; } = null!;
-    public IReadOnlyList<FieldInfo> Fields => Group.Fields;
-
-    /// <summary>
-    /// The resolved length in bytes of the packed representation before layout processing.
-    /// </summary>
-    public int ByteLength { get; internal set; }
-}
-
 public sealed class LayoutProcessorContext : ProcessorContext
 {
     public LayoutProcessorContext(SessionState state) : base(state) { }
 
-    internal override string NodePath => (Field?.Path ?? PackedGroup?.Path ?? Group?.Path)?.ToString() ?? String.Empty;
+    internal override string NodePath => (Field?.Path ?? Group?.Path)?.ToString() ?? String.Empty;
     internal override long? ScopeRootPosition => GroupData.RootPosition;
     internal override long? ScopeGroupPosition => GroupData.Position;
 
@@ -171,17 +153,54 @@ public sealed class LayoutProcessorContext : ProcessorContext
     public FieldInfo? Field { get; internal set; }
 
     /// <summary>
-    /// The packed group whose carrier is being laid out. Null for ordinary fields and group hooks.
+    /// Output byte count requested from a byte wrapper, or the current encoded-field window.
+    /// This operation boundary is independent of the size of its input buffer.
     /// </summary>
-    public PackedGroupInfo? PackedGroup { get; internal set; }
+    public int? InputByteLength { get; internal set; }
 
     /// <summary>
-    /// Fixed carrier width, or the ordinary field's default fixed width, in bytes.
+    /// True when supplying more bytes for the same field or hook, rather than starting a new layout operation.
     /// </summary>
-    public int? FixedByteLength => PackedGroup is not null ? FieldData.ByteLength : Field?.DataType.FixedSize;
+    public bool IsReadContinuation { get; internal set; }
+
+    internal Dictionary<ProcessorBinding, bool> BufferedInputs { get; } = [];
 
     /// <summary>
-    /// The running data of the field or packed carrier being written/read (set by the session before each call).
+    /// Indicates that this processor retains unread input, so an open repeat must not stop solely at physical end of input.
+    /// </summary>
+    public bool HasBufferedInput
+    {
+        get => BufferedInputs.GetValueOrDefault(Current);
+        set => BufferedInputs[Current] = value;
+    }
+
+    internal Dictionary<ProcessorBinding, int?> BlockSizes { get; } = [];
+    internal int? BlockByteLength { get; set; }
+
+    /// <summary>
+    /// Optional logical byte-block boundary for this scope. Enclosing wrappers process each block independently in both directions.
+    /// This is not a refill-window size. Set in BeginRead and BeginWrite.
+    /// </summary>
+    public int? ByteBlockSize
+    {
+        get => BlockSizes.GetValueOrDefault(Current);
+        set
+        {
+            if (value is <= 0)
+            {
+                throw Logger.Fail("The layout byte block size must be positive.");
+            }
+            BlockSizes[Current] = value;
+        }
+    }
+
+    /// <summary>
+    /// The current physical block width for byte wrappers, or the field's default fixed width for an endpoint.
+    /// </summary>
+    public int? FixedByteLength => BlockByteLength ?? Field?.DataType.FixedSize;
+
+    /// <summary>
+    /// The running data of the field being written/read (set by the session before each call).
     /// <see cref="FieldData.ByteLength"/> is the number of bytes the reader must take when a length is declared.
     /// </summary>
     public FieldData FieldData { get; } = new();

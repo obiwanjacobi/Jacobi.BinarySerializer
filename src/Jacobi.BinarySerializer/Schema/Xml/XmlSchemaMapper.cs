@@ -28,12 +28,6 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaGroup.Properties)
     };
 
-    private static readonly HashSet<string> PackedGroupKnownNames = new(GroupKnownNames, StringComparer.OrdinalIgnoreCase)
-    {
-        nameof(XmlSchemaPackedGroup.ByteLength),
-        nameof(XmlSchemaPackedGroup.ByteLengthRef)
-    };
-
     private static readonly HashSet<string> RepeatKnownNames = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(XmlSchemaRepeat.Name),
@@ -170,7 +164,6 @@ internal static class XmlSchemaMapper
             XmlSchemaField => throw new InvalidOperationException("Field nodes must have a group parent."),
             XmlSchemaRepeat repeatNode => ToSchemaRepeat(repeatNode),
             XmlSchemaChoice choiceNode => ToSchemaChoice(choiceNode),
-            XmlSchemaPackedGroup packedNode => ToSchemaPackedGroup(packedNode),
             XmlSchemaGroup groupNode => ToSchemaGroup(groupNode),
             _ => throw new InvalidOperationException($"Unsupported XML schema node type '{xmlNode.GetType().Name}'.")
         };
@@ -272,20 +265,6 @@ internal static class XmlSchemaMapper
         }
 
         return group;
-    }
-
-    private static SchemaPackedGroup ToSchemaPackedGroup(XmlSchemaPackedGroup packed)
-    {
-        return new SchemaPackedGroup
-        {
-            Name = packed.Name,
-            NodeDef = ToNodeDefName(packed.NodeDef),
-            ProcessorsList = (packed.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
-            MemberList = (packed.Members ?? []).Select(member => ToSchemaNode(member, true)).ToList(),
-            ByteLength = ToSchemaValue(packed.ByteLength, packed.ByteLengthRef),
-            ByteSize = ToSchemaValue(packed.ByteSize, packed.ByteSizeRef),
-            PropertyList = MergeProperties(packed.Properties, packed.AdditionalAttributes, packed.AdditionalElements, PackedGroupKnownNames)
-        };
     }
 
     private static SchemaRepeat ToSchemaRepeat(XmlSchemaRepeat xmlRepeat)
@@ -400,22 +379,6 @@ internal static class XmlSchemaMapper
                 ByteLengthRef = ToXmlValueRef(field.ByteLength),
                 ByteOffset = field.ByteOffset?.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 Properties = ToXmlList(field.Properties, FromSchemaProperty)
-            };
-        }
-
-        if (node is SchemaPackedGroup packed)
-        {
-            return new XmlSchemaPackedGroup
-            {
-                Name = packed.Name,
-                NodeDef = packed.NodeDef?.ToString(),
-                Processors = ToXmlList(packed.Processors, FromSchemaProcessorRef),
-                Members = ToXmlList(packed.Members, FromSchemaNode),
-                ByteLength = ToConstantText(packed.ByteLength),
-                ByteLengthRef = ToXmlValueRef(packed.ByteLength),
-                ByteSize = ToConstantText(packed.ByteSize),
-                ByteSizeRef = ToXmlValueRef(packed.ByteSize),
-                Properties = ToXmlList(packed.Properties, FromSchemaProperty)
             };
         }
 

@@ -12,7 +12,7 @@ The built-in processors of namespace `sys`. Property names are short names as us
 | `sys.bitslicer` | Representation | field | Joins the low bits of each byte of one field (e.g. 7 bits: MIDI 14-bit values). |
 | `sys.string` | Representation | field | Strings with a fixed length or a terminator. |
 | `sys.bytepacker` | Layout | group (fields inherit) | Whole bytes in a byte order. |
-| `sys.bitpacker` | Packing | `packed` (`bits` on each child) | Fields of arbitrary bit widths in one carrier. |
+| `sys.bitpacker` | Layout | group (fields inherit; `bits` on each field) | Integer and boolean fields of arbitrary bit widths. |
 | `sys.align` | Layout | group (fields inherit) | Zero padding to a byte multiple. |
 | `sys.crc` | Layout | group (fields inherit) | Appends/validates a CRC over a group. |
 
@@ -84,26 +84,27 @@ Joins the lowest `bits` bits of each byte of one field into a single unsigned va
 | `bits` | no | Bits taken from each byte, 1 to 8 (default 7). |
 | `byteorder` | no | `little` (default, least significant slice first) or `big`. |
 
-## Packing processors
-
-A packing processor is selected by a `packed` node (exactly one, in the group's `processors`; it is never inherited). It encodes the ordered logical values of the group's fields into one carrier of the group's `byteLength` bytes, and back. The fields may have value processors but no representation or layout processors; the carrier then goes through the layout chain once.
+## Layout processors
 
 ### `sys.bitpacker`
 
-Packs the fields of a packed group into bit fields of arbitrary width, in declaration order. Each value is encoded with the default representation of its data type (little-endian, at most 8 bytes wide) and its lowest `bits` bits are stored; signed types are sign-extended on read. Bits that remain in the carrier are zero when writing and ignored when reading.
+Packs integer and boolean fields of an ordinary `group` into a continuous bit stream, in declaration order. Nested groups without their own layout declaration inherit the same stream. An explicitly nested scope of the same binding starts on a byte boundary: the parent partial byte is padded on write and its remaining padding bits discarded on read. The child's bytes count toward the parent's absolute position and capacity. Each field uses its complete default fixed-width little-endian representation (1 to 8 bytes); the lowest `bits` bits are stored, and signed values are sign-extended on read. Value processors such as `sys.scale` still run normally. Other data types, representation processors, incompatible field `byteLength` values and virtual fields (`byteOffset`) are explicitly rejected.
 
-Writing and reading fail when `bits` is not between 1 and the width of the data type, when the bits of all fields together do not fit in the carrier (`byteLength` x 8), or when the data type has no fixed-width default representation of at most 8 bytes (strings and byte arrays are not supported). Writing also fails when a value does not fit in its `bits`; the engine reports the failed processor result.
+Completed bytes are forwarded through outer wrappers as stable one-byte blocks, independently of field boundaries; a partial byte is flushed at group exit. For example, an outer `sys.align` with `bytes: 2` aligns each physical byte block, not each logical bit field. Reads use the same block boundaries, including capacity padding, so cached fields do not invoke wrappers again.
 
 | Property | Required | Description |
 |----------|----------|-------------|
-| `bits` | no | Field property: number of bits the field occupies (default: 1). Written `sys.bitpacker.bits` or `bits` on the field. |
-| `bitorder` | no | Processor property: `little` (default) or `big` bit order within a byte. `little` fills each byte from the least significant bit, `big` from the most significant bit. |
+| `bits` | no | Field property: number of bits occupied, from 1 through the data type's width (default: 1). Written `sys.bitpacker.bits` or `bits` on the field. |
+| `bitoffset` | no | Field property: absolute offset from the owning group's first bit, in packing order. Gaps are zero-filled on write and skipped on read. Backward offsets, overlaps and negative offsets fail. Written `sys.bitpacker.bitoffset` or `bitoffset` on the field. |
+| `bitorder` | no | Processor property: `little` (default) or `big`. Little fills each byte from its least significant bit; big fills it from its most significant bit. |
+| `byteLength` | no | Processor property: nonnegative byte capacity, including gaps and padding. Without it the total bits are rounded up to whole bytes, with no fixed default capacity. An explicit larger capacity is zero-filled on write and skipped on read. Too-small capacity fails. |
+
+Writing also fails when a value does not fit its selected signed or unsigned bit width. Truncated field data or missing capacity padding is an error. Unused bits and capacity bytes are ignored on read.
 
 ```json
 {
   "name": "Status",
-  "kind": "packed",
-  "byteLength": 1,
+  "kind": "group",
   "processors": [ { "name": "sys.bitpacker", "bitorder": "big" } ],
   "members": [
     { "name": "Enabled", "kind": "field", "datatype": "sys.bool", "bits": 1 },
@@ -115,9 +116,7 @@ Writing and reading fail when `bits` is not between 1 and the width of the data 
 }
 ```
 
-In the example `byteLength` could be left out (default 1) and `Flag` has no `bits` (default 1). Layout processors on the enclosing group (byte order, align, CRC) apply to the finished carrier, for example `sys.bytepacker` with `byteorder` `big` reverses a carrier of more than one byte.
-
-## Layout processors
+This example occupies one byte; `Flag` defaults to one bit. To preserve a formerly oversized carrier, add `"byteLength": 2` (or the required capacity) inside the `sys.bitpacker` processor entry, not on the group. Outer byte wrappers, such as `sys.crc`, compose through the ordinary layout chain; there is no synthetic carrier field or whole-carrier byte reversal.
 
 ### `sys.bytepacker`
 
@@ -129,7 +128,7 @@ Lays out fields as whole bytes in declaration order, in the configured byte orde
 
 ### `sys.align`
 
-Pads with zero bytes so each value, and the end of the group, starts on a multiple of `bytes`. It can be the innermost field-to-bytes processor or an outer byte wrapper such as around the byte packer. On a group that contains a packed group, the finished carrier is aligned like any other encoded value.
+Pads with zero bytes so each value, and the end of the group, starts on a multiple of `bytes`. It can be the innermost field-to-bytes processor or an outer byte wrapper such as around the byte packer. Around a bit packer it sees completed output bytes, including the final partial-byte flush.
 
 | Property | Required | Description |
 |----------|----------|-------------|

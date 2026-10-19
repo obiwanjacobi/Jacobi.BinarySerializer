@@ -35,14 +35,12 @@ public class SchemaSetTests
                 .Repeat("Repeat", 2, members => members.Field("Item"), byteSize: 8,
                     valueProcessors: processors => processors.Add("sys.map"))
                 .Choice("Choice", 1, members => members.Field("Alternative"), byteSize: 4,
-                    valueProcessors: processors => processors.Add("sys.map"))
-                .PackedGroup("Packed", 2, members => members.Field("Bit"), byteSize: 3))
+                    valueProcessors: processors => processors.Add("sys.map")))
             .Group("Root", members => members
                 .Field("FieldUse", dataType: null, nodeDef: "Field", value: String.Empty, byteLength: 0, byteOffset: 0)
                 .Group("GroupUse", group => group.Field("Local"), nodeDef: "Group", byteSize: 0)
                 .Repeat("RepeatUse", 0, nodeDef: "Repeat", byteSize: 0)
-                .Choice("ChoiceUse", 0, nodeDef: "Choice", byteSize: 0)
-                .PackedGroup("PackedUse", nodeDef: "Packed"))
+                .Choice("ChoiceUse", 0, nodeDef: "Choice", byteSize: 0))
             .Build();
         var builder = new SchemaSetBuilder();
         builder.AddDocument(document);
@@ -63,9 +61,6 @@ public class SchemaSetTests
         Assert.That(choice.SelectedIndex is int index && index == 0, Is.True);
         Assert.That(choice.ByteSize is int choiceSize && choiceSize == 0, Is.True);
         Assert.That(choice.ValueProcessors.Single().Processor.ToString(), Is.EqualTo("sys.map"));
-        var packed = (SchemaPackedGroup)nodes[4];
-        Assert.That(packed.ByteLength is int carrier && carrier == 2, Is.True);
-        Assert.That(packed.ByteSize is int packedSize && packedSize == 3, Is.True);
     }
 
     [Test]

@@ -11,8 +11,7 @@ namespace Jacobi.BinarySerializer.Processors;
 /// Usable as the innermost layout processor or as an outer byte wrapper (e.g. around the byte packer).
 /// </summary>
 /// <remarks>
-/// Chained after a bit packer, only the bytes the packer emits are aligned. On read, the aligner cannot tell which fields
-/// consumed bits only, so combine them with care.
+/// As an outer wrapper, alignment is applied only when the inner processor emits or requests bytes.
 /// </remarks>
 internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
     ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
@@ -42,24 +41,45 @@ internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
         => Pad(writer, context);
 
-    public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        => LayoutReadResult<EncodedField>.Success();
+
+    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
+        var result = BeginRead(ref reader, context);
+        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
     }
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
+        var padding = ReadPadding(context);
         if (!TrySkip(ref reader, context))
         {
-            return LayoutReadResult<EncodedField>.NeedMoreData();
+            var length = context.FieldData.ByteLength
+                ?? (context.Field?.Pipeline.FieldProcessors.Count > 0 ? context.InputByteLength : context.FixedByteLength)
+                ?? 1;
+            return LayoutReadResult<EncodedField>.NeedMoreData(padding + length);
         }
-        return DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+        var result = DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+        return result.Status == ReadResult.NeedMoreData
+            ? LayoutReadResult<EncodedField>.NeedMoreData(padding + (result.RequestedByteCount ?? 1))
+            : result;
     }
 
-    public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
-        // a trailing pad that is not there (yet) is not an error here: the reader reports NeedMoreData when it needs the bytes.
-        var padding = (int)Math.Min(Padding(context), reader.Remaining);
-        reader.Advance(padding);
+        var padding = ReadPadding(context);
+        if (!TrySkip(ref reader, context))
+        {
+            return LayoutReadResult<EncodedField>.NeedMoreData(padding);
+        }
+        return LayoutReadResult<EncodedField>.Success();
+    }
+
+    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    {
+        var result = EndRead(ref reader, context);
+        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
     }
 
     // chained
@@ -72,16 +92,20 @@ internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
 
     LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
+        var padding = ReadPadding(context);
         if (!TrySkip(ref reader, context))
         {
-            return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData();
+            return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData(padding + (context.InputByteLength ?? 1));
         }
-        return LayoutChain.PassThroughRead(ref reader);
+        var result = LayoutChain.PassThroughRead(ref reader, context.InputByteLength);
+        return result.Status == ReadResult.NeedMoreData
+            ? LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData(padding + (result.RequestedByteCount ?? 1))
+            : result;
     }
 
     private static bool TrySkip(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
-        var padding = Padding(context);
+        var padding = ReadPadding(context);
         if (reader.Remaining < padding)
         {
             context.Logger.AlignNeedMoreData(padding);
@@ -110,6 +134,9 @@ internal sealed class AlignProcessor : ProcessorBase, ILayoutProcessor,
         var position = IsRoot(context) ? context.GroupData.RootPosition : context.GroupData.Position;
         return (alignment - position % alignment) % alignment;
     }
+
+    private static int ReadPadding(LayoutProcessorContext context)
+        => context.IsReadContinuation ? 0 : (int)Padding(context);
 
     private static int GetAlignment(LayoutProcessorContext context)
     {

@@ -162,20 +162,7 @@ internal static class JsonSchemaMapper
         var members = new List<SchemaNode>();
 
         SchemaGroup group;
-        if (jsonGroup is JsonSchemaPackedGroup packed)
-        {
-            group = new SchemaPackedGroup
-            {
-                Name = packed.Name,
-                NodeDef = ToNodeDefName(packed.NodeDef),
-                ProcessorsList = packed.Processors.Select(ToSchemaProcessorRef).ToList(),
-                MemberList = members,
-                ByteLength = ToSchemaValueOrRef(packed.ByteLength),
-                ByteSize = ToSchemaValueOrRef(packed.ByteSize),
-                PropertyList = MergeProperties(packed.Properties, packed.AdditionalData)
-            };
-        }
-        else if (jsonGroup is JsonSchemaRepeat repeat)
+        if (jsonGroup is JsonSchemaRepeat repeat)
         {
             group = new SchemaRepeat
             {
@@ -274,20 +261,6 @@ internal static class JsonSchemaMapper
 
     private static JsonSchemaGroup CreateJsonGroupNode(SchemaGroup group)
     {
-        if (group is SchemaPackedGroup packed)
-        {
-            return new JsonSchemaPackedGroup
-            {
-                Name = packed.Name,
-                NodeDef = packed.NodeDef?.ToString(),
-                Processors = packed.Processors.Select(FromSchemaProcessorRef).ToList(),
-                Members = packed.Members.Select(FromSchemaNode).ToList(),
-                ByteLength = FromSchemaValueOrRef(packed.ByteLength),
-                ByteSize = FromSchemaValueOrRef(packed.ByteSize),
-                Properties = packed.Properties.Select(FromSchemaProperty).ToList()
-            };
-        }
-
         if (group is SchemaRepeat repeat)
         {
             return new JsonSchemaRepeat

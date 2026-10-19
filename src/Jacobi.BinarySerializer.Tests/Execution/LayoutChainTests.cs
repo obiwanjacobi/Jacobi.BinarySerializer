@@ -164,6 +164,118 @@ public class LayoutChainTests
         Assert.That(ex!.Message, Does.Contain("ch.plainhead").And.Contain("chained"));
     }
 
+    [Test]
+    public void Chain_BufferedWrite_DoesNotCallOuterWrapperUntilBytesAreEmitted()
+    {
+        var log = new List<string>();
+        var plan = Build(Group("Root", [Ref("head"), Ref("buffered")], Field("A"), Field("B")), log);
+
+        var bytes = Write(plan, new() { ["Root.A"] = (byte)1, ["Root.B"] = (byte)2 });
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 1, 2 }));
+        Assert.That(log, Is.EqualTo(new[]
+        {
+            "Begin:head", "Begin:buffered", "Buffer:A", "Buffer:B",
+            "End:buffered", "Write:0/0", "End:head"
+        }));
+    }
+
+    [Test]
+    public void Chain_BufferedRead_CallsOuterWrapperOnlyForNewInput()
+    {
+        var log = new List<string>();
+        var plan = Build(Group("Root", [Ref("head"), Ref("buffered")],
+            Field("A"), Field("B"), Field("C"), Field("D")), log);
+
+        var values = Read(plan, [1, 2, 3, 4]);
+
+        Assert.That(values, Is.EqualTo(new Dictionary<string, object?>
+        {
+            ["Root.A"] = (byte)1, ["Root.B"] = (byte)2,
+            ["Root.C"] = (byte)3, ["Root.D"] = (byte)4
+        }));
+        Assert.That(log, Is.EqualTo(new[] { "Begin:head", "Read:0/0", "Read:2/2", "End:head" }));
+    }
+
+    [Test]
+    public void Chain_BufferedRead_TruncatedInputNeedsMoreDataWithoutSuccessfulTransfer()
+    {
+        var log = new List<string>();
+        var plan = Build(Group("Root", [Ref("head"), Ref("buffered")], Field("A")), log);
+        var sink = new DictSink();
+
+        var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 1 }), sink);
+
+        Assert.That(result, Is.EqualTo(ReadResult.NeedMoreData));
+        Assert.That(sink.Values, Is.Empty);
+        Assert.That(log, Is.EqualTo(new[] { "Begin:head" }));
+    }
+
+    [Test]
+    public void Wrapper_Read_ConsumesOnlyRequestedOperationBytes()
+    {
+        var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(new byte[] { 1, 2, 3 }));
+
+        var result = LayoutChain.PassThroughRead(ref reader, 2);
+
+        Assert.That(result.Status, Is.EqualTo(ReadResult.Success));
+        Assert.That(result.Value.ToArray(), Is.EqualTo(new byte[] { 1, 2 }));
+        Assert.That(reader.Consumed, Is.EqualTo(2));
+        Assert.That(reader.Remaining, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void Wrapper_Read_TruncatedOperationDoesNotConsumeInput()
+    {
+        var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(new byte[] { 1 }));
+
+        var result = LayoutChain.PassThroughRead(ref reader, 2);
+
+        Assert.That(result.Status, Is.EqualTo(ReadResult.NeedMoreData));
+        Assert.That(result.RequestedByteCount, Is.EqualTo(2));
+        Assert.That(reader.Consumed, Is.Zero);
+    }
+
+    [Test]
+    public void AlignWrapper_Read_ContinuationDoesNotPadWithinTheField()
+    {
+        var context = new LayoutProcessorContext(new ReaderSession(Build(Group("Root", [], Field("A")), [])))
+        {
+            Services = null!,
+            InputByteLength = 1,
+            IsReadContinuation = true
+        };
+        context.GroupData.Position = 1;
+        ILayoutReader<ReadOnlyMemory<byte>> align = new Align([]);
+        var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(new byte[] { 0x81, 0x01 }));
+
+        var result = align.Read(ref reader, context);
+
+        Assert.That(result.Status, Is.EqualTo(ReadResult.Success));
+        Assert.That(result.Value.ToArray(), Is.EqualTo(new byte[] { 0x81 }));
+        Assert.That(reader.Consumed, Is.EqualTo(1));
+        Assert.That(reader.Remaining, Is.EqualTo(1));
+    }
+
+    [TestCase(0)]
+    [TestCase(2)]
+    public void AlignWrapper_Read_RequestsPaddingAndExactOutputLength(int available)
+    {
+        var context = new LayoutProcessorContext(new ReaderSession(Build(Group("Root", [], Field("A")), [])))
+        {
+            Services = null!,
+            InputByteLength = 2
+        };
+        context.GroupData.Position = 3;
+        ILayoutReader<ReadOnlyMemory<byte>> align = new Align([]);
+        var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(new byte[available]));
+
+        var result = align.Read(ref reader, context);
+
+        Assert.That(result.Status, Is.EqualTo(ReadResult.NeedMoreData));
+        Assert.That(result.RequestedByteCount, Is.EqualTo(3));
+    }
+
     private sealed class Factory(List<string> log) : IProcessorFactory
     {
         public string Namespace => Ns;
@@ -176,8 +288,73 @@ public class LayoutChainTests
             "plainhead" => new PlainHead(),
             "align" => new Align(log),
             "probe" => new Probe(log),
+            "buffered" => new BufferedLayout(log),
             _ => null
         };
+    }
+
+    private sealed class BufferedLayout(List<string> log) : ILayoutProcessor
+    {
+        public ProcessorKey Key => new(Ns, "buffered");
+        public string Name => "buffered";
+        public PipelineStage Stage => PipelineStage.Layout;
+        public IReadOnlyList<PropertyDescriptor> Properties => [];
+
+        public void BeginWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
+        {
+            Assert.That(context.Field, Is.Null);
+            Assert.That(context.FieldData.ByteLength, Is.Null);
+            context.GetOrCreateState<ArrayBufferWriter<byte>>().Clear();
+            log.Add("Begin:buffered");
+        }
+
+        public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
+        {
+            log.Add($"Buffer:{context.Field!.Name}");
+            return DefaultProcessors.LayoutProcessor.Write(
+                context.GetOrCreateState<ArrayBufferWriter<byte>>(), encodedValue, context);
+        }
+
+        public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
+        {
+            Assert.That(context.Field, Is.Null);
+            Assert.That(context.FieldData.ByteLength, Is.Null);
+            log.Add("End:buffered");
+            writer.Write(context.GetOrCreateState<ArrayBufferWriter<byte>>().WrittenSpan);
+        }
+
+        public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            context.GetOrCreateState<Queue<byte>>().Clear();
+            context.HasBufferedInput = false;
+            return LayoutReadResult<EncodedField>.Success();
+        }
+
+        public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            var queue = context.GetOrCreateState<Queue<byte>>();
+            if (queue.Count == 0)
+            {
+                if (reader.Remaining < 2)
+                {
+                    return LayoutReadResult<EncodedField>.NeedMoreData(2);
+                }
+                reader.TryRead(out var first);
+                reader.TryRead(out var second);
+                queue.Enqueue(first);
+                queue.Enqueue(second);
+            }
+            var value = queue.Dequeue();
+            context.HasBufferedInput = queue.Count > 0;
+            return LayoutReadResult<EncodedField>.Success(new(context.Field!.Name, typeof(byte[]), new byte[] { value }, 8));
+        }
+
+        public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            context.GetOrCreateState<Queue<byte>>().Clear();
+            context.HasBufferedInput = false;
+            return LayoutReadResult<EncodedField>.Success();
+        }
     }
 
     /// <summary>A layout processor that can act as the innermost field codec or an outer byte wrapper.</summary>
@@ -217,13 +394,27 @@ public class LayoutChainTests
             }
         }
 
-        public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
-            log.Add($"Begin:{id}");
-            if (prefix && (!reader.TryRead(out var value) || value != 0xAA))
+            if (prefix)
             {
-                throw new InvalidOperationException("The outer layout prefix is missing.");
+                if (!reader.TryRead(out var value))
+                {
+                    return LayoutReadResult<EncodedField>.NeedMoreData(1);
+                }
+                if (value != 0xAA)
+                {
+                    throw new InvalidOperationException("The outer layout prefix is missing.");
+                }
             }
+            log.Add($"Begin:{id}");
+            return LayoutReadResult<EncodedField>.Success();
+        }
+
+        LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            var result = BeginRead(ref reader, context);
+            return new(result.Status, RequestedByteCount: result.RequestedByteCount);
         }
 
         public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
@@ -234,12 +425,25 @@ public class LayoutChainTests
 
         LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
-            log.Add($"Read:{context.GroupData.RootPosition}/{context.GroupData.Position}");
-            return LayoutChain.PassThroughRead(ref reader);
+            var result = LayoutChain.PassThroughRead(ref reader, context.InputByteLength);
+            if (result.Status == ReadResult.Success)
+            {
+                log.Add($"Read:{context.GroupData.RootPosition}/{context.GroupData.Position}");
+            }
+            return result;
         }
 
-        public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-            => log.Add($"End:{id}");
+        public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            log.Add($"End:{id}");
+            return LayoutReadResult<EncodedField>.Success();
+        }
+
+        LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            var result = EndRead(ref reader, context);
+            return new(result.Status, RequestedByteCount: result.RequestedByteCount);
+        }
     }
 
     private sealed class PlainHead : ILayoutProcessor
@@ -253,10 +457,12 @@ public class LayoutChainTests
         public WriteResult Write(IBufferWriter<byte> writer, EncodedField encodedValue, LayoutProcessorContext context)
             => DefaultProcessors.LayoutProcessor.Write(writer, encodedValue, context);
         public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
-        public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
+        public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+            => LayoutReadResult<EncodedField>.Success();
         public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
             => DefaultProcessors.LayoutProcessor.Read(ref reader, context);
-        public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
+        public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+            => LayoutReadResult<EncodedField>.Success();
     }
 
     private sealed class ConstSource : IFieldSource
@@ -290,15 +496,17 @@ public class LayoutChainTests
         {
         }
 
-        public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-            => log.Add($"BeginR:{Describe(context)}");
+        public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            log.Add($"BeginR:{Describe(context)}");
+            return LayoutReadResult<EncodedField>.Success();
+        }
 
         public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
             => DefaultProcessors.LayoutProcessor.Read(ref reader, context);
 
-        public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-        {
-        }
+        public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+            => LayoutReadResult<EncodedField>.Success();
     }
 
     /// <summary>Pads to a multiple of 4 (relative to the owning group) before each value and at the end of the group.</summary>
@@ -343,31 +551,59 @@ public class LayoutChainTests
             Pad(writer, Padding(context));
         }
 
-        public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-            => log.Add("Begin:align");
+        public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            log.Add("Begin:align");
+            return LayoutReadResult<EncodedField>.Success();
+        }
+
+        LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            var result = BeginRead(ref reader, context);
+            return new(result.Status, RequestedByteCount: result.RequestedByteCount);
+        }
 
         public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
+            var padding = ReadPadding(context);
             if (!TrySkip(ref reader, context))
             {
-                return LayoutReadResult<EncodedField>.NeedMoreData();
+                var length = context.FieldData.ByteLength
+                    ?? (context.Field?.Pipeline.FieldProcessors.Count > 0 ? context.InputByteLength : context.FixedByteLength)
+                    ?? 1;
+                return LayoutReadResult<EncodedField>.NeedMoreData(padding + length);
             }
-            return DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+            var result = DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+            return result.Status == ReadResult.NeedMoreData
+                ? LayoutReadResult<EncodedField>.NeedMoreData(padding + (result.RequestedByteCount ?? 1))
+                : result;
         }
 
         LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
-            log.Add($"Read:{context.GroupData.RootPosition}/{context.GroupData.Position}");
+            var padding = ReadPadding(context);
             if (!TrySkip(ref reader, context))
             {
-                return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData();
+                return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData(padding + (context.InputByteLength ?? 1));
             }
-            return LayoutReadResult<ReadOnlyMemory<byte>>.Success(LayoutChain.Unread(reader));
+            var result = LayoutChain.PassThroughRead(ref reader, context.InputByteLength);
+            if (result.Status == ReadResult.NeedMoreData)
+            {
+                return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData(padding + (result.RequestedByteCount ?? 1));
+            }
+            if (result.Status == ReadResult.Success)
+            {
+                log.Add($"Read:{context.GroupData.RootPosition}/{context.GroupData.Position}");
+            }
+            return result;
         }
+
+        private static int ReadPadding(LayoutProcessorContext context)
+            => context.IsReadContinuation ? 0 : Padding(context);
 
         private static bool TrySkip(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
-            var padding = Padding(context);
+            var padding = ReadPadding(context);
             if (reader.Remaining < padding)
             {
                 return false;
@@ -376,11 +612,22 @@ public class LayoutChainTests
             return true;
         }
 
-        public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
+            var padding = ReadPadding(context);
+            if (reader.Remaining < padding)
+            {
+                return LayoutReadResult<EncodedField>.NeedMoreData(padding);
+            }
             log.Add("End:align");
-            var padding = Padding(context);
-            reader.Advance(Math.Min(padding, reader.Remaining));
+            reader.Advance(padding);
+            return LayoutReadResult<EncodedField>.Success();
+        }
+
+        LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            var result = EndRead(ref reader, context);
+            return new(result.Status, RequestedByteCount: result.RequestedByteCount);
         }
     }
 }

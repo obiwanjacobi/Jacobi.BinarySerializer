@@ -165,8 +165,6 @@ public sealed class SchemaSetBuilder
                     $"Failed to resolve references in schema '{document.Name}'.");
             }
 
-            ValidatePackedGroups(document.NodeDefs.Select(definition => ResolveNodeDef(document, definition)));
-            ValidatePackedGroups(document.Roots);
             document.RefreshIndexes();
 
             document.IsCompiled = true;
@@ -511,40 +509,6 @@ public sealed class SchemaSetBuilder
         return allResolved;
     }
 
-    private static void ValidatePackedGroups(IEnumerable<SchemaNode> nodes)
-    {
-        foreach (var node in nodes)
-        {
-            if (node is SchemaPackedGroup packed)
-            {
-                if (packed.ByteLength is int length && length <= 0)
-                {
-                    throw new InvalidOperationException($"The PackedGroup '{packed.Name}' byteLength must be positive.");
-                }
-                ValidatePackedMembers(packed.Name, packed.Members);
-            }
-            if (node is SchemaGroup group)
-            {
-                ValidatePackedGroups(group.Members);
-            }
-        }
-    }
-
-    private static void ValidatePackedMembers(string name, IReadOnlyList<SchemaNode> members)
-    {
-        foreach (var member in members)
-        {
-            if (member is not SchemaField field)
-            {
-                throw new InvalidOperationException($"The PackedGroup '{name}' can only contain fields; '{member.Name}' is a {member.Kind}.");
-            }
-            if (field.ByteLength is int or SchemaNodeRef or SchemaPubRef || field.ByteOffset is not null)
-            {
-                throw new InvalidOperationException($"The PackedGroup '{name}' field '{field.Name}' cannot declare byteLength or byteOffset.");
-            }
-        }
-    }
-
     private bool TryFindDataTypeDef(SchemaDocument document, SchemaName dataType, [NotNullWhen(true)] out SchemaDocument? defDocument, [NotNullWhen(true)] out SchemaDataTypeDef? dataTypeDef)
     {
         var name = dataType;
@@ -663,18 +627,6 @@ public sealed class SchemaSetBuilder
                 PipelineOverride = choiceNode.PipelineOverride ?? choiceDef.PipelineOverride,
                 ByteSize = Inherit(choiceNode.ByteSize, choiceDef.ByteSize),
                 ValueProcessorsList = MergeProcessors(choiceDef.ValueProcessors, choiceNode.ValueProcessors),
-            };
-        }
-        if (node is SchemaPackedGroup packedNode && nodeDef is SchemaPackedGroup packedDef)
-        {
-            return new SchemaPackedGroup
-            {
-                Name = node.Name,
-                PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
-                ProcessorsList = MergeProcessors(packedDef.Processors, packedNode.Processors),
-                MemberList = [.. packedDef.Members.Select(CloneNode), .. packedNode.MemberList],
-                ByteLength = Inherit(packedNode.ByteLength, packedDef.ByteLength),
-                ByteSize = Inherit(packedNode.ByteSize, packedDef.ByteSize),
             };
         }
         if (node.GetType() == typeof(SchemaGroup) && nodeDef.GetType() == typeof(SchemaGroup))
@@ -807,12 +759,6 @@ public sealed class SchemaSetBuilder
         var byteSize = CloneValue(group.ByteSize);
         return group switch
         {
-            SchemaPackedGroup packed => new SchemaPackedGroup
-            {
-                Name = node.Name, NodeDef = nodeDef, PropertyList = properties,
-                MemberList = members, ProcessorsList = processors, ByteSize = byteSize,
-                ByteLength = CloneValue(packed.ByteLength)
-            },
             SchemaRepeat repeat => new SchemaRepeat
             {
                 Name = node.Name, NodeDef = nodeDef, PropertyList = properties,

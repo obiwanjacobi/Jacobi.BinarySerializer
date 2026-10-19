@@ -81,13 +81,6 @@ public sealed class SchemaDocumentBuilder
         return this;
     }
 
-    public SchemaDocumentBuilder PackedGroup(string name, SchemaValueOrRef<int> byteLength = default, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
-        SchemaValueOrRef<int> byteSize = default)
-    {
-        _root.PackedGroup(name, byteLength, members, nodeDef, processors, byteSize);
-        return this;
-    }
-
     public SchemaDocumentBuilder Repeat(string name, SchemaValueOrRef<int> count, Action<GroupBuilder>? configure = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
         SchemaValueOrRef<int> byteSize = default, Action<ProcessorBuilder>? valueProcessors = null)
     {
@@ -283,14 +276,6 @@ public sealed class SchemaDocumentBuilder
             => Add(new SchemaGroup
             {
                 Name = name, NodeDef = SchemaName(nodeDef), ByteSize = byteSize, PropertyList = properties?.ToList() ?? []
-            }, members, processors);
-
-        public GroupBuilder PackedGroup(string name, SchemaValueOrRef<int> byteLength = default, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,
-            SchemaValueOrRef<int> byteSize = default, IEnumerable<SchemaProperty>? properties = null)
-            => Add(new SchemaPackedGroup
-            {
-                Name = name, ByteLength = byteLength, NodeDef = SchemaName(nodeDef), ByteSize = byteSize,
-                PropertyList = properties?.ToList() ?? []
             }, members, processors);
 
         public GroupBuilder Repeat(string name, SchemaValueOrRef<int> count, Action<GroupBuilder>? members = null, string? nodeDef = null, Action<ProcessorBuilder>? processors = null,

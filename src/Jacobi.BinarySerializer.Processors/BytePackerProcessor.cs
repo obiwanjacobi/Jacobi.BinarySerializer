@@ -34,13 +34,20 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
         => DefaultProcessors.LayoutProcessor.EndWrite(writer, context);
 
-    public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         => DefaultProcessors.LayoutProcessor.BeginRead(ref reader, context);
+
+    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    {
+        var result = BeginRead(ref reader, context);
+        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
+    }
 
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var result = DefaultProcessors.LayoutProcessor.Read(ref reader, context);
-        if (result.Status == ReadResult.Success && result.Value.Value is byte[] bytes && IsFixedWidth(context))
+        if (result.Status == ReadResult.Success && result.Value?.Value is byte[] bytes && IsFixedWidth(context)
+            && (context.InputByteLength is null || bytes.Length == context.FixedByteLength))
         {
             var converted = EndianCodec.Convert(bytes, GetEndianness(context), Endianness.Little);
             context.Logger.ByteOrderConverted(GetPath(context), GetEndianness(context).ToString());
@@ -50,8 +57,14 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
         return result;
     }
 
-    public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         => DefaultProcessors.LayoutProcessor.EndRead(ref reader, context);
+
+    LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+    {
+        var result = EndRead(ref reader, context);
+        return new(result.Status, RequestedByteCount: result.RequestedByteCount);
+    }
 
     // chained
     public WriteResult Write(IBufferWriter<byte> writer, ReadOnlySpan<byte> bytes, LayoutProcessorContext context)
@@ -69,27 +82,20 @@ internal sealed class BytePackerProcessor : ProcessorBase, ILayoutProcessor,
 
     LayoutReadResult<ReadOnlyMemory<byte>> ILayoutReader<ReadOnlyMemory<byte>>.Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
-        if (!IsFixedWidth(context))
+        var result = LayoutChain.PassThroughRead(ref reader, context.InputByteLength);
+        if (result.Status != ReadResult.Success || !IsFixedWidth(context)
+            || result.Value.Length != context.FixedByteLength)
         {
-            return LayoutChain.PassThroughRead(ref reader);
+            return result;
         }
 
-        var size = context.FixedByteLength!.Value;
-        if (reader.Remaining < size)
-        {
-            return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData();
-        }
-
-        // convert the bytes of this field to the canonical (little) order; the rest is passed on unchanged
-        var unread = LayoutChain.Unread(reader).ToArray();
-        var converted = EndianCodec.Convert(unread.AsSpan(0, size).ToArray(), GetEndianness(context), Endianness.Little);
-        converted.CopyTo(unread, 0);
+        var converted = EndianCodec.Convert(result.Value.ToArray(), GetEndianness(context), Endianness.Little);
         context.Logger.ByteOrderConverted(GetPath(context), GetEndianness(context).ToString());
-        return LayoutReadResult<ReadOnlyMemory<byte>>.Success(unread);
+        return LayoutReadResult<ReadOnlyMemory<byte>>.Success(converted);
     }
 
     private static string GetPath(LayoutProcessorContext context)
-        => context.Field?.Path.ToString() ?? context.PackedGroup?.Path.ToString() ?? String.Empty;
+        => context.Field?.Path.ToString() ?? String.Empty;
 
     private static bool IsFixedWidth(LayoutProcessorContext context)
         => context.FixedByteLength is > 1;

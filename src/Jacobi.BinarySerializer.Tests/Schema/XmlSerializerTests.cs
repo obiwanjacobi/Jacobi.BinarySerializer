@@ -42,7 +42,7 @@ public class XmlSerializerTests
                 <processors><processor name="sys.align"><properties /></processor></processors>
                 <members>
                   <field name="Value" datatype="sys.uint8"><properties /><processor name="sys.scale"><properties /></processor></field>
-                  <packed name="Flags"><members /><processors /><properties /></packed>
+                  <group name="Flags"><members /><processors /><properties /></group>
                   <repeat name="Items"><members /><processors /><properties /><valueProcessors /></repeat>
                   <choice name="Variant"><members /><processors /><properties /><valueProcessors /></choice>
                 </members>

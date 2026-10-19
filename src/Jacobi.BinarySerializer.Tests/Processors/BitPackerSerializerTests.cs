@@ -6,19 +6,19 @@ using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Tests.Processors;
 
-/// <summary>Round trips of sys.bitpacker as the packing processor of a packedGroup, through the Serializer API.</summary>
+/// <summary>Round trips of sys.bitpacker as an ordinary group's layout processor, through the Serializer API.</summary>
 public class BitPackerSerializerTests
 {
     private static readonly SchemaName MsgName = new("Doc.Msg");
 
-    private static string Json(string flagsMembers, int byteLength, string? processorProperties = null, string? groupProcessors = null)
+    private static string Json(string flagsMembers, int? byteLength = null, string? processorProperties = null, string? groupProcessors = null)
         => $$"""
             { "name": "Doc", "members": [
               { "name": "Msg", "kind": "group", {{groupProcessors}}
                 "members": [
                   { "name": "Header", "kind": "field", "datatype": "sys.uint8" },
-                  { "name": "Flags", "kind": "packed", "byteLength": {{byteLength}},
-                    "processors": [ { "name": "sys.bitpacker"{{processorProperties}} } ],
+                  { "name": "Flags", "kind": "group",
+                    "processors": [ { "name": "sys.bitpacker"{{(byteLength is { } length ? $", \"byteLength\": {length}" : String.Empty)}}{{processorProperties}} } ],
                     "members": [ {{flagsMembers}} ] },
                   { "name": "Trailer", "kind": "field", "datatype": "sys.uint8" }
                 ] }
@@ -124,7 +124,7 @@ public class BitPackerSerializerTests
     }
 
     [Test]
-    public void RoundTrip_DefaultsAreOneByteAndOneBitPerField()
+    public void RoundTrip_DefaultsRoundUpToWholeBytesAndUseOneBitPerField()
     {
         const string fields = """
             { "name": "A", "kind": "field", "datatype": "sys.bool" },
@@ -135,7 +135,7 @@ public class BitPackerSerializerTests
         const string schema = """
             { "name": "Doc", "members": [
               { "name": "Msg", "kind": "group", "members": [
-                { "name": "Flags", "kind": "packed",
+                { "name": "Flags", "kind": "group",
                   "processors": [ { "name": "sys.bitpacker" } ],
                   "members": [ FIELDS ] }
               ] }
@@ -190,51 +190,61 @@ public class BitPackerSerializerTests
     }
 
     [Test]
-    public void RoundTrip_CarrierIsLaidOutByTheGroupProcessor()
+    public void RoundTrip_OuterCrcWrapsTheBitStream()
     {
         const string fields = """
-            { "name": "A", "kind": "field", "datatype": "sys.uint8", "sys.bitpacker.bits": 4 },
-            { "name": "B", "kind": "field", "datatype": "sys.uint16", "sys.bitpacker.bits": 12 }
+            { "name": "A", "kind": "field", "datatype": "sys.uint8", "bits": 4 },
+            { "name": "B", "kind": "field", "datatype": "sys.uint16", "bits": 12 }
             """;
         var input = Values(("Msg.Header", (byte)1), ("Msg.Flags.A", (byte)0xA), ("Msg.Flags.B", (ushort)0x123), ("Msg.Trailer", (byte)2));
+        var serializer = CreateSerializer(Json(fields, groupProcessors: """" "processors": [ { "name": "sys.crc" } ], """"));
 
-        var serializer = CreateSerializer(Json(fields, 2, groupProcessors: """" "processors": [ { "name": "sys.bytepacker", "byteorder": "big" } ], """"));
         var (bytes, read) = RoundTrip(serializer, input);
 
-        // the packed carrier is 3A 12 (lsb first); the group's byte order reverses it.
-        Assert.That(bytes, Is.EqualTo(new byte[] { 0x01, 0x12, 0x3A, 0x02 }));
+        Assert.That(bytes[..4], Is.EqualTo(new byte[] { 0x01, 0x3A, 0x12, 0x02 }));
+        Assert.That(bytes, Has.Length.EqualTo(8));
         Assert.That(read.Values, Is.EqualTo(input.Values));
+        bytes[1] ^= 1;
+        Assert.That(() => serializer.Deserialize(MsgName, new ReadOnlySequence<byte>(bytes), new Model()), Throws.InvalidOperationException);
     }
 
-    [Test]
-    public void RoundTrip_CarrierLengthFromAReferencedField()
+    [TestCase(false)]
+    [TestCase(true)]
+    public void RoundTrip_OuterAlignmentUsesStableByteBlocksAcrossFieldAndEndHooks(bool prefixField)
     {
-        const string schema = """
+        var prefix = prefixField ? """{ "name": "Prefix", "kind": "field", "datatype": "sys.uint8", "bits": 3 },""" : String.Empty;
+        var schema = $$"""
             { "name": "Doc", "members": [
-              { "name": "Msg", "kind": "group", "members": [
-                { "name": "Length", "kind": "field", "datatype": "sys.uint8" },
-                { "name": "Flags", "kind": "packed", "byteLength": { "ref": "Msg.Length" },
-                  "processors": [ { "name": "sys.bitpacker" } ],
-                  "members": [ { "name": "A", "kind": "field", "datatype": "sys.uint16", "sys.bitpacker.bits": 16 } ] }
-              ] }
+              { "name": "Msg", "kind": "group",
+                "processors": [ { "name": "sys.align", "bytes": 2 }, { "name": "sys.bitpacker" } ],
+                "members": [
+                  {{prefix}}
+                  { "name": "A", "kind": "field", "datatype": "sys.uint16", "bits": 13 }
+                ] }
             ] }
             """;
-        var input = Values(("Msg.Length", (byte)2), ("Msg.Flags.A", (ushort)0x1234));
+        var input = Values(("Msg.A", (ushort)0x1234));
+        if (prefixField)
+        {
+            input.Set("Msg.Prefix", (byte)5);
+        }
 
         var (bytes, read) = RoundTrip(CreateSerializer(schema), input);
 
-        Assert.That(bytes, Is.EqualTo(new byte[] { 0x02, 0x34, 0x12 }));
+        Assert.That(bytes, Is.EqualTo(prefixField
+            ? new byte[] { 0xA5, 0x00, 0x91, 0x00 }
+            : new byte[] { 0x34, 0x00, 0x12, 0x00 }));
         Assert.That(read.Values, Is.EqualTo(input.Values));
     }
 
     [Test]
-    public void RoundTrip_RepeatedPackedGroup()
+    public void RoundTrip_RepeatedBitPackedGroup()
     {
         const string schema = """
             { "name": "Doc", "members": [
               { "name": "Msg", "kind": "group", "members": [
                 { "name": "Items", "kind": "repeat", "count": 3, "members": [
-                  { "name": "Flags", "kind": "packed", "byteLength": 1,
+                  { "name": "Flags", "kind": "group",
                     "processors": [ { "name": "sys.bitpacker", "bitorder": "big" } ],
                     "members": [
                       { "name": "Kind", "kind": "field", "datatype": "sys.uint8", "sys.bitpacker.bits": 4 },
@@ -268,14 +278,14 @@ public class BitPackerSerializerTests
                 <group name="Msg">
                   <members>
                     <field name="Header" datatype="sys.uint8" />
-                    <packed name="Flags" byteLength="3">
-                      <processors><processor name="sys.bitpacker" bitorder="big" /></processors>
+                    <group name="Flags">
+                      <processors><processor name="sys.bitpacker" bitorder="big" byteLength="3" /></processors>
                       <members>
                         <field name="A" datatype="sys.uint8" sys.bitpacker.bits="3" />
                         <field name="B" datatype="sys.uint8" sys.bitpacker.bits="5" />
                         <field name="C" datatype="sys.uint16" sys.bitpacker.bits="13" />
                       </members>
-                    </packed>
+                    </group>
                     <field name="Trailer" datatype="sys.uint8" />
                   </members>
                 </group>
@@ -353,18 +363,182 @@ public class BitPackerSerializerTests
     }
 
     [Test]
-    public void Plan_BitPackerOnAnOrdinaryGroup_Throws()
+    public void RoundTrip_OneBitGroupDoesNotConsumeTheFollowingField()
+    {
+        const string fields = """{ "name": "A", "kind": "field", "datatype": "sys.bool" }""";
+        var input = Values(("Msg.Header", (byte)0xAA), ("Msg.Flags.A", true), ("Msg.Trailer", (byte)0xBB));
+
+        var (bytes, read) = RoundTrip(CreateSerializer(Json(fields)), input);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0xAA, 0x01, 0xBB }));
+        Assert.That(read.Values, Is.EqualTo(input.Values));
+    }
+
+    [Test]
+    public void RoundTrip_AutomaticCapacityCanExceedOneByte()
+    {
+        var (bytes, read) = RoundTrip(CreateSerializer(Json(ThreeFields)), ThreeFieldValues());
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0xAA, 0x8D, 0x34, 0x12, 0xBB }));
+        Assert.That(read.Values, Is.EqualTo(ThreeFieldValues().Values));
+    }
+
+    [Test]
+    public void RoundTrip_LastFieldUsesCachedBitsAtEndOfInput()
     {
         const string schema = """
             { "name": "Doc", "members": [
-              { "name": "Msg", "kind": "group",
-                "processors": [ { "name": "sys.bitpacker" } ],
-                "members": [ { "name": "A", "kind": "field", "datatype": "sys.uint8" } ] }
+              { "name": "Msg", "kind": "group", "processors": [ { "name": "sys.bitpacker" } ],
+                "members": [
+                  { "name": "A", "kind": "field", "datatype": "sys.bool" },
+                  { "name": "B", "kind": "field", "datatype": "sys.uint16", "bits": 7 }
+                ] }
+            ] }
+            """;
+        var input = Values(("Msg.A", true), ("Msg.B", (ushort)85));
+
+        var (bytes, read) = RoundTrip(CreateSerializer(schema), input);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0xAB }));
+        Assert.That(read.Values, Is.EqualTo(input.Values));
+    }
+
+    [TestCase("little", 0x14, 0x88, 0xE3, 0x07)]
+    [TestCase("big", 0x28, 0x11, 0xC7, 0xE0)]
+    public void RoundTrip_AbsoluteBitOffsetsZeroAndSkipGaps(string order, int first, int second, int gap1, int gap2)
+    {
+        const string fields = """
+            { "name": "A", "kind": "field", "datatype": "sys.uint8", "bits": 3, "bitoffset": 2 },
+            { "name": "B", "kind": "field", "datatype": "sys.uint8", "bits": 5, "sys.bitpacker.bitoffset": 11 }
+            """;
+        var input = Values(("Msg.Header", (byte)0xAA), ("Msg.Flags.A", (byte)5), ("Msg.Flags.B", (byte)17), ("Msg.Trailer", (byte)0xBB));
+        var serializer = CreateSerializer(Json(fields, processorProperties: $""", "bitorder": "{order}" """));
+
+        var (bytes, read) = RoundTrip(serializer, input);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0xAA, (byte)first, (byte)second, 0xBB }));
+        Assert.That(read.Values, Is.EqualTo(input.Values));
+        bytes[1] |= (byte)gap1;
+        bytes[2] |= (byte)gap2;
+        var withNonzeroGaps = new Model();
+        var consumed = serializer.Deserialize(MsgName, new ReadOnlySequence<byte>(bytes), withNonzeroGaps);
+        Assert.That(consumed, Is.EqualTo(bytes.Length));
+        Assert.That(withNonzeroGaps.Values, Is.EqualTo(input.Values));
+    }
+
+    [TestCase(-1)]
+    [TestCase(0)]
+    [TestCase(2)]
+    public void ReadAndWrite_BackwardOrOverlappingBitOffset_Fails(int offset)
+    {
+        var fields = $$"""
+            { "name": "A", "kind": "field", "datatype": "sys.uint8", "bits": 3 },
+            { "name": "B", "kind": "field", "datatype": "sys.uint8", "bits": 2, "bitoffset": {{offset}} }
+            """;
+        var plan = CreateSerializer(Json(fields)).GetPlan(MsgName);
+        var input = Values(("Msg.Header", (byte)0), ("Msg.Flags.A", (byte)1), ("Msg.Flags.B", (byte)1), ("Msg.Trailer", (byte)0));
+
+        Assert.That(new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(input), Is.EqualTo(WriteResult.Failure));
+        Assert.That(new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 0, 0, 0 }), new Model()), Is.EqualTo(ReadResult.Failure));
+    }
+
+    [Test]
+    public void ReadAndWrite_OffsetExceedingCapacity_Fails()
+    {
+        const string fields = """{ "name": "A", "kind": "field", "datatype": "sys.uint8", "bitoffset": 8 }""";
+        var plan = CreateSerializer(Json(fields, 1)).GetPlan(MsgName);
+        var input = Values(("Msg.Header", (byte)0), ("Msg.Flags.A", (byte)1), ("Msg.Trailer", (byte)0));
+
+        Assert.That(new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(input), Is.EqualTo(WriteResult.Failure));
+        Assert.That(new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 0, 0, 0 }), new Model()), Is.EqualTo(ReadResult.Failure));
+    }
+
+    [Test]
+    public void RoundTrip_NestedOrdinaryGroupInheritsContinuousBitStream()
+    {
+        const string fields = """
+            { "name": "A", "kind": "field", "datatype": "sys.uint8", "bits": 3 },
+            { "name": "Nested", "kind": "group", "members": [
+              { "name": "B", "kind": "field", "datatype": "sys.uint16", "bits": 2 }
+            ] },
+            { "name": "C", "kind": "field", "datatype": "sys.uint8", "bits": 3 }
+            """;
+        var input = Values(("Msg.Header", (byte)0xAA), ("Msg.Flags.A", (byte)5),
+            ("Msg.Flags.Nested.B", (ushort)3), ("Msg.Flags.C", (byte)6), ("Msg.Trailer", (byte)0xBB));
+
+        var (bytes, read) = RoundTrip(CreateSerializer(Json(fields)), input);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0xAA, 0xDD, 0xBB }));
+        Assert.That(read.Values, Is.EqualTo(input.Values));
+    }
+
+    [TestCase("little")]
+    [TestCase("big")]
+    public void RoundTrip_FullWidth64BitValueAcrossByteBoundary(string order)
+    {
+        const string fields = """
+            { "name": "A", "kind": "field", "datatype": "sys.bool" },
+            { "name": "B", "kind": "field", "datatype": "sys.uint64", "bits": 64 }
+            """;
+        var input = Values(("Msg.Header", (byte)0), ("Msg.Flags.A", true), ("Msg.Flags.B", UInt64.MaxValue), ("Msg.Trailer", (byte)0));
+
+        var (bytes, read) = RoundTrip(CreateSerializer(Json(fields, processorProperties: $""", "bitorder": "{order}" """)), input);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 0, 255, 255, 255, 255, 255, 255, 255, 255, (byte)(order == "little" ? 1 : 128), 0 }));
+        Assert.That(read.Values, Is.EqualTo(input.Values));
+    }
+
+    [Test]
+    public void ReadAndWrite_UnsupportedFloatingPointType_Fails()
+    {
+        const string fields = """{ "name": "A", "kind": "field", "datatype": "sys.double", "bits": 8 }""";
+        var plan = CreateSerializer(Json(fields)).GetPlan(MsgName);
+        var input = Values(("Msg.Header", (byte)0), ("Msg.Flags.A", 1.0d), ("Msg.Trailer", (byte)0));
+
+        Assert.That(new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(input), Is.EqualTo(WriteResult.Failure));
+        Assert.That(new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 0, 0, 0 }), new Model()), Is.EqualTo(ReadResult.Failure));
+    }
+
+    [Test]
+    public void ReadAndWrite_UnsupportedRepresentationProcessor_Fails()
+    {
+        const string fields = """
+            { "name": "A", "kind": "field", "datatype": "sys.uint32", "bits": 4,
+              "processors": [ { "name": "sys.varint" } ] }
+            """;
+        var plan = CreateSerializer(Json(fields)).GetPlan(MsgName);
+        var input = Values(("Msg.Header", (byte)0), ("Msg.Flags.A", (uint)1), ("Msg.Trailer", (byte)0));
+
+        Assert.That(new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(input), Is.EqualTo(WriteResult.Failure));
+        Assert.That(new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 0, 0, 0 }), new Model()), Is.EqualTo(ReadResult.Failure));
+    }
+
+    [TestCase(-1)]
+    [TestCase(0)]
+    [TestCase(1)]
+    public void ReadAndWrite_VirtualBitField_Throws(int byteOffset)
+    {
+        var fields = $$"""{ "name": "A", "kind": "field", "datatype": "sys.uint8", "byteOffset": {{byteOffset}} }""";
+        var serializer = CreateSerializer(Json(fields));
+        var input = Values(("Msg.Header", (byte)0), ("Msg.Flags.A", (byte)1), ("Msg.Trailer", (byte)0));
+
+        Assert.That(() => serializer.Serialize(MsgName, input, new ArrayBufferWriter<byte>()), Throws.InvalidOperationException);
+        Assert.That(() => serializer.Deserialize(MsgName, new ReadOnlySequence<byte>(new byte[] { 0, 0, 0 }), new Model()), Throws.InvalidOperationException);
+    }
+
+    [Test]
+    public void Deserialize_TruncatedTrailingCapacity_Throws()
+    {
+        const string schema = """
+            { "name": "Doc", "members": [
+              { "name": "Msg", "kind": "group", "processors": [ { "name": "sys.bitpacker", "byteLength": 3 } ],
+                "members": [ { "name": "A", "kind": "field", "datatype": "sys.bool" } ] }
             ] }
             """;
         var serializer = CreateSerializer(schema);
 
-        Assert.That(() => serializer.GetPlan(MsgName), Throws.InstanceOf<ExecutionPlanException>());
+        Assert.That(() => serializer.Deserialize(MsgName, new ReadOnlySequence<byte>(new byte[] { 1, 0 }), new Model()),
+            Throws.InvalidOperationException);
     }
 
     // Flat model: one instance serves as source and sink, values are keyed by schema path and repeat instance.

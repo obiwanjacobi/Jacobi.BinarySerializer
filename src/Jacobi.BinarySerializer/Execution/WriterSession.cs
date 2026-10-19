@@ -23,7 +23,6 @@ internal sealed class WriterSession : SessionState
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
-    private readonly PackingProcessorContext _packingContext;
     private readonly LayoutProcessorContext _layoutContext;
     private readonly StreamProcessorContext _streamContext;
 
@@ -32,7 +31,7 @@ internal sealed class WriterSession : SessionState
     private CountingBufferWriter _counter;
     private readonly Stack<long> _groupStarts = new();
     private readonly Dictionary<ProcessorBinding, long> _layoutPositions = [];
-    private readonly Dictionary<ProcessorBinding, Stack<long>> _layoutGroupStarts = [];
+    private readonly Dictionary<ProcessorBinding, Stack<(long Position, int? BlockSize)>> _layoutGroupStarts = [];
     private readonly Stack<int> _choiceIndexes = new();
     private readonly Stack<long> _sizeStarts = new();
     private readonly Stack<DeferredSize> _deferred = new();
@@ -58,7 +57,6 @@ internal sealed class WriterSession : SessionState
         InitializeLogging(_services, "Write");
         _valueContext = new ValueProcessorContext(this) { Services = _services, Stage = PipelineStage.Semantic };
         _fieldContext = new FieldProcessorContext(this) { Services = _services, Stage = PipelineStage.Representation };
-        _packingContext = new PackingProcessorContext(this) { Services = _services, Stage = PipelineStage.Packing };
         _layoutContext = new LayoutProcessorContext(this) { Services = _services, Stage = PipelineStage.Layout };
         _streamContext = new StreamProcessorContext(this) { Services = _services, Stage = PipelineStage.Stream };
     }
@@ -90,6 +88,7 @@ internal sealed class WriterSession : SessionState
         _groupStarts.Clear();
         _layoutPositions.Clear();
         _layoutGroupStarts.Clear();
+        _layoutContext.BlockSizes.Clear();
         _sizeStarts.Clear();
         _deferred.Clear();
         EngineLogger.WriteStarted(root.Path.ToString());
@@ -221,18 +220,6 @@ internal sealed class WriterSession : SessionState
                         if (result != WriteResult.Success)
                         {
                             EngineLogger.WriteStopped(fieldNode.Path.ToString(), result);
-                            return result;
-                        }
-                        break;
-                    }
-
-                case CursorStepKind.PackedGroup:
-                    {
-                        var group = (PackedGroupInfo)step.Node!;
-                        var result = WritePackedGroup(group, step.Scope!);
-                        if (result != WriteResult.Success)
-                        {
-                            EngineLogger.WriteStopped(group.Path.ToString(), result);
                             return result;
                         }
                         break;
@@ -473,10 +460,6 @@ internal sealed class WriterSession : SessionState
             }
             else if (field.ByteSizeOf is not null)
             {
-                if (field.Parent is PackedGroupInfo)
-                {
-                    throw EngineLogger.Fail($"'{field.Path}': a packed child cannot defer a size value to later output.");
-                }
                 return null;
             }
             else
@@ -571,35 +554,7 @@ internal sealed class WriterSession : SessionState
         // Layout: encoded -> bytes in the target
         _layoutContext.Group = field.Parent!;
         _layoutContext.Field = field;
-        _layoutContext.PackedGroup = null;
         return WriteLayout(pipeline, encoded);
-    }
-
-    private WriteResult WritePackedGroup(PackedGroupInfo group, IValueSource scope)
-    {
-        var byteLength = Resolve(group.ByteLength, group.Path, _instance);
-        ValidateCarrierLength(group, byteLength);
-        var fields = new LogicalField[group.Fields.Count];
-        for (var i = 0; i < fields.Length; i++)
-        {
-            fields[i] = PrepareLogicalField(group.Fields[i], scope)
-                ?? throw EngineLogger.Fail($"'{group.Fields[i].Path}': a packed child cannot defer its value.");
-        }
-        _packingContext.Group = group;
-        _packingContext.ByteLength = byteLength;
-        _packingContext.Instance = _instance;
-        Prepare(_packingContext, group.PackingProcessor);
-        var result = ((IPackingProcessor)group.PackingProcessor.Processor).Write(fields, _packingContext);
-        if (result.Status != WriteResult.Success)
-        {
-            return result.Status;
-        }
-        var carrier = PrepareCarrier(group, result.Value, result.BitsWritten, byteLength);
-        _layoutContext.Group = group;
-        _layoutContext.Field = null;
-        _layoutContext.PackedGroup = group;
-        _layoutContext.FieldData.ByteLength = byteLength;
-        return WriteLayout(group.Pipeline, carrier);
     }
 
     private WriteResult WriteLayout(ProcessorPipeline pipeline, EncodedField encoded)
@@ -654,7 +609,7 @@ internal sealed class WriterSession : SessionState
         => _layoutPositions.TryGetValue(binding, out var position) ? position : 0;
 
     private long GroupStart(ProcessorBinding binding)
-        => _layoutGroupStarts.TryGetValue(binding, out var starts) && starts.Count > 0 ? starts.Peek() : 0;
+        => _layoutGroupStarts.TryGetValue(binding, out var starts) && starts.Count > 0 ? starts.Peek().Position : 0;
 
     private void AdvanceLayoutPosition(ProcessorBinding binding, long count)
         => _layoutPositions[binding] = LayoutPosition(binding) + count;
@@ -663,14 +618,18 @@ internal sealed class WriterSession : SessionState
     {
         if (!_layoutGroupStarts.TryGetValue(binding, out var starts))
         {
-            starts = new Stack<long>();
+            starts = new Stack<(long, int?)>();
             _layoutGroupStarts.Add(binding, starts);
         }
-        starts.Push(LayoutPosition(binding));
+        starts.Push((LayoutPosition(binding), _layoutContext.BlockSizes.GetValueOrDefault(binding)));
+        _layoutContext.BlockSizes[binding] = null;
     }
 
     private void EndLayoutScope(ProcessorBinding binding)
-        => _layoutGroupStarts[binding].Pop();
+    {
+        var scope = _layoutGroupStarts[binding].Pop();
+        _layoutContext.BlockSizes[binding] = scope.BlockSize;
+    }
 
     private List<ArrayBufferWriter<byte>> RentBuffers(int count)
     {
@@ -696,7 +655,42 @@ internal sealed class WriterSession : SessionState
         var innerStart = innerOutput.WrittenCount;
         var result = ((ILayoutProcessor)chain[inner].Processor).Write(innerOutput, encoded, _layoutContext);
         AdvanceLayoutPosition(chain[inner], innerOutput.WrittenCount - innerStart);
-        return result != WriteResult.Success ? result : ForwardWrite(chain, inner - 1, buffers);
+        return result != WriteResult.Success ? result : ForwardWriteBlocks(chain, inner - 1, buffers,
+            _layoutContext.BlockSizes.GetValueOrDefault(chain[inner]));
+    }
+
+    private WriteResult ForwardWriteBlocks(IReadOnlyList<ProcessorBinding> chain, int from,
+        List<ArrayBufferWriter<byte>> buffers, int? blockSize)
+    {
+        var input = blockSize is { } size && buffers[from].WrittenCount > size
+            ? buffers[from].WrittenSpan.ToArray()
+            : null;
+        _layoutContext.BlockByteLength = blockSize;
+        try
+        {
+            if (input is null)
+            {
+                return ForwardWrite(chain, from, buffers);
+            }
+            buffers[from].Clear();
+            var length = blockSize.GetValueOrDefault(input.Length);
+            for (var offset = 0; offset < input.Length; offset += length)
+            {
+                var blockLength = Math.Min(length, input.Length - offset);
+                _layoutContext.BlockByteLength = blockLength;
+                buffers[from].Write(input.AsSpan(offset, blockLength));
+                var result = ForwardWrite(chain, from, buffers);
+                if (result != WriteResult.Success)
+                {
+                    return result;
+                }
+            }
+            return WriteResult.Success;
+        }
+        finally
+        {
+            _layoutContext.BlockByteLength = null;
+        }
     }
 
     /// <summary>Pushes bytes from an inner stage outward through stages starting at <paramref name="from"/>.</summary>
@@ -735,8 +729,8 @@ internal sealed class WriterSession : SessionState
     {
         _layoutContext.Group = group;
         _layoutContext.Field = null;
-        _layoutContext.PackedGroup = null;
-        var result = ForwardWrite(chain, from, buffers);
+        _layoutContext.FieldData.ByteLength = null;
+        var result = ForwardWriteBlocks(chain, from, buffers, _layoutContext.BlockSizes.GetValueOrDefault(chain[from + 1]));
         if (result != WriteResult.Success)
         {
             throw EngineLogger.Fail($"'{group.Path}': a chained layout processor failed ({result}) while writing group-level output.");
@@ -812,8 +806,8 @@ internal sealed class WriterSession : SessionState
         _groupStarts.Push(_counter.Written);
         _layoutContext.Group = group;
         _layoutContext.Field = null;
-        _layoutContext.PackedGroup = null;
         _layoutContext.FieldData.ByteLength = null;
+        _layoutContext.FieldData.OpenWidthWindowBytes = DefaultLayoutProcessor.OpenWidthWindowBytes;
         _layoutContext.GroupData.ByteSize = null;
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
         var chain = group.Pipeline.LayoutProcessors;
@@ -832,8 +826,8 @@ internal sealed class WriterSession : SessionState
 
         _layoutContext.Group = group;
         _layoutContext.Field = null;
-        _layoutContext.PackedGroup = null;
         _layoutContext.FieldData.ByteLength = null;
+        _layoutContext.FieldData.OpenWidthWindowBytes = DefaultLayoutProcessor.OpenWidthWindowBytes;
         _layoutContext.GroupData.SetNode(group, itemIndex, itemCount, group is ChoiceInfo ? _choiceIndexes.Peek() : null);
         _layoutContext.GroupData.ByteSize = group is not RepeatInfo && group.HasByteSize && _sizeStarts.Count > 0
             ? checked((int)(_counter.Written - _sizeStarts.Peek()))
@@ -851,7 +845,7 @@ internal sealed class WriterSession : SessionState
     /// are already active in the parent's layout scope.
     /// </summary>
     internal static bool OwnsLayout(GroupInfo group)
-        => group.Pipeline.OwnLayoutProcessors.Count > 0
+        => group.Members.Count > 0 && group.Pipeline.OwnLayoutProcessors.Count > 0
             && (group.Parent is null || group.Pipeline != group.Parent.Pipeline);
 
     /// <summary>Runs the stream stage over the buffered root payload (chained) into the output.</summary>

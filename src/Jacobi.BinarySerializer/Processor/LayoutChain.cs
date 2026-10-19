@@ -12,8 +12,18 @@ public static class LayoutChain
         return unread.IsSingleSegment ? unread.First : unread.ToArray();
     }
 
-    public static LayoutReadResult<ReadOnlyMemory<byte>> PassThroughRead(ref SequenceReader<byte> reader)
-        => LayoutReadResult<ReadOnlyMemory<byte>>.Success(LayoutChain.Unread(reader));
+    public static LayoutReadResult<ReadOnlyMemory<byte>> PassThroughRead(ref SequenceReader<byte> reader, int? byteLength = null)
+    {
+        var length = byteLength ?? checked((int)reader.Remaining);
+        if (length == 0 || reader.Remaining < length)
+        {
+            return LayoutReadResult<ReadOnlyMemory<byte>>.NeedMoreData(byteLength);
+        }
+        var output = reader.UnreadSequence.Slice(0, length);
+        var bytes = output.IsSingleSegment ? output.First : output.ToArray();
+        reader.Advance(length);
+        return LayoutReadResult<ReadOnlyMemory<byte>>.Success(bytes);
+    }
 
     public static WriteResult PassThroughWrite(IBufferWriter<byte> writer, ReadOnlySpan<byte> bytes)
     {

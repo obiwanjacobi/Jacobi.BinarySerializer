@@ -20,7 +20,6 @@ public class SchemaDocumentBuilderTests
               valueProcessors: processors => processors.Add("sys.map"))
             .Choice("Variant", 1, members => members.Group("Alternative"), byteSize: 4,
               valueProcessors: processors => processors.Add("sys.map"))
-            .PackedGroup("Flags", 2, members => members.Field("Bit"), byteSize: 3)
             .OpenChoice("Open", "Body", SchemaPipelineMode.Isolate))
           .Group("Root", members => members
             .Field("Count")
@@ -38,7 +37,7 @@ public class SchemaDocumentBuilderTests
         Assert.That(reloaded.NodeDefs.Select(node => node.Kind), Is.EqualTo(new[]
         {
       SchemaNodeKind.Field, SchemaNodeKind.Group, SchemaNodeKind.Repeat,
-      SchemaNodeKind.Choice, SchemaNodeKind.PackedGroup, SchemaNodeKind.Choice
+      SchemaNodeKind.Choice, SchemaNodeKind.Choice
     }));
         var field = (SchemaField)reloaded.NodeDefs[0];
         Assert.That(field.ByteLength is SchemaPubRef length && length.ToString() == "pub:header.length", Is.True);
@@ -104,7 +103,6 @@ public class SchemaDocumentBuilderTests
         var document = new SchemaDocumentBuilder("Doc")
           .Group("Root", group => group
             .Field("Value", "sys.bytes", value: "F0", byteLength: reference, byteOffset: -2)
-            .PackedGroup("Flags", byteSize: 3)
             .Repeat("Items", reference, valueProcessors: processors => processors.Add("sys.map"), byteSize: 8)
             .Choice("Variant", 0, valueProcessors: processors => processors.Add("sys.map")), byteSize: reference)
           .Build();
@@ -115,13 +113,10 @@ public class SchemaDocumentBuilderTests
         Assert.That(field.Value is string value && value == "F0", Is.True);
         Assert.That(field.ByteLength is SchemaNodeRef length && length.Path == reference.Path, Is.True);
         Assert.That(field.ByteOffset, Is.EqualTo(-2));
-        var packed = (SchemaPackedGroup)root.Members[1];
-        Assert.That(packed.ByteLength is int or SchemaNodeRef or SchemaPubRef, Is.False);
-        Assert.That(packed.ByteSize is int packedSize && packedSize == 3, Is.True);
-        var repeat = (SchemaRepeat)root.Members[2];
+        var repeat = (SchemaRepeat)root.Members[1];
         Assert.That(repeat.ValueProcessors.Single().Processor.ToString(), Is.EqualTo("sys.map"));
         Assert.That(repeat.ByteSize is int repeatSize && repeatSize == 8, Is.True);
-        var choice = (SchemaChoice)root.Members[3];
+        var choice = (SchemaChoice)root.Members[2];
         Assert.That(choice.ValueProcessors.Single().Processor.ToString(), Is.EqualTo("sys.map"));
         Assert.That(choice.SelectedIndex is int index && index == 0, Is.True);
     }
@@ -167,9 +162,9 @@ public class SchemaDocumentBuilderTests
                     { "name": "Payload", "kind": "field", "nodeDef": "Other.Payload", "datatype": "sys.bytes",
                       "value": { "pub": "header.value" }, "byteLength": { "ref": "Root.Items[].Length" },
                       "processors": [{ "name": "ref:map", "pubns": "payload", "extra": "value" }] },
-                    { "name": "Flags", "kind": "packed", "byteLength": 2, "byteSize": 3,
-                      "processors": [{ "name": "sys.bitpacker", "bitorder": "little" }],
-                      "members": [{ "name": "Mode", "kind": "field", "datatype": "sys.uint8" }] },
+                    { "name": "Flags", "kind": "group", "members": [
+                      { "name": "Mode", "kind": "field", "datatype": "sys.uint8" }
+                    ] },
                     { "name": "Items", "kind": "repeat", "count": { "ref": "Root.Status" }, "byteSize": 12,
                       "valueProcessors": [{ "name": "ref:map", "pubns": "count" }],
                       "members": [{ "name": "Entry", "kind": "field", "datatype": "Scaled", "byteLength": 2 }] },

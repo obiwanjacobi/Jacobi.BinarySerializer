@@ -11,8 +11,6 @@ internal enum CursorStepKind
     EnterGroup,
     /// <summary>A field must be processed.</summary>
     Field,
-    /// <summary>All logical fields of the current packed group must be processed as one carrier.</summary>
-    PackedGroup,
     /// <summary>A group is exhausted (and popped).</summary>
     ExitGroup,
     /// <summary>One item of a repeat is about to be entered. The caller must create its scope and call <see cref="PlanCursor{TScope}.Enter"/>.</summary>
@@ -47,7 +45,6 @@ internal sealed class PlanCursor<TScope>
         public TScope Scope { get; } = scope;
         public int NextChild { get; set; } = firstChild;
         public int EndChild { get; } = endChild;
-        public bool Packed { get; set; }
         public IReadOnlyList<NodeInfo> Members { get; init; } = group.Members;
 
         /// <summary>Repeat frame: the number of items (null for group, choice and item frames).</summary>
@@ -168,21 +165,6 @@ internal sealed class PlanCursor<TScope>
 
             _frames.Pop();
             return new(CursorStepKind.ExitGroup, frame.Group, frame.Scope);
-        }
-
-        if (frame.Group is PackedGroupInfo packed && !frame.Packed)
-        {
-            if (frame.Range is { } packedRange)
-            {
-                var instance = RangeInstance();
-                if (packed.Fields.Any(field => !packedRange.Includes(field, instance)))
-                {
-                    throw _logger.Fail($"'{packed.Path}': a range must include all fields of a packed group or exclude the entire group.");
-                }
-            }
-            frame.Packed = true;
-            frame.NextChild = frame.EndChild;
-            return new(CursorStepKind.PackedGroup, packed, frame.Scope);
         }
 
         if (frame.Range is { } memberRange)

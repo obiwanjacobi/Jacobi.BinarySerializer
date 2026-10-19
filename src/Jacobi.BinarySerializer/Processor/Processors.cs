@@ -35,24 +35,6 @@ public interface IValueReader<InT, OutT> : IProcessor
     OutT Read(InT logicalValue, ValueProcessorContext context);
 }
 
-/// <summary>
-/// Represents an ordered set of logical fields as one encoded carrier. Called once per packed-group instance.
-/// </summary>
-public interface IPackingProcessor : IProcessor
-{
-    /// <summary>
-    /// Fields correspond by index to context.Fields, after each child's value processors have run.
-    /// BitsWritten is the byte-aligned width of the carrier, including packing padding.
-    /// </summary>
-    FieldWriteResult<EncodedField> Write(IReadOnlyList<LogicalField> fields, PackingProcessorContext context);
-
-    /// <summary>
-    /// Returns one logical field per context.Fields entry, in declaration order, before reverse value processing.
-    /// BitsConsumed is the byte-aligned width consumed from the carrier.
-    /// </summary>
-    FieldReadResult<IReadOnlyList<LogicalField>> Read(EncodedField carrier, PackingProcessorContext context);
-}
-
 // Representation pipeline stage: physical representation transforms (varint, fixed-width, etc.)
 public interface IFieldProcessor : IFieldWriter<LogicalField, EncodedField>, IFieldReader<EncodedField, LogicalField> { }
 public interface IFieldWriter<InT, OutT> : IProcessor
@@ -75,8 +57,8 @@ public readonly record struct FieldWriteResult<T>(WriteResult Status, T Value, i
 
 /// <summary>
 /// The outcome of a field read:
-/// A fixed-width field must consume exactly its width; an open-width field (e.g. varint) is offered a window
-/// (see <see cref="DefaultLayoutProcessor.OpenWidthWindowBytes"/>) and the engine gives back the bytes that were not consumed.
+/// A fixed-width field must consume exactly its width; an open-width field (e.g. varint) receives a growing encoded window.
+/// NeedMoreData requests additional encoded bytes without rewinding the layout input.
 /// </summary>
 public readonly record struct FieldReadResult<T>(ReadResult Status, T Value, int BitsConsumed)
 {
@@ -90,9 +72,9 @@ public readonly record struct FieldReadResult<T>(ReadResult Status, T Value, int
 // (encoded field <-> bytes); each outer wrapper additionally implements the byte-to-byte interfaces.
 // The engine owns the buffers between stages; processors stay stateless.
 // Begin hooks run outer-to-inner and End hooks inner-to-outer, scoped to the group where each processor is declared.
-// On write, bytes flow from the innermost processor outward. On read, wrappers process the input outer-to-inner;
-// each wrapper consumes bytes it owns and returns the unread remainder for the next stage (LayoutChain.Unread), preserving its byte mapping.
-// Whole-message length-changing transforms belong in stream processors. RootPosition is the layout-input position;
+// On write, bytes flow from the innermost processor outward. On read, each wrapper consumes all input used to produce its output.
+// The engine retains unused output between calls and refills stage input on NeedMoreData, including begin/end hooks.
+// RootPosition is the layout-input position;
 // Position is relative to the owning group and this processor's byte view.
 
 public interface ILayoutProcessor : ILayoutWriter<EncodedField>, ILayoutReader<EncodedField> { }
@@ -104,19 +86,27 @@ public interface ILayoutWriter<InT> : IProcessor where InT : allows ref struct
 }
 public interface ILayoutReader<OutT> : IProcessor
 {
-    void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
+    /// <summary>Begins reading a value using the layout processor.The sequence reader for the data to read.The context for the layout processor.</summary>
+    /// <returns>The result of the layout read.</returns>
+    LayoutReadResult<OutT> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
     LayoutReadResult<OutT> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context);
-    void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
+    /// <returns>Value is null.</returns>
+    LayoutReadResult<OutT> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context);
 }
 
-/// <summary>The outcome of a layout read: the value, or a status why there is none. Widths are measured by the engine (reader.Consumed), not reported.</summary>
-public readonly record struct LayoutReadResult<T>(ReadResult Status, T Value)
+/// <summary>
+/// A layout read result with its output value. Input consumption is measured from the reader by the engine.
+/// NeedMoreData leaves private state unchanged so the engine can refill and retry.
+/// </summary>
+/// <param name="RequestedByteCount">Minimum total unread input needed by this operation, not an additional byte count.
+/// Null lets the engine choose the next input window. Only valid with NeedMoreData.</param>
+public record struct LayoutReadResult<T>(ReadResult Status, T? Value = default, int? RequestedByteCount = null)
 {
-    public static LayoutReadResult<T> Success(T value) => new(ReadResult.Success, value);
-    public static LayoutReadResult<T> NeedMoreData() => new(ReadResult.NeedMoreData, default!);
-    public static LayoutReadResult<T> EndOfData() => new(ReadResult.EndOfData, default!);
-    public static LayoutReadResult<T> Failure() => new(ReadResult.Failure, default!);
-    public static LayoutReadResult<T> WithStatus(ReadResult status) => new(status, default!);
+    public static LayoutReadResult<T> Success(T? value = default) => new(ReadResult.Success, value);
+    public static LayoutReadResult<T> NeedMoreData(int? minimumBytes = null) => new(ReadResult.NeedMoreData, default, minimumBytes);
+    public static LayoutReadResult<T> EndOfData() => new(ReadResult.EndOfData);
+    public static LayoutReadResult<T> Failure() => new(ReadResult.Failure);
+    public static LayoutReadResult<T> WithStatus(ReadResult status) => new(status);
 }
 
 // Stream pipeline stage: framing, compression, encryption, etc.

@@ -12,7 +12,6 @@ public static class DefaultProcessors
             PipelineStage.Representation => FieldProcessor,
             PipelineStage.Layout => LayoutProcessor,
             PipelineStage.Stream => StreamProcessor,
-            PipelineStage.Packing => throw new InvalidOperationException("There is no default packing processor; a packedGroup must select one explicitly."),
             _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "Unknown pipeline stage.")
         };
 
@@ -74,7 +73,7 @@ internal sealed class DefaultFieldProcessor : IFieldProcessor
 /// <summary>Pass-through: forwards already-encoded bytes unchanged. The session skips empty stages, so this is only used when asked for explicitly.</summary>
 internal sealed class DefaultLayoutProcessor : ILayoutProcessor
 {
-    /// <summary>The most bytes offered to a field processor that decides its own width (enough for a 64-bit varint).</summary>
+    /// <summary>Initial window for uncounted input demand; larger windows are supplied when required.</summary>
     public const int OpenWidthWindowBytes = 10;
 
     public ProcessorKey Key => new("default", "layout");
@@ -107,17 +106,19 @@ internal sealed class DefaultLayoutProcessor : ILayoutProcessor
     }
     public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context) { }
 
-    public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
+    public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        => LayoutReadResult<EncodedField>.Success();
+
     public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
     {
         var field = context.Field;
-        var name = field?.Name ?? context.PackedGroup?.Name ?? String.Empty;
+        var name = field?.Name ?? String.Empty;
 
-        if ((field is not null || context.PackedGroup is not null) && context.FieldData.ByteLength is { } length)
+        if (field is not null && context.FieldData.ByteLength is { } length)
         {
             if (reader.Remaining < length)
             {
-                return LayoutReadResult<EncodedField>.NeedMoreData();
+                return LayoutReadResult<EncodedField>.NeedMoreData(length);
             }
 
             var blob = new byte[length];
@@ -128,12 +129,12 @@ internal sealed class DefaultLayoutProcessor : ILayoutProcessor
 
         if (field is not null && field.Pipeline.FieldProcessors.Count > 0)
         {
-            // The field processor decides how much of the window it uses (it reports that in its read result);
-            // the engine gives the unused bytes back to the reader.
-            var window = (int)Math.Min(context.FieldData.OpenWidthWindowBytes, reader.Remaining);
-            if (window == 0)
+            // Open-width representations receive incremental canonical bytes until they complete the field.
+            var requested = context.InputByteLength ?? context.FieldData.OpenWidthWindowBytes;
+            var window = (int)Math.Min(requested, reader.Remaining);
+            if (window == 0 || context.InputByteLength is not null && window < requested)
             {
-                return LayoutReadResult<EncodedField>.NeedMoreData();
+                return LayoutReadResult<EncodedField>.NeedMoreData(context.InputByteLength ?? 1);
             }
 
             var windowBytes = new byte[window];
@@ -146,7 +147,7 @@ internal sealed class DefaultLayoutProcessor : ILayoutProcessor
         {
             if (reader.Remaining < size)
             {
-                return LayoutReadResult<EncodedField>.NeedMoreData();
+                return LayoutReadResult<EncodedField>.NeedMoreData(size);
             }
 
             var bytes = new byte[size];
@@ -160,7 +161,8 @@ internal sealed class DefaultLayoutProcessor : ILayoutProcessor
         reader.Advance(remaining.Length);
         return LayoutReadResult<EncodedField>.Success(new EncodedField(name, typeof(byte[]), remaining, remaining.Length * 8));
     }
-    public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context) { }
+    public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        => LayoutReadResult<EncodedField>.Success();
 }
 
 /// <summary>Pass-through: copies the unread input to the output unchanged.

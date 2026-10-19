@@ -74,21 +74,31 @@ internal static class SessionTestHelpers
         public void EndWrite(IBufferWriter<byte> writer, LayoutProcessorContext context)
             => log.Add($"End:{context.Group.Path}");
 
-        public void BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-            => log.Add($"Begin:{context.Group.Path}");
+        public LayoutReadResult<EncodedField> BeginRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            log.Add($"Begin:{context.Group.Path}");
+            return LayoutReadResult<EncodedField>.Success();
+        }
 
         public LayoutReadResult<EncodedField> Read(ref SequenceReader<byte> reader, LayoutProcessorContext context)
         {
-            log.Add($"Read:{context.Field!.Path}");
             if (fail)
             {
                 return LayoutReadResult<EncodedField>.Failure();
             }
-            return DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+            var result = DefaultProcessors.LayoutProcessor.Read(ref reader, context);
+            if (result.Status == ReadResult.Success)
+            {
+                log.Add($"Read:{context.Field!.Path}");
+            }
+            return result;
         }
 
-        public void EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
-            => log.Add($"End:{context.Group.Path}");
+        public LayoutReadResult<EncodedField> EndRead(ref SequenceReader<byte> reader, LayoutProcessorContext context)
+        {
+            log.Add($"End:{context.Group.Path}");
+            return LayoutReadResult<EncodedField>.Success();
+        }
     }
 
     /// <summary>Writes value * 2, reads value / 2.</summary>
@@ -126,6 +136,10 @@ internal static class SessionTestHelpers
         {
             var all = (byte[])field.Value!;
             var size = context.Field.DataType.FixedSize ?? all.Length;
+            if (all.Length < size)
+            {
+                return FieldReadResult<LogicalField>.NeedMoreData();
+            }
             var bytes = all.Take(size).Reverse().ToArray();
             context.Field.DataType.Decode!(bytes, out var value);
             return FieldReadResult<LogicalField>.Consumed(new LogicalField(field.Name, value!.GetType(), value), size * 8);

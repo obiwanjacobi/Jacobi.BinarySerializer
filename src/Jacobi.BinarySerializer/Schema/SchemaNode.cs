@@ -93,39 +93,6 @@ public class SchemaGroup : SchemaNode
     public SchemaValueOrRef<int> ByteSize { get; init; }
 }
 
-/// <summary>
-/// An ordered set of logical fields represented together by one packing processor.
-/// </summary>
-public sealed class SchemaPackedGroup : SchemaGroup
-{
-    public SchemaPackedGroup()
-    {
-        Kind = SchemaNodeKind.PackedGroup;
-    }
-
-    /// <summary>The carrier length in bytes when the schema does not specify a byteLength.</summary>
-    public const int DefaultByteLength = 1;
-
-    /// <summary>
-    /// Length in bytes of the packed representation before layout processing (a constant or reference); unset means <see cref="DefaultByteLength"/>.
-    /// ByteSize remains the physical size of the entire group's encoded content, including layout.
-    /// </summary>
-    public SchemaValueOrRef<int> ByteLength { get; init; }
-
-    /// <summary>The specified <see cref="ByteLength"/>, or <see cref="DefaultByteLength"/> when the schema has none.</summary>
-    public SchemaValueOrRef<int> EffectiveByteLength
-    {
-        get
-        {
-            if (ByteLength is int or SchemaNodeRef or SchemaPubRef)
-            {
-                return ByteLength;
-            }
-            return DefaultByteLength;
-        }
-    }
-}
-
 public sealed class SchemaRepeat : SchemaGroup
 {
     public SchemaRepeat()
@@ -217,6 +184,4 @@ public enum SchemaNodeKind
     Repeat,
     /// <summary>A choice between multiple fields or groups.</summary>
     Choice,
-    /// <summary>Logical fields represented together as one encoded unit.</summary>
-    PackedGroup,
 }

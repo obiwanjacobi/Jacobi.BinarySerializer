@@ -36,11 +36,6 @@ public sealed class PlanRange
             throw new ArgumentException($"The range start '{from.Path}' comes after the range end '{to.Path}' in the plan.");
         }
 
-        if (First.Parent is PackedGroupInfo firstPacked && !ReferenceEquals(First, firstPacked.Fields[0])
-            || Last.Parent is PackedGroupInfo lastPacked && !ReferenceEquals(Last, lastPacked.Fields[^1]))
-        {
-            throw new ArgumentException("A range must include all fields of a packed group or exclude the entire group.");
-        }
         CheckInstance(First, fromInstance);
         CheckInstance(Last, toInstance);
         _from = Key(from, fromInstance, 0);
