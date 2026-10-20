@@ -8,6 +8,8 @@ public interface IProcessorFactory
 {
     string Namespace { get; }
 
+    IEnumerable<string> Processors { get; }
+
     IProcessor? CreateProcessor(string id);
 
     /// <summary>
@@ -19,6 +21,7 @@ public interface IProcessorFactory
 
 public interface IProcessorFactoryProvider
 {
+    IReadOnlyList<string> Namespaces { get; }
     IProcessorFactory GetFactory(string @namespace);
     bool TryGetFactory(string @namespace, [NotNullWhen(true)] out IProcessorFactory? factory);
 }
@@ -36,7 +39,8 @@ public sealed class ProcessorManager : IProcessorProvider, IProcessorFactoryProv
 {
     private readonly Dictionary<string, IProcessorFactory> _processorFactories = new(StringComparer.OrdinalIgnoreCase);
 
-    public IEnumerable<DataTypeDescriptor> DataTypes => _processorFactories.Values.SelectMany(f => f.DataTypes);
+    public IEnumerable<DataTypeDescriptor> DataTypes
+        => _processorFactories.Values.SelectMany(f => f.DataTypes);
 
     public IProcessor CreateProcessor(ProcessorKey key)
     {
@@ -56,6 +60,9 @@ public sealed class ProcessorManager : IProcessorProvider, IProcessorFactoryProv
         processor = null;
         return false;
     }
+
+    public IReadOnlyList<string> Namespaces
+        => _processorFactories.Keys.ToList();
 
     public IProcessorFactory GetFactory(string @namespace)
     {

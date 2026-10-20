@@ -86,7 +86,7 @@ public class FieldChainTests
     private sealed class Factory(List<string> log) : IProcessorFactory
     {
         public string Namespace => Ns;
-
+        public IEnumerable<string> Processors => throw new NotImplementedException();
         public IProcessor? CreateProcessor(string id) => id switch
         {
             "head" => new Head(log, "head"),

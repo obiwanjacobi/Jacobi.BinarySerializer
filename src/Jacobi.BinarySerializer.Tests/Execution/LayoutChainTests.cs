@@ -191,8 +191,10 @@ public class LayoutChainTests
 
         Assert.That(values, Is.EqualTo(new Dictionary<string, object?>
         {
-            ["Root.A"] = (byte)1, ["Root.B"] = (byte)2,
-            ["Root.C"] = (byte)3, ["Root.D"] = (byte)4
+            ["Root.A"] = (byte)1,
+            ["Root.B"] = (byte)2,
+            ["Root.C"] = (byte)3,
+            ["Root.D"] = (byte)4
         }));
         Assert.That(log, Is.EqualTo(new[] { "Begin:head", "Read:0/0", "Read:2/2", "End:head" }));
     }
@@ -279,7 +281,7 @@ public class LayoutChainTests
     private sealed class Factory(List<string> log) : IProcessorFactory
     {
         public string Namespace => Ns;
-
+        public IEnumerable<string> Processors => throw new NotImplementedException();
         public IProcessor? CreateProcessor(string id) => id switch
         {
             "head" => new Head(log, "head", false),

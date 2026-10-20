@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
-using Jacobi.BinarySerializer.Codecs;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -39,7 +38,7 @@ internal static class SessionTestHelpers
     private sealed class Factory(List<string> log) : IProcessorFactory
     {
         public string Namespace => Ns;
-
+        public IEnumerable<string> Processors => throw new NotImplementedException();
         public IProcessor? CreateProcessor(string id) => id switch
         {
             "layout" => new RecordingLayout(log, false),

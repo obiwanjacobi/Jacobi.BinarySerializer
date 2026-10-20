@@ -1,4 +1,3 @@
-using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -21,6 +20,7 @@ public class PropertyValidationTests
     private sealed class Factory(string dataType) : IProcessorFactory
     {
         public string Namespace => "pv";
+        public IEnumerable<string> Processors => throw new NotImplementedException();
         public IProcessor? CreateProcessor(string id) => id == "typed" ? new TypedProcessor(dataType) : null;
     }
 

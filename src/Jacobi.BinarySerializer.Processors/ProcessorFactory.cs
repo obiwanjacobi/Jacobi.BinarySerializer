@@ -5,7 +5,7 @@ namespace Jacobi.BinarySerializer.Processors;
 
 public sealed class ProcessorFactory : IProcessorFactory
 {
-    private readonly static Dictionary<string, ProcessorBase> Processors = new()
+    private readonly static Dictionary<string, ProcessorBase> ProcessorMap = new()
     {
         // Value Processors
         { "sys.null", new NullProcessor() },
@@ -25,11 +25,14 @@ public sealed class ProcessorFactory : IProcessorFactory
 
     public string Namespace => "sys";
 
+    public IEnumerable<string> Processors
+        => ProcessorMap.Keys.Select(p => p[4..]);
+
     public IEnumerable<DataTypeDescriptor> DataTypes { get; }
-        = [.. Processors.Values.SelectMany(p => p.DataTypes)];
+        = [.. ProcessorMap.Values.SelectMany(p => p.DataTypes)];
 
     public IProcessor? CreateProcessor(string id)
     {
-        return (IProcessor?)Processors.GetValueOrDefault($"{Namespace}.{id}");
+        return (IProcessor?)ProcessorMap.GetValueOrDefault($"{Namespace}.{id}");
     }
 }

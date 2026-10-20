@@ -202,6 +202,7 @@ public class LayoutWindowSessionTests
     private sealed class Factory(IProcessor[] processors) : IProcessorFactory
     {
         public string Namespace => "window";
+        public IEnumerable<string> Processors => throw new NotImplementedException();
         public IProcessor? CreateProcessor(string id) => processors.SingleOrDefault(processor => processor.Key.Id == id);
     }
 

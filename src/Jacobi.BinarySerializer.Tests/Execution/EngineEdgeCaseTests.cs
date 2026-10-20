@@ -104,6 +104,9 @@ public class EngineEdgeCaseTests
     {
         public string Namespace => Ns;
 
+        public IEnumerable<string> Processors
+            => throw new NotImplementedException();
+
         public IProcessor? CreateProcessor(string id) => id == "proc" ? new Proc(mode, bits) : null;
     }
 

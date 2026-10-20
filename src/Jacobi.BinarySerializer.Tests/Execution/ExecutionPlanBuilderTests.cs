@@ -314,6 +314,9 @@ public class ExecutionPlanBuilderTests
     {
         public string Namespace => Ns;
 
+        public IEnumerable<string> Processors
+            => throw new NotImplementedException();
+
         public IProcessor? CreateProcessor(string id) => id switch
         {
             "value" => new FakeValueProcessor(),
