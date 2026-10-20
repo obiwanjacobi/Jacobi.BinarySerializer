@@ -380,6 +380,26 @@ public class JsonSerializerTests
     }
 
     [Test]
+    public void Serialize_RoundTrip_PreservesDocumentProcessors()
+    {
+        var json = """
+            {
+              "name": "DocSchema",
+              "members": [],
+              "processors": [ { "name": "sys.align", "properties": [ { "name": "bytes", "value": "4" } ] } ]
+            }
+            """;
+
+        var document = JsonSerializer.Deserialize(json);
+        var roundTripped = JsonSerializer.Deserialize(JsonSerializer.Serialize(document));
+
+        Assert.That(document.Processors, Has.Count.EqualTo(1));
+        var processor = roundTripped.Processors.Single();
+        Assert.That(processor.Processor.ToString(), Is.EqualTo("sys.align"));
+        Assert.That(processor.Properties.Single().Value, Is.EqualTo("4"));
+    }
+
+    [Test]
     public void Serialize_RoundTrip_PreservesSizeAndAbsentCount()
     {
         var json = """

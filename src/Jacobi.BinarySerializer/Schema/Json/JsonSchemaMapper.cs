@@ -22,6 +22,7 @@ internal static class JsonSchemaMapper
                 Path = include.Path
             }).ToList(),
             PropertyList = MergeProperties(jsonSchema.Properties, jsonSchema.AdditionalData),
+            ProcessorsList = jsonSchema.Processors.Select(ToSchemaProcessorRef).ToList(),
 
             // dummies
             Roots = [],
@@ -57,7 +58,8 @@ internal static class JsonSchemaMapper
                 Schema = include.Schema,
                 Path = include.Path
             }).ToList(),
-            Properties = schema.Properties.Select(FromSchemaProperty).ToList()
+            Properties = schema.Properties.Select(FromSchemaProperty).ToList(),
+            Processors = schema.Processors.Select(FromSchemaProcessorRef).ToList()
         };
     }
 

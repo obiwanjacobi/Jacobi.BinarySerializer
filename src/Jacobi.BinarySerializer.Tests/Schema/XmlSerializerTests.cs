@@ -442,6 +442,25 @@ public class XmlSerializerTests
     }
 
     [Test]
+    public void Serialize_RoundTrip_PreservesDocumentProcessors()
+    {
+        var xml = """
+            <schema name="DocSchema">
+              <processors><processor name="sys.align"><properties><property name="bytes" value="4" /></properties></processor></processors>
+            </schema>
+            """;
+
+        var document = XmlSerializer.Deserialize(xml);
+        var roundTripped = XmlSerializer.Deserialize(XmlSerializer.Serialize(document));
+
+        Assert.That(document.Processors, Has.Count.EqualTo(1));
+        Assert.That(document.Properties, Is.Empty);
+        var processor = roundTripped.Processors.Single();
+        Assert.That(processor.Processor.ToString(), Is.EqualTo("sys.align"));
+        Assert.That(processor.Properties.Single().Value, Is.EqualTo("4"));
+    }
+
+    [Test]
     public void Serialize_RoundTrip_PreservesSizeAndAbsentCount()
     {
         var xml = """

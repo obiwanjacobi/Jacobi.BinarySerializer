@@ -12,6 +12,7 @@ internal static class XmlSchemaMapper
         nameof(XmlSchema.Members),
         nameof(XmlSchema.NodeDefs),
         nameof(XmlSchema.DataTypeDefs),
+        nameof(XmlSchema.Processors),
         nameof(XmlSchema.ProcessorDefs),
         nameof(XmlSchema.Includes),
         nameof(XmlSchema.Properties)
@@ -120,6 +121,7 @@ internal static class XmlSchemaMapper
                 xmlSchema.AdditionalAttributes,
                 null, //xmlSchema.AdditionalElements,
                 SchemaKnownNames),
+            ProcessorsList = (xmlSchema.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
 
             Roots = [],
             Fields = [],
@@ -152,7 +154,8 @@ internal static class XmlSchemaMapper
                 Schema = include.Schema,
                 Path = include.Path
             }),
-            Properties = ToXmlList(schema.Properties, FromSchemaProperty)
+            Properties = ToXmlList(schema.Properties, FromSchemaProperty),
+            Processors = ToXmlList(schema.Processors, FromSchemaProcessorRef)
         };
     }
 

@@ -19,6 +19,7 @@ internal static class SchemaDocumentMapper
         {
             Name = schema.Name,
             PropertyList = schema.Properties.ToList(),
+            ProcessorsList = schema.Processors.ToList(),
             MemberList = schema.MemberList,
             NodeDefs = schema.NodeDefs,
             DataTypeDefs = schema.DataTypeDefs,
