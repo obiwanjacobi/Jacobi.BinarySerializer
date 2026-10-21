@@ -14,7 +14,7 @@ namespace Jacobi.BinarySerializer.Processors;
 internal sealed class BitSlicerProcessor : ProcessorBase, IFieldProcessor
 {
     private static readonly PropertyDescriptor ByteLengthProperty = new("bytelength", "sys.int32", false, description: "The number of bytes of the field. Not allowed when the field has a byte length.");
-    private static readonly PropertyDescriptor BitsProperty = new("bits", "sys.int32", false, description: "The number of bits taken from each byte, 1 to 8 (default 7).");
+    private static readonly PropertyDescriptor BitsProperty = new("bits", "sys.int32", true, description: "The number of bits taken from each byte, 1 to 8 (default 7).");
     private static readonly PropertyDescriptor ByteOrderProperty = new("byteorder", "sys.endianness", false, description: "'little' (default, least significant slice first) or 'big'.");
 
     public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
@@ -81,8 +81,8 @@ internal sealed class BitSlicerProcessor : ProcessorBase, IFieldProcessor
         {
             throw context.Logger.Fail($"'{path}': the bit slicer processor requires the field byte length or the '{context.Properties.FullName(ByteLengthProperty.Name)}' property.");
         }
-        var bits = context.Properties.GetOrDefault(BitsProperty, 7);
-        var order = context.Properties.GetOrDefault(ByteOrderProperty, Endianness.Little);
+        var bits = context.Properties.GetOrDefault(BitsProperty, 8);
+        var order = context.Properties.GetOrDefault(ByteOrderProperty, Endianness.Big);
         var length = byteLength.Value;
 
         if (!BitSlicerCodec.IsValid(bits, length))

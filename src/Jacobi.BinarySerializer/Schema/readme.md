@@ -61,9 +61,7 @@ The JSON schema reuses the node `oneOf`; XML reuses the node-list `xs:choice`:
 </nodeDefs>
 ```
 
-The old `<nodeDef kind="field">` form is intentionally unsupported. Use
-`builder.NodeDefs(nodes => nodes.Field("sysex16", "sys.uint16", byteLength: 2))` for
-programmatic definitions; the callback offers the same typed operations as normal members.
+Use `builder.NodeDefs(nodes => nodes.Field("sysex16", "sys.uint16", byteLength: 2))` for programmatic definitions; the callback offers the same typed operations as normal members.
 
 Compilation requires matching kinds. Explicit use-site scalars override the template;
 omitted values inherit, including physical sizes, field values/offsets, repeat counts and choice
@@ -114,7 +112,7 @@ The members below are part of the schema model itself (as opposed to the free-fo
 | `count` | repeat | The number of items (constant or reference). No count: repeat until the end of the data (or of the `byteSize` window). | Item counts stored in the data, fixed-size arrays, or until-the-end lists. |
 | `selectedIndex` | choice | The zero-based index of the used alternative (constant or reference). | Pick a variant from a discriminator (type byte, tag). |
 | `valueProcessors` | repeat, choice | Semantic processors that convert the referenced value to the count/index (read direction). | Convert a discriminator that is not a number (`sys.map` of a FourCC string, `sys.bits` of a status byte) to the index. |
-| `processors` | group, repeat, choice | Layout/stream processors; child nodes inherit them unless they specify their own for that stage. | Alignment, byte order, CRC over a whole group. |
+| `processors` | group, repeat, choice | Layout processors; child nodes inherit them unless they specify their own for that stage. | Alignment, byte order, CRC over a whole group. |
 
 #### Open choice
 
