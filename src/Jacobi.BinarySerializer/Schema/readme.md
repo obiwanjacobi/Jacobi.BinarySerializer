@@ -129,7 +129,7 @@ Rules:
 - An open choice cannot be the root of a schema.
 - Open choice nodes can be nested.
 - A read or write with a range that includes the open choice enters it; a range that stops before it (or does not select it) legally skips it. An included open choice must have at least one conforming body in the plan, otherwise the engine throws, naming the choice path and the nodeDef.
-- A range applies to the envelope plan only. A selected body is read or written in full, unless the value model returns a `Target`: the path of a group inside the body, starting with the body root name (e.g. `BodyA.Part.Sub`). Then only that group (and the groups leading to it, so their layout and inherited properties apply) is visited. A target that is not a group inside the selected body throws, naming the choice path and the target.
+- A range applies to the envelope plan only. A selected body is read or written in full, unless the value model returns a `Target`: the path of a group inside the body, starting with the body root name (e.g. `BodyA.Part.Sub`). Then only that group (and the groups leading to it, so their layout and inherited properties apply) is visited. A target that is not a group inside the selected body throws, naming the choice path and the target. A target inside repeats can be narrowed to one item with a `TargetInstance`: the item indices of the repeats around the target inside the body (outermost first, e.g. `[5]` for `BodyA.Items.Part`). Without it all items are visited.
 
 Limitations:
 - Body paths are relative to the body root (e.g. `BodyA.Id`).
@@ -138,10 +138,10 @@ Limitations:
 - Body roots are not merged with the members of their nodeDef (nested nodes are); a body must list all its own members.
 - Only plans created from a `SchemaSet` have bodies; plans created from a single group or document cannot resolve an open choice.
 - Bodies are built when the envelope plan is created, not at schema compile time.
-- A range cannot address nodes inside a body (a body is a separate plan whose keys are relative to its own root).
+- A range cannot address nodes inside a body (a body is a separate plan whose keys are relative to its own root). Use `Target` and `TargetInstance` to select a group occurrence inside the body.
 
 Address map (e.g. Roland SysEx, where an address and size point into a memory map):
-- The engine does not know the map. The value model that implements `IOpenChoiceSink`/`IOpenChoiceSource` holds it (or a processor it uses): it sees the header values already read or provided (e.g. `Address`, `Size`), looks up the address and returns the selected body group and, when the address points to a group nested inside that body, its `Target` path.
+- The engine does not know the map. The value model that implements `IOpenChoiceSink`/`IOpenChoiceSource` holds it (or a processor it uses): it sees the header values already read or provided (e.g. `Address`, `Size`), looks up the address and returns the selected body group and, when the address points to a group nested inside that body, its `Target` path (with a `TargetInstance` when the group is inside a repeat).
 - Nested map levels are nested open choices, one decision per level, each made by the value model.
 - A body per map entry (or per address range) is declared in the schema as a root that conforms to the nodeDef.
 - Everything happens in one read or write call, so layout and stream processors see the whole message once. Splitting a message into several client-managed segments is not supported: layout windows and stream state are not resumable between calls.

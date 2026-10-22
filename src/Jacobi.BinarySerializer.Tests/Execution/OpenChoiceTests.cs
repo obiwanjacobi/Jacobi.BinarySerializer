@@ -1,4 +1,5 @@
 using System.Buffers;
+using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Processors;
 using Jacobi.BinarySerializer.Schema;
@@ -333,6 +334,80 @@ public class OpenChoiceTests
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("BodyA.Nope"));
     }
 
+    private const string TargetInstanceSchema = """
+        {
+          "name": "TargetInstanceTest",
+          "nodeDefs": [
+            { "name": "Body", "kind": "group" }
+          ],
+          "members": [
+            {
+              "name": "Root",
+              "kind": "group",
+              "members": [
+                { "name": "Msg", "kind": "choice", "memberNodeDef": "Body" }
+              ]
+            },
+            {
+              "name": "BodyA", "kind": "group", "nodeDef": "Body",
+              "members": [
+                { "name": "Head", "kind": "field", "datatype": "sys.uint8" },
+                {
+                  "name": "Items", "kind": "repeat", "count": 3,
+                  "members": [
+                    {
+                      "name": "Part", "kind": "group",
+                      "members": [
+                        { "name": "P1", "kind": "field", "datatype": "sys.uint8" },
+                        { "name": "P2", "kind": "field", "datatype": "sys.uint8" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Read_OpenChoiceTargetInstance_ReadsOnlyThatItem()
+    {
+        var serializer = CreateSerializer(TargetInstanceSchema);
+        var sink = new OpenSink { Target = new SchemaPath("BodyA.Items.Part"), TargetInstance = new InstancePath([1]) };
+
+        var read = serializer.Deserialize(new SchemaName("TargetInstanceTest.Root"), new ReadOnlySequence<byte>([0x07, 0x08]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "BodyA.Items.Part.P1=7", "BodyA.Items.Part.P2=8" }));
+        Assert.That(sink.Instances, Is.EqualTo(new[] { new InstancePath([1]), new InstancePath([1]) }));
+        Assert.That(read, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void Read_OpenChoiceTargetWithoutInstance_ReadsAllItems()
+    {
+        var serializer = CreateSerializer(TargetInstanceSchema);
+        var sink = new OpenSink { Target = new SchemaPath("BodyA.Items.Part") };
+
+        var read = serializer.Deserialize(new SchemaName("TargetInstanceTest.Root"), new ReadOnlySequence<byte>([1, 2, 3, 4, 5, 6]), sink);
+
+        Assert.That(sink.Fields, Has.Count.EqualTo(6));
+        Assert.That(read, Is.EqualTo(6));
+    }
+
+    [Test]
+    public void Write_OpenChoiceTargetInstance_WritesOnlyThatItem()
+    {
+        var serializer = CreateSerializer(TargetInstanceSchema);
+        var source = new OpenSource { Target = new SchemaPath("BodyA.Items.Part"), TargetInstance = new InstancePath([2]) };
+        var writer = new ArrayBufferWriter<byte>();
+
+        serializer.Serialize(new SchemaName("TargetInstanceTest.Root"), source, writer);
+
+        Assert.That(writer.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 5, 5 }));
+        Assert.That(source.Instances, Is.EqualTo(new[] { new InstancePath([2]), new InstancePath([2]) }));
+    }
+
     private const string OpenRepeatBodySchema = """
         {
           "name": "RepeatTest",
@@ -539,7 +614,12 @@ public class OpenChoiceTests
     private class PlainSink : IValueSink
     {
         public List<string> Fields { get; } = [];
-        public void SetField(FieldContext context, LogicalField value) => Fields.Add($"{context.Path}={value.Value}");
+        public List<InstancePath> Instances { get; } = [];
+        public void SetField(FieldContext context, LogicalField value)
+        {
+            Fields.Add($"{context.Path}={value.Value}");
+            Instances.Add(context.Instance);
+        }
         public IValueSink EnterGroup(GroupContext context) => this;
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
@@ -553,17 +633,23 @@ public class OpenChoiceTests
         public List<OpenChoiceContext> Contexts { get; } = [];
         public SchemaName Selected { get; init; } = new("BodyA");
         public SchemaPath Target { get; init; }
+        public InstancePath TargetInstance { get; init; }
 
         public OpenChoiceSinkResult EnterOpenChoice(OpenChoiceContext context)
         {
             Contexts.Add(context);
-            return new OpenChoiceSinkResult(this, Selected, Target);
+            return new OpenChoiceSinkResult(this, Selected, Target, TargetInstance);
         }
     }
 
     private class PlainSource : IValueSource
     {
-        public SourceResult GetField(FieldContext context) => SourceResult.Provided(new LogicalField(context.Name, typeof(byte), (byte)5));
+        public List<InstancePath> Instances { get; } = [];
+        public SourceResult GetField(FieldContext context)
+        {
+            Instances.Add(context.Instance);
+            return SourceResult.Provided(new LogicalField(context.Name, typeof(byte), (byte)5));
+        }
         public IValueSource EnterGroup(GroupContext context) => this;
         public int GetCount(RepeatContext context) => throw new NotSupportedException();
         public IValueSource EnterItem(RepeatContext context, int index) => this;
@@ -574,11 +660,13 @@ public class OpenChoiceTests
     private sealed class OpenSource : PlainSource, IOpenChoiceSource
     {
         public List<OpenChoiceContext> Contexts { get; } = [];
+        public SchemaPath Target { get; init; }
+        public InstancePath TargetInstance { get; init; }
 
         public OpenChoiceSourceResult EnterOpenChoice(OpenChoiceContext context)
         {
             Contexts.Add(context);
-            return new OpenChoiceSourceResult(this, new SchemaName("BodyA"));
+            return new OpenChoiceSourceResult(this, new SchemaName("BodyA"), Target, TargetInstance);
         }
     }
 }

@@ -64,7 +64,7 @@ public class BitSlicerProcessorTests
     public void RoundTrip_FieldsKeepTheirBoundaries()
     {
         var root = Group("Root", [],
-            Field("A", "sys.uint16", [Ref("bitslicer", ("bytelength", "2"))]),
+            Field("A", "sys.uint16", [Ref("bitslicer", ("bits", "7"), ("bytelength", "2"))]),
             Field("B", "sys.uint8"));
         var values = new Dictionary<string, object?> { ["Root.A"] = (ushort)300, ["Root.B"] = (byte)9 };
 
@@ -77,7 +77,7 @@ public class BitSlicerProcessorTests
     [Test]
     public void RoundTrip_FieldByteLength_UsedWithoutProperty()
     {
-        var field = Field("A", "sys.uint16", [Ref("bitslicer")]);
+        var field = Field("A", "sys.uint16", [Ref("bitslicer", [(Name: "bits", Value: "7")])]);
         var root = Group("Root", [], new Jacobi.BinarySerializer.Schema.SchemaField
         {
             Name = field.Name,

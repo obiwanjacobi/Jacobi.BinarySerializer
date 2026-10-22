@@ -59,8 +59,9 @@ public sealed class ExecutionPlan
 
     /// <summary>
     /// Creates the range for the target group inside a body of an open choice (null target: the whole body).
+    /// The instance selects the items of the repeats around the target inside the body (empty: all items).
     /// </summary>
-    internal PlanRange? CreateOpenChoiceRange(ChoiceInfo choice, GroupInfo body, SchemaPath target)
+    internal PlanRange? CreateOpenChoiceRange(ChoiceInfo choice, GroupInfo body, SchemaPath target, InstancePath instance = default)
     {
         if (target.IsEmpty)
         {
@@ -72,7 +73,9 @@ public sealed class ExecutionPlan
             throw new InvalidOperationException(
                 $"'{choice.Path}': the target '{target}' is not a group inside the selected group '{body.Path}'.");
         }
-        return new PlanRange(this, group, group);
+        return instance.IsEmpty
+            ? new PlanRange(this, group, group)
+            : new PlanRange(this, group, instance, group, instance);
     }
 
     /// <summary>

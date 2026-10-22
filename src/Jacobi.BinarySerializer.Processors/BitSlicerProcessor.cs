@@ -82,7 +82,7 @@ internal sealed class BitSlicerProcessor : ProcessorBase, IFieldProcessor
             throw context.Logger.Fail($"'{path}': the bit slicer processor requires the field byte length or the '{context.Properties.FullName(ByteLengthProperty.Name)}' property.");
         }
         var bits = context.Properties.GetOrDefault(BitsProperty, 8);
-        var order = context.Properties.GetOrDefault(ByteOrderProperty, Endianness.Big);
+        var order = context.Properties.GetOrDefault(ByteOrderProperty, Endianness.Little);
         var length = byteLength.Value;
 
         if (!BitSlicerCodec.IsValid(bits, length))

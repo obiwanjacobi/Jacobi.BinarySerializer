@@ -1,3 +1,4 @@
+using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
 
@@ -86,12 +87,16 @@ public interface IValueSink
 /// Optional: the path of a group inside the selected group (starting with its root name, e.g. 'BodyA.Part1.Sub').
 /// Only that group (and the groups leading to it) is read or written. Empty: the whole group.
 /// </param>
-public readonly record struct OpenChoiceSourceResult(IValueSource Scope, SchemaName Group, SchemaPath Target = default);
+/// <param name="TargetInstance">
+/// Optional: the item indices of the repeats around <paramref name="Target"/> inside the selected group (outermost first),
+/// e.g. [5] for 'BodyA.Items.Part' to read or write only item 5. Empty: all items.
+/// </param>
+public readonly record struct OpenChoiceSourceResult(IValueSource Scope, SchemaName Group, SchemaPath Target = default, InstancePath TargetInstance = default);
 
 /// <summary>
 /// <inheritdoc cref="OpenChoiceSourceResult"/>
 /// </summary>
-public readonly record struct OpenChoiceSinkResult(IValueSink Scope, SchemaName Group, SchemaPath Target = default);
+public readonly record struct OpenChoiceSinkResult(IValueSink Scope, SchemaName Group, SchemaPath Target = default, InstancePath TargetInstance = default);
 
 /// <summary>
 /// Optional extension of <see cref="IValueSource"/> for models that support open choices.
