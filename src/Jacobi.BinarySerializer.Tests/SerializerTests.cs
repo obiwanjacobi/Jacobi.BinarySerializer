@@ -17,6 +17,24 @@ public class SerializerTests
     }
 
     [Test]
+    public void GetPlan_HasTheSchemaName()
+    {
+        var serializer = CreateSerializer("Main", "Root");
+
+        var plan = serializer.GetPlan(new SchemaName("Main.Root"));
+
+        Assert.That(plan.Name?.FullName, Is.EqualTo("Main.Root"));
+    }
+
+    [Test]
+    public void Schemas_IsTheSchemaSetOfTheSerializer()
+    {
+        var serializer = CreateSerializer("Main", "Root");
+
+        Assert.That(serializer.Schemas.Documents.Select(d => d.Name), Is.EqualTo(new[] { "Main" }));
+    }
+
+    [Test]
     public void GetPlan_DifferentSchemas_ReturnsDifferentPlans()
     {
         var serializer = CreateSerializer("Main", "RootA", "RootB");

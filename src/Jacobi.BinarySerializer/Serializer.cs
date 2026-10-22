@@ -16,6 +16,11 @@ public sealed class Serializer
     private readonly bool _valueFieldsUseModel;
     private readonly ConcurrentDictionary<SchemaName, Lazy<ExecutionPlan>> _plans = new();
 
+    /// <summary>
+    /// The compiled (frozen) schemas the serializer creates its plans from.
+    /// </summary>
+    public SchemaSet Schemas => _schemas;
+
     internal Serializer(SchemaSet schemas, IProcessorProvider processorProvider, IServiceProvider? serviceProvider = null, DataTypeRegistry? dataTypes = null, bool valueFieldsUseModel = false)
     {
         _valueFieldsUseModel = valueFieldsUseModel;

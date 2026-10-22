@@ -16,6 +16,11 @@ public sealed class ExecutionPlan
     public required GroupInfo Root { get; init; }
 
     /// <summary>
+    /// The name of the schema root the plan was created for (e.g. 'Png.File'); null for a plan created from a group.
+    /// </summary>
+    public SchemaName? Name { get; internal set; }
+
+    /// <summary>
     /// The data types the plan was built with.
     /// </summary>
     public DataTypeRegistry DataTypes { get; init; } = DataTypeRegistry.CreateDefault();
@@ -176,6 +181,7 @@ public sealed class ExecutionPlan
         var builder = new ExecutionPlanBuilder(processorProvider, dataTypes);
         var root = schemas.FindRoot(schemaName);
         var plan = builder.Build(root);
+        plan.Name = schemaName;
         plan.SetOpenChoiceBodies(builder.BuildOpenChoiceBodies(plan.Root, schemas, schemaName.Namespace));
         return plan;
     }
@@ -190,7 +196,9 @@ public sealed class ExecutionPlan
     {
         var builder = new ExecutionPlanBuilder(processorProvider, dataTypes);
         var root = ExecutionPlanBuilder.FindRoot(document, schemaName);
-        return builder.Build(root);
+        var plan = builder.Build(root);
+        plan.Name = schemaName;
+        return plan;
     }
 }
 
