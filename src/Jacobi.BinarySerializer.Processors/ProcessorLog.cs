@@ -30,8 +30,8 @@ internal static partial class ProcessorLog
     [LoggerMessage(EventId = 232, Level = LogLevel.Warning, Message = "Cannot pack '{Path}': {Reason}.")]
     public static partial void BitsRejected(this ILogger logger, string path, string reason);
 
-    [LoggerMessage(EventId = 250, Level = LogLevel.Trace, Message = "Scaled '{Path}' by {Scale}: '{From}' to '{To}'.")]
-    public static partial void Scaled(this ILogger logger, string path, decimal scale, object? from, object? to);
+    [LoggerMessage(EventId = 250, Level = LogLevel.Trace, Message = "Scaled '{Path}' by {Scale} and shifted {Shift}: '{From}' to '{To}'.")]
+    public static partial void Scaled(this ILogger logger, string path, decimal scale, decimal shift, object? from, object? to);
 
     [LoggerMessage(EventId = 290, Level = LogLevel.Error, Message = "{Message}")]
     private static partial void Failed(this ILogger logger, Exception? exception, string message);

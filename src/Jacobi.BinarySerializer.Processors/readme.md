@@ -20,11 +20,14 @@ The built-in processors of namespace `sys`. Property names are short names as us
 
 ### `sys.scale`
 
-Converts between a raw integer and a scaled logical value: `logical = raw / scale`. Writing multiplies by `scale` and rounds (away from zero) to a `long`; reading divides and yields a `decimal`. A `null` value passes through.
+Converts between a raw integer and a scaled logical value: `logical = raw / scale + shift`. Writing multiplies by `scale` and rounds (away from zero) to a `long`; reading divides and yields a `decimal`. A `null` value passes through.
 
 | Property | Required | Description |
 |----------|----------|-------------|
-| `scale` | yes | Non-zero decimal factor. |
+| `scale`  | yes*     | Non-zero decimal factor. |
+| `shift`  | yes*     | Value to shift. |
+
+*) Either one of the properties have to be specified, or both.
 
 ### `sys.map`
 

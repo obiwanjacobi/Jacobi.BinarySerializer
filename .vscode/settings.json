@@ -1,0 +1,8 @@
+{
+  "xml.fileAssociations": [
+    {
+      "pattern": "src/Jacobi.BinarySerializer.IntegrationTests/**/*.xml",
+      "systemId": "${workspaceFolder}/src/Jacobi.BinarySerializer/Schema/schema.xsd"
+    }
+  ]
+}
