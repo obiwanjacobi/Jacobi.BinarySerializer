@@ -18,9 +18,13 @@ public class SchemaNameTests
     }
 
     [Test]
-    public void Equals_ReferenceAndPlainName_AreDifferent()
+    public void Ctor_WithNamespace_SplitsAtLastSeparator()
     {
-        Assert.That(new SchemaName("ref:aligned"), Is.Not.EqualTo(new SchemaName("aligned")));
+        var name = new SchemaName("Shared.Doc.aligned");
+
+        Assert.That(name.Namespace, Is.EqualTo("Shared.Doc"));
+        Assert.That(name.Name, Is.EqualTo("aligned"));
+        Assert.That(name.ToString(), Is.EqualTo("Shared.Doc.aligned"));
     }
 
     [Test]

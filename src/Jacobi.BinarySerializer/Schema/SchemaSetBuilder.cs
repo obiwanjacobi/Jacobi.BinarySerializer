@@ -203,21 +203,21 @@ public sealed class SchemaSetBuilder
 
     /// <summary>
     /// Expands short property names on processor refs to their full 'namespace.id.name' form.
-    /// Names that already contain '.' are left as is. Properties of a 'ref:' are expanded when it is resolved.
+    /// Names that already contain '.' are left as is. Properties of a ref to a processor definition are expanded when it is resolved.
     /// Properties on fields and groups are not touched.
     /// </summary>
-    private static void ExpandPropertyNames(SchemaDocument document)
+    private void ExpandPropertyNames(SchemaDocument document)
     {
         foreach (var nodeDef in document.NodeDefs)
         {
-            ExpandPropertyNames(nodeDef);
+            ExpandPropertyNames(document, nodeDef);
         }
 
         foreach (var dataTypeDef in document.DataTypeDefs)
         {
             foreach (var processor in dataTypeDef.Processors)
             {
-                ExpandPropertyNames(processor);
+                ExpandPropertyNames(document, processor);
             }
         }
 
@@ -228,11 +228,11 @@ public sealed class SchemaSetBuilder
 
         foreach (var root in document.Roots)
         {
-            ExpandPropertyNames(root);
+            ExpandPropertyNames(document, root);
         }
     }
 
-    private static void ExpandPropertyNames(SchemaNode node)
+    private void ExpandPropertyNames(SchemaDocument document, SchemaNode node)
     {
         var processors = node switch
         {
@@ -243,14 +243,14 @@ public sealed class SchemaSetBuilder
 
         foreach (var processor in processors.Concat(ValueProcessorsOf(node)))
         {
-            ExpandPropertyNames(processor);
+            ExpandPropertyNames(document, processor);
         }
 
         if (node is SchemaGroup g)
         {
             foreach (var child in g.MemberList)
             {
-                ExpandPropertyNames(child);
+                ExpandPropertyNames(document, child);
             }
         }
     }
@@ -258,9 +258,9 @@ public sealed class SchemaSetBuilder
     private static void ExpandPropertyNames(SchemaProcessorDef processor)
         => ExpandPropertyNames(processor, processor.Processor);
 
-    private static void ExpandPropertyNames(SchemaProcessorRef processor)
+    private void ExpandPropertyNames(SchemaDocument document, SchemaProcessorRef processor)
     {
-        if (processor.Key is { } key)
+        if (!TryFindProcessorDef(document, processor.Processor, out _) && processor.Key is { } key)
         {
             ExpandPropertyNames(processor, key);
         }
@@ -285,7 +285,7 @@ public sealed class SchemaSetBuilder
         }
     }
 
-    private static HashSet<string> GetDocumentDependencies(SchemaDocument document)
+    private HashSet<string> GetDocumentDependencies(SchemaDocument document)
     {
         var dependencies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -316,7 +316,7 @@ public sealed class SchemaSetBuilder
         return dependencies;
     }
 
-    private static void CollectNodeDependencies(IReadOnlyList<SchemaNode> nodes, string documentName, HashSet<string> dependencies)
+    private void CollectNodeDependencies(IReadOnlyList<SchemaNode> nodes, string documentName, HashSet<string> dependencies)
     {
         foreach (var node in nodes)
         {
@@ -357,9 +357,10 @@ public sealed class SchemaSetBuilder
         }
     }
 
-    private static void AddSchemaDependency(SchemaProcessorRef processorRef, string documentName, HashSet<string> dependencies)
+    // Only a namespace that names a known document refers to a processor definition; any other namespace is a processor key.
+    private void AddSchemaDependency(SchemaProcessorRef processorRef, string documentName, HashSet<string> dependencies)
     {
-        if (processorRef.Processor.IsReference)
+        if (_documents.ContainsKey(processorRef.Processor.Namespace))
         {
             AddSchemaDependency(processorRef.Processor, documentName, dependencies);
         }
@@ -677,30 +678,31 @@ public sealed class SchemaSetBuilder
     }
 
     /// <summary>
-    /// Resolves a 'ref:name' (this document) or 'ref:document.name' (any other document) to its definition.
-    /// A processor key ('namespace.id') needs no resolving.
+    /// Resolves a processor name like a data type name: 'name' (this document) or 'document.name' (any other document)
+    /// designates a processor definition. A name with a namespace that is not a definition is a processor key ('namespace.id').
+    /// A name without a namespace must be a definition.
     /// </summary>
     private bool TryResolveProcessorRef(SchemaDocument document, SchemaProcessorRef processorRef)
     {
-        if (!processorRef.Processor.IsReference)
+        if (TryFindProcessorDef(document, processorRef.Processor, out var definition))
         {
+            processorRef.Definition = definition;
+            ExpandPropertyNames(processorRef, definition.Processor);
             return true;
         }
 
-        var ns = processorRef.Processor.Namespace;
+        return !String.IsNullOrEmpty(processorRef.Processor.Namespace);
+    }
+
+    private bool TryFindProcessorDef(SchemaDocument document, SchemaName name, [NotNullWhen(true)] out SchemaProcessorDef? definition)
+    {
+        var ns = name.Namespace;
         var definingDocument = String.IsNullOrEmpty(ns) || String.Equals(ns, document.Name, StringComparison.OrdinalIgnoreCase)
             ? document
             : _documents.GetValueOrDefault(ns);
 
-        if (definingDocument is null ||
-            !definingDocument.TryFindProcessorDef(processorRef.Processor.Name, out var definition))
-        {
-            return false;
-        }
-
-        processorRef.Definition = definition;
-        ExpandPropertyNames(processorRef, definition.Processor);
-        return true;
+        definition = null;
+        return definingDocument is not null && definingDocument.TryFindProcessorDef(name.Name, out definition);
     }
 
     // A name without a namespace (or with the document's own name) must resolve in the local document.
@@ -794,15 +796,13 @@ public sealed class SchemaSetBuilder
 
     private static SchemaName? Qualify(SchemaName? name, string? documentName)
         => name is { } value && documentName is not null && String.IsNullOrEmpty(value.Namespace)
-            ? new SchemaName($"{(value.IsReference ? "ref:" : String.Empty)}{documentName}.{value.Name}")
+            ? new SchemaName($"{documentName}.{value.Name}")
             : name;
 
     private static List<SchemaProcessorRef> CloneProcessors(IEnumerable<SchemaProcessorRef> processors, string? documentName)
         => processors.Select(processor => new SchemaProcessorRef
         {
-            Processor = processor.Processor.IsReference
-                ? Qualify(processor.Processor, documentName)!.Value
-                : processor.Processor,
+            Processor = Qualify(processor.Processor, documentName)!.Value,
             PublishNamespace = processor.PublishNamespace,
             PropertyList = processor.Properties.Select(property => new SchemaProperty
             {
@@ -855,7 +855,7 @@ internal static class SchemaDocumentExtensions
 
     public static bool TryFindProcessorDef(this SchemaDocument document, string name, [NotNullWhen(true)] out SchemaProcessorDef? processorDef)
     {
-        processorDef = document.ProcessorDefs.FirstOrDefault(n => n.Name == name);
+        processorDef = document.ProcessorDefs.FirstOrDefault(n => String.Equals(n.Name, name, StringComparison.OrdinalIgnoreCase));
         return processorDef != null;
     }
 }

@@ -105,7 +105,7 @@ internal sealed class JsonSchemaValueRef
     public string? Pub { get; init; }
 }
 
-/// <summary>A named processor declaration: 'name' is used in a 'ref:name' (or 'ref:document.name').</summary>
+/// <summary>A named processor declaration: 'name' is used as 'name' (or 'document.name' from another document).</summary>
 internal sealed class JsonSchemaProcessorDef
 {
     public required string Name { get; init; }
@@ -116,7 +116,7 @@ internal sealed class JsonSchemaProcessorDef
     public IDictionary<string, JsonElement>? AdditionalData { get; init; }
 }
 
-/// <summary>A processor key ('namespace.id') or a reference to a processor declaration ('ref:name').</summary>
+/// <summary>A reference to a processor declaration ('name' or 'document.name') or, when no declaration has that name, a processor key ('namespace.id').</summary>
 internal sealed class JsonSchemaProcessorRef
 {
     [JsonPropertyName("name")]

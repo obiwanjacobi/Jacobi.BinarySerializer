@@ -56,7 +56,7 @@ The JSON schema reuses the node `oneOf`; XML reuses the node-list `xs:choice`:
 ```xml
 <nodeDefs>
   <field name="sysex16" datatype="sys.uint16" byteLength="2">
-    <processor name="ref:midi.sysexbyte" />
+    <processor name="midi.sysexbyte" />
   </field>
 </nodeDefs>
 ```
@@ -158,7 +158,7 @@ Address map (e.g. Roland SysEx, where an address and size point into a memory ma
 
 | Member | Meaning | Use it to |
 |--------|---------|-----------|
-| `processor` | The processor key (`sys.varint`) or a `ref:` to a definition. | Select the processor. |
+| `processor` | The name of a definition in `processorDefs` (`name` or `document.name`) or a processor key (`sys.varint`). | Select the processor. |
 | `pubns` | The namespace the processor publishes its values under (default: its key, e.g. `sys.crc`). Interpreted by the engine, not a processor property. | Keep published values apart when the same processor is used more than once, then reference them with `pub:`. |
 | other keys | The processor's own properties. | Configure the processor. |
 
@@ -176,7 +176,11 @@ A reference to a value that is not available yet is an error at runtime. Plan bu
 
 ## Processors in a schema
 
-- A processor is used by its key (`sys.varint`: namespace `sys`, id `varint`) or by a reference to a definition (`ref:name`, or `ref:document.name` from another document).
+- A processor is used by name, looked up like a data type name:
+  - `name` (no namespace): a definition in the `processorDefs` of the same document. It must exist.
+  - `document.name`: a definition in that (included) document; the own document name is allowed too.
+  - any other `namespace.id`: a processor key (`sys.varint`: namespace `sys`, id `varint`).
+  - A definition wins over a processor key with the same name, so do not give a document the name of a processor namespace (e.g. `sys`) and a definition the id of one of its processors. Names are case-insensitive.
 - Properties given on the use override the properties of the definition.
 - Properties of a processor use or definition can be given explicitly (`"properties": [ { "name": "byteorder", "value": "big" } ]`) or inline: any key that is not mapped to the model is a property. `{ "name": "sys.bytepacker", "byteorder": "big" }` is the same as the explicit form; in XML use attributes or child elements (`<processor name="sys.bytepacker" byteorder="big" />`).
 - JSON documents may contain `//` and `/* */` comments and trailing commas.
@@ -207,11 +211,11 @@ A child node inherits the stages of its parent. Value, field and stream stages: 
 
 **Transform a value (scale, enum, nullable):** add the processor to the field's `processors` with its properties.
 
-**Reuse a configuration:** declare it in `processorDefs` (or a type in `nodeDefs`) and use `ref:name`.
+**Reuse a configuration:** declare it in `processorDefs` (or a node in `nodeDefs`) and use it by `name`.
 
 **Define a new data type:** declare it in `dataTypeDefs` with a `name`, a `basedOn` data type, optional facets (`min`, `max`, `scale`, `shift`, `options`), `processors` and `properties`, then use it as the field's `datatype` (see below).
 
-**Share definitions between files:** add an `include` and reference with `ref:document.name`.
+**Share definitions between files:** add an `include` and reference with `document.name`.
 
 **Apply a layout to many fields (alignment, byte order, CRC):** put the layout processor on the group; the fields inherit it.
 

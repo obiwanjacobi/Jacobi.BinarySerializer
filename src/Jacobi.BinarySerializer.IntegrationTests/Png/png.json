@@ -65,7 +65,7 @@
                   "kind": "choice",
                   "selectedIndex": { "ref": "Png.Chunk[].Body.Type" },
                   "byteSize": { "ref": "Png.Chunk[].Length" },
-                  "valueProcessors": [ { "name": "ref:chunkType" } ],
+                  "valueProcessors": [ { "name": "chunkType" } ],
                   "members": [
                     {
                       "name": "Header",

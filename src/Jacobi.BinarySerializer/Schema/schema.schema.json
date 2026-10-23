@@ -49,7 +49,7 @@
       "additionalProperties": false
     },
     "processorDef": {
-      "description": "A named processor configuration, used as 'ref:name' (or 'ref:document.name').",
+      "description": "A named processor configuration, used by its name (or 'document.name' from another document).",
       "type": "object",
       "required": [ "name", "processor" ],
       "properties": {
@@ -60,7 +60,7 @@
       "additionalProperties": true
     },
     "processor": {
-      "description": "A processor key ('namespace.id') or 'ref:name'. Other keys are processor properties.",
+      "description": "A processor definition name ('name' or 'document.name') or a processor key ('namespace.id'). Other keys are processor properties.",
       "type": "object",
       "required": [ "name" ],
       "properties": {

@@ -14,14 +14,14 @@ public closed class SchemaProcessor
 /// </summary>
 public sealed class SchemaProcessorDef : SchemaProcessor
 {
-    /// <summary>The name used to reference this definition ('ref:name', or 'ref:document.name' from another document).</summary>
+    /// <summary>The name used to reference this definition ('name', or 'document.name' from another document).</summary>
     public required string Name { get; init; }
     public required ProcessorKey Processor { get; init; }
 }
 
 /// <summary>
-/// The use of a processor on a node or nodeDef: either a processor key ('namespace.id')
-/// or a reference to a <see cref="SchemaProcessorDef"/> ('ref:name' or 'ref:document.name').
+/// The use of a processor on a node or nodeDef: a reference to a <see cref="SchemaProcessorDef"/>
+/// ('name' or 'document.name') or, when no definition has that name, a processor key ('namespace.id').
 /// The properties of the ref override the properties of the definition.
 /// </summary>
 public sealed class SchemaProcessorRef : SchemaProcessor
@@ -37,11 +37,13 @@ public sealed class SchemaProcessorRef : SchemaProcessor
     /// <summary>Filled when a reference is resolved (compiled).</summary>
     public SchemaProcessorDef? Definition { get; internal set; }
 
-    /// <summary>The processor to use. Null when a reference is not (yet) resolved or a name has no namespace.</summary>
+    /// <summary>
+    /// The processor to use: the key of the resolved definition, otherwise the name as processor key.
+    /// Null when a name without a namespace is not (yet) resolved to a definition.
+    /// </summary>
     public ProcessorKey? Key
-        => Processor.IsReference
-            ? Definition?.Processor
-            : String.IsNullOrEmpty(Processor.Namespace) ? null : Processor.ToProcessorKey();
+        => Definition?.Processor
+            ?? (String.IsNullOrEmpty(Processor.Namespace) ? null : Processor.ToProcessorKey());
 
     /// <summary>The properties of the definition (if any) overridden by the properties of this ref.</summary>
     public IReadOnlyList<SchemaProperty> EffectiveProperties

@@ -94,7 +94,7 @@ public class XmlSerializerTests
             <schema name="Roland">
               <nodeDefs>
                 <field name="sysex16" datatype="sys.uint16" byteLength="2">
-                  <processor name="ref:midi.sysexbyte" />
+                  <processor name="midi.sysexbyte" />
                 </field>
               </nodeDefs>
               <members><group name="Message"><members>
@@ -108,7 +108,7 @@ public class XmlSerializerTests
         foreach (var schema in new[] { document, restored })
         {
             var definition = (SchemaField)schema.NodeDefs.Single();
-            Assert.That(definition.Processors.Single().Processor.ToString(), Is.EqualTo("ref:midi.sysexbyte"));
+            Assert.That(definition.Processors.Single().Processor.ToString(), Is.EqualTo("midi.sysexbyte"));
             Assert.That(definition.Properties.Any(property => property.Name == "processor"), Is.False);
             Assert.That(definition.ByteLength is int byteLength && byteLength == 2, Is.True);
             Assert.That(schema.Fields.Single().Processors.Single().Processor.ToString(), Is.EqualTo("sys.scale"));
@@ -229,7 +229,7 @@ public class XmlSerializerTests
               <nodeDefs>
                 <field name="CommonField" datatype="sys.int32">
                   <processors>
-                    <processor name="ref:deltaProcessor" />
+                    <processor name="deltaProcessor" />
                   </processors>
                   <properties>
                     <property name="scale" value="100" />
@@ -237,18 +237,18 @@ public class XmlSerializerTests
                 </field>
                 <group name="CommonGroup">
                   <processors>
-                    <processor name="ref:rootProcessor" />
+                    <processor name="rootProcessor" />
                   </processors>
                 </group>
               </nodeDefs>
               <members>
                 <group name="RootGroup">
                   <processors>
-                    <processor name="ref:rootProcessor" />
+                    <processor name="rootProcessor" />
                   </processors>
                   <members>
                     <field name="Value" nodeDef="CommonField" datatype="sys.int32">
-                      <processor name="ref:deltaProcessor" />
+                      <processor name="deltaProcessor" />
                     </field>
                   </members>
                 </group>
@@ -269,8 +269,8 @@ public class XmlSerializerTests
 
         var rootGroup = document.Roots.Single();
         var rootField = rootGroup.Members.OfType<SchemaField>().Single();
-        Assert.That(rootGroup.Processors.Single().Processor.ToString(), Is.EqualTo("ref:rootProcessor"));
-        Assert.That(rootField.Processors.Single().Processor.ToString(), Is.EqualTo("ref:deltaProcessor"));
+        Assert.That(rootGroup.Processors.Single().Processor.ToString(), Is.EqualTo("rootProcessor"));
+        Assert.That(rootField.Processors.Single().Processor.ToString(), Is.EqualTo("deltaProcessor"));
     }
 
     [Test]
@@ -296,7 +296,7 @@ public class XmlSerializerTests
                 </repeat>
                 <choice name="ChoiceGroup" selectedIndex="2">
                   <processors>
-                    <processor processor="ref:selectorProcessor" />
+                    <processor processor="selectorProcessor" />
                   </processors>
                   <members>
                     <field name="OptionA" datatype="sys.int16" />

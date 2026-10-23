@@ -161,17 +161,17 @@ public class SchemaDocumentBuilderTests
                     { "name": "Status", "kind": "field", "datatype": "sys.uint8", "value": "240", "byteOffset": 0 },
                     { "name": "Payload", "kind": "field", "nodeDef": "Other.Payload", "datatype": "sys.bytes",
                       "value": { "pub": "header.value" }, "byteLength": { "ref": "Root.Items[].Length" },
-                      "processors": [{ "name": "ref:map", "pubns": "payload", "extra": "value" }] },
+                      "processors": [{ "name": "map", "pubns": "payload", "extra": "value" }] },
                     { "name": "Flags", "kind": "group", "members": [
                       { "name": "Mode", "kind": "field", "datatype": "sys.uint8" }
                     ] },
                     { "name": "Items", "kind": "repeat", "count": { "ref": "Root.Status" }, "byteSize": 12,
-                      "valueProcessors": [{ "name": "ref:map", "pubns": "count" }],
+                      "valueProcessors": [{ "name": "map", "pubns": "count" }],
                       "members": [{ "name": "Entry", "kind": "field", "datatype": "Scaled", "byteLength": 2 }] },
                     { "name": "UntilEnd", "kind": "repeat", "byteSize": 4,
                       "members": [{ "name": "Remainder", "kind": "field", "datatype": "sys.uint8" }] },
                     { "name": "Variant", "kind": "choice", "selectedIndex": { "pub": "header.index" },
-                      "valueProcessors": [{ "name": "ref:map" }],
+                      "valueProcessors": [{ "name": "map" }],
                       "members": [{ "name": "Body", "kind": "choice", "memberNodeDef": "BodyType", "pipeline": "isolate" }] }
                   ] }
               ]

@@ -171,7 +171,7 @@ public class XmlSchemaGroup : XmlSchemaNode
     public XmlSchemaValueRef? ByteSizeRef { get; set; }
 }
 
-/// <summary>A named processor declaration: 'name' is used in a 'ref:name' (or 'ref:document.name').</summary>
+/// <summary>A named processor declaration: 'name' is used as 'name' (or 'document.name' from another document).</summary>
 public sealed class XmlSchemaProcessorDef
 {
     [XmlAttribute("name")]
@@ -191,7 +191,7 @@ public sealed class XmlSchemaProcessorDef
     public XmlElement[]? AdditionalElements { get; set; }
 }
 
-/// <summary>A processor key ('namespace.id') or a reference to a processor declaration ('ref:name').</summary>
+/// <summary>A reference to a processor declaration ('name' or 'document.name') or, when no declaration has that name, a processor key ('namespace.id').</summary>
 public sealed class XmlSchemaProcessorRef
 {
     [XmlAttribute("name")]

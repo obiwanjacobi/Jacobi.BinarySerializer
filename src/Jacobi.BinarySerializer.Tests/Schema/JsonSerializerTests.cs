@@ -172,7 +172,7 @@ public class JsonSerializerTests
                     ""name"": ""CommonField"",
                     ""kind"": ""field"",
                     ""processors"": [
-                        { ""name"": ""ref:deltaProcessor"" }
+                        { ""name"": ""deltaProcessor"" }
                     ],
                     ""datatype"": ""sys.int32"",
                     ""properties"": [
@@ -183,14 +183,14 @@ public class JsonSerializerTests
                     ""name"": ""CommonGroup"",
                     ""kind"": ""group"",
                     ""processors"": [
-                        { ""name"": ""ref:rootProcessor"" }
+                        { ""name"": ""rootProcessor"" }
                     ],
                     ""members"": [
                         {
                             ""name"": ""InnerField"",
                             ""kind"": ""field"",
                             ""processors"": [
-                                { ""name"": ""ref:deltaProcessor"" }
+                                { ""name"": ""deltaProcessor"" }
                             ],
                             ""datatype"": ""sys.int16""
                         }
@@ -202,7 +202,7 @@ public class JsonSerializerTests
                     ""name"": ""RootGroup"",
                     ""kind"": ""group"",
                     ""processors"": [
-                        { ""name"": ""ref:rootProcessor"" }
+                        { ""name"": ""rootProcessor"" }
                     ],
                     ""members"": [
                         {
@@ -210,7 +210,7 @@ public class JsonSerializerTests
                             ""nodeDef"": ""CommonField"",
                             ""kind"": ""field"",
                             ""processors"": [
-                                { ""name"": ""ref:deltaProcessor"" }
+                                { ""name"": ""deltaProcessor"" }
                             ],
                             ""datatype"": ""sys.int32""
                         }
@@ -233,8 +233,8 @@ public class JsonSerializerTests
         // Resolver not implemented yet: usage remains as raw references.
         var rootGroup = document.Roots.Single();
         var rootField = rootGroup.Members.OfType<SchemaField>().Single();
-        Assert.That(rootGroup.Processors.Single().Processor.ToString(), Is.EqualTo("ref:rootProcessor"));
-        Assert.That(rootField.Processors.Single().Processor.ToString(), Is.EqualTo("ref:deltaProcessor"));
+        Assert.That(rootGroup.Processors.Single().Processor.ToString(), Is.EqualTo("rootProcessor"));
+        Assert.That(rootField.Processors.Single().Processor.ToString(), Is.EqualTo("deltaProcessor"));
     }
 
     [Test]
@@ -271,7 +271,7 @@ public class JsonSerializerTests
                   "name": "ChoiceGroup",
                   "selectedIndex": 2,
                   "processors": [
-                    { "name": "ref:selectorProcessor" }
+                    { "name": "selectorProcessor" }
                   ],
                   "members": [
                     {
