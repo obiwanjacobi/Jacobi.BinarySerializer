@@ -6,7 +6,7 @@ namespace Jacobi.BinarySerializer.Tests.Processors;
 
 public class ScaleProcessorTests
 {
-    private static SchemaGroup CreateRoot(string scale = "100")
+    private static SchemaGroup CreateRoot(string scale = "0.01")
         => Group("Root", [],
             Field("Temperature", "sys.int32", [Ref("scale", ("scale", scale))]));
 
@@ -20,9 +20,18 @@ public class ScaleProcessorTests
     }
 
     [Test]
+    public void Read_MultipliesTheWireValueByScale()
+    {
+        var (bytes, values) = RoundTrip(CreateRoot("0.1"), new() { ["Root.Temperature"] = 10m });
+
+        Assert.That(bytes, Is.EqualTo(BitConverter.GetBytes(100)));
+        Assert.That(values["Root.Temperature"], Is.EqualTo(10m));
+    }
+
+    [Test]
     public void RoundTrip_NegativeValue()
     {
-        var (bytes, values) = RoundTrip(CreateRoot("10"), new() { ["Root.Temperature"] = -5.5m });
+        var (bytes, values) = RoundTrip(CreateRoot("0.1"), new() { ["Root.Temperature"] = -5.5m });
 
         Assert.That(bytes, Is.EqualTo(BitConverter.GetBytes(-55)));
         Assert.That(values["Root.Temperature"], Is.EqualTo(-5.5m));
@@ -31,7 +40,7 @@ public class ScaleProcessorTests
     [Test]
     public void RoundTrip_ScaleFromDerivedDataType()
     {
-        var def = new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 100m };
+        var def = new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 0.01m };
         var manager = new ProcessorManager();
         manager.Register(new Jacobi.BinarySerializer.Processors.ProcessorFactory());
         var dataTypes = Jacobi.BinarySerializer.Descriptors.DataTypeRegistry.CreateDefault();
@@ -41,7 +50,7 @@ public class ScaleProcessorTests
         }
         dataTypes.RegisterDataTypeDefs([new SchemaDocument { Name = "Doc", DataTypeDefs = [def], NodeDefs = [], ProcessorDefs = [], Includes = [], Roots = [], Groups = [], Fields = [] }]);
 
-        Assert.That(dataTypes.Get(new SchemaName("Doc.Celsius")).Scale, Is.EqualTo(100m));
+        Assert.That(dataTypes.Get(new SchemaName("Doc.Celsius")).Scale, Is.EqualTo(0.01m));
         Assert.That(dataTypes.Get(new SchemaName("Doc.Celsius")).ClrType, Is.EqualTo(dataTypes.Get(new SchemaName("sys.int32")).ClrType));
     }
 
@@ -49,7 +58,7 @@ public class ScaleProcessorTests
     public void RoundTrip_FieldUsingDataTypeDef_ScalesViaFacet()
     {
         var (bytes, value) = RoundTripWithDataType(
-            new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 100m, Processors = [Ref("scale")] },
+            new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 0.01m, Processors = [Ref("scale")] },
             [], 12.34m);
 
         Assert.That(bytes, Is.EqualTo(BitConverter.GetBytes(1234)));
@@ -60,7 +69,7 @@ public class ScaleProcessorTests
     public void RoundTrip_ScaleAndShift_ShiftsBeforeScaling()
     {
         var root = Group("Root", [],
-            Field("Temperature", "sys.int32", [Ref("scale", ("scale", "10"), ("shift", "-40"))]));
+            Field("Temperature", "sys.int32", [Ref("scale", ("scale", "0.1"), ("shift", "-40"))]));
 
         var (bytes, values) = RoundTrip(root, new() { ["Root.Temperature"] = 25.5m });
 
@@ -84,11 +93,11 @@ public class ScaleProcessorTests
     public void Write_ScaleAndShift_RoundsAfterShifting()
     {
         var root = Group("Root", [],
-            Field("Temperature", "sys.int32", [Ref("scale", ("scale", "10"), ("shift", "0.5"))]));
+            Field("Temperature", "sys.int32", [Ref("scale", ("scale", "0.1"), ("shift", "0.5"))]));
 
         var (bytes, values) = RoundTrip(root, new() { ["Root.Temperature"] = 1.27m });
 
-        // (1.27 - 0.5) * 10 = 7.7 -> 8; 8 / 10 + 0.5 = 1.3
+        // (1.27 - 0.5) / 0.1 = 7.7 -> 8; 8 * 0.1 + 0.5 = 1.3
         Assert.That(bytes, Is.EqualTo(BitConverter.GetBytes(8)));
         Assert.That(values["Root.Temperature"], Is.EqualTo(1.3m));
     }
@@ -97,7 +106,7 @@ public class ScaleProcessorTests
     public void RoundTrip_FieldUsingDataTypeDef_ScalesAndShiftsViaFacets()
     {
         var (bytes, value) = RoundTripWithDataType(
-            new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 10m, Shift = -40m, Processors = [Ref("scale")] },
+            new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 0.1m, Shift = -40m, Processors = [Ref("scale")] },
             [], 25.5m);
 
         Assert.That(bytes, Is.EqualTo(BitConverter.GetBytes(655)));
@@ -120,8 +129,8 @@ public class ScaleProcessorTests
     {
         // the processor's own scale wins and the facet's shift is not mixed in
         var (bytes, value) = RoundTripWithDataType(
-            new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 100m, Shift = 5m },
-            [Ref("scale", ("scale", "10"))], 12.3m);
+            new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 0.01m, Shift = 5m },
+            [Ref("scale", ("scale", "0.1"))], 12.3m);
 
         Assert.That(bytes, Is.EqualTo(BitConverter.GetBytes(123)));
         Assert.That(value, Is.EqualTo(12.3m));

@@ -178,7 +178,7 @@ public class BitPackerSerializerTests
     {
         const string fields = """
             { "name": "Level", "kind": "field", "datatype": "sys.uint8", "sys.bitpacker.bits": 4,
-              "processors": [ { "name": "sys.scale", "scale": 10 } ] },
+              "processors": [ { "name": "sys.scale", "scale": 0.1 } ] },
             { "name": "Mode", "kind": "field", "datatype": "sys.uint8", "sys.bitpacker.bits": 4 }
             """;
         var input = Values(("Msg.Header", (byte)1), ("Msg.Flags.Level", 1.5m), ("Msg.Flags.Mode", (byte)3), ("Msg.Trailer", (byte)2));

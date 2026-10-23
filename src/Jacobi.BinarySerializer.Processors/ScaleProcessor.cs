@@ -7,7 +7,7 @@ internal sealed class ScaleProcessor : ProcessorBase, IValueProcessor
     private static readonly PropertyDescriptor ScaleProperty = new("scale", "sys.decimal", false);
     private static readonly PropertyDescriptor ShiftProperty = new("shift", "sys.decimal", false);
 
-    // logical value = raw value / scale + shift
+    // logical value = raw value * scale + shift
     public LogicalField Write(LogicalField logicalValue, ValueProcessorContext context)
     {
         if (logicalValue.Value is null)
@@ -17,7 +17,7 @@ internal sealed class ScaleProcessor : ProcessorBase, IValueProcessor
 
         var (scale, shift) = GetScaleAndShift(context);
         var logical = Convert.ToDecimal(logicalValue.Value, System.Globalization.CultureInfo.InvariantCulture);
-        var raw = Math.Round((logical - shift) * scale, MidpointRounding.AwayFromZero);
+        var raw = Math.Round((logical - shift) / scale, MidpointRounding.AwayFromZero);
         context.Logger.Scaled(context.Field?.Path ?? String.Empty, scale, shift, logical, raw);
 
         return new(logicalValue.Name, typeof(long), Convert.ToInt64(raw));
@@ -33,7 +33,7 @@ internal sealed class ScaleProcessor : ProcessorBase, IValueProcessor
         var (scale, shift) = GetScaleAndShift(context);
         var raw = Convert.ToDecimal(logicalValue.Value, System.Globalization.CultureInfo.InvariantCulture);
 
-        var newValue = (raw/scale) + shift;
+        var newValue = (raw * scale) + shift;
         context.Logger.Scaled(context.Field?.Path ?? String.Empty, scale, shift, raw, newValue);
 
         return new(logicalValue.Name, typeof(decimal), newValue);

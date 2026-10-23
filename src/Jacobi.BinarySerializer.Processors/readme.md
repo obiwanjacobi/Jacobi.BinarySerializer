@@ -20,7 +20,7 @@ The built-in processors of namespace `sys`. Property names are short names as us
 
 ### `sys.scale`
 
-Converts between a raw integer and a scaled logical value: `logical = raw / scale + shift`. Writing multiplies by `scale` and rounds (away from zero) to a `long`; reading divides and yields a `decimal`. A `null` value passes through.
+Converts between a raw integer and a scaled logical value: `logical = raw * scale + shift`. Reading multiplies by `scale` and yields a `decimal`; writing divides and rounds (away from zero) to a `long`. A raw value of `100` with a `scale` of `0.1` reads as `10`. A `null` value passes through.
 
 | Property | Required | Description |
 |----------|----------|-------------|
@@ -113,7 +113,7 @@ Writing also fails when a value does not fit its selected signed or unsigned bit
     { "name": "Enabled", "kind": "field", "datatype": "sys.bool", "bits": 1 },
     { "name": "Mode", "kind": "field", "datatype": "sys.uint8", "bits": 3 },
     { "name": "Level", "kind": "field", "datatype": "sys.uint8", "bits": 3,
-      "processors": [ { "name": "sys.scale", "scale": 2 } ] },
+      "processors": [ { "name": "sys.scale", "scale": 0.5 } ] },
     { "name": "Flag", "kind": "field", "datatype": "sys.bool" }
   ]
 }

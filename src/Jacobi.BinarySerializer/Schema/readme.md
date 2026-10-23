@@ -225,7 +225,7 @@ A `dataTypeDef` derives a new logical data type from an existing one (built-in o
 
 ```xml
 <dataTypeDefs>
-  <dataTypeDef name="Celsius" basedOn="sys.int32" scale="100">
+  <dataTypeDef name="Celsius" basedOn="sys.int32" scale="0.01">
     <processors><processor name="sys.scale" /></processors>
   </dataTypeDef>
 </dataTypeDefs>
@@ -237,7 +237,7 @@ A `dataTypeDef` derives a new logical data type from an existing one (built-in o
 | `name` | Name of the new data type; registered as `Document.Name`. |
 | `basedOn` | The data type it derives from. |
 | `min`, `max` | Allowed logical range (facet). |
-| `scale`, `shift` | Logical = physical / scale (+ shift) (facet). Used by `sys.scale` when it has no `scale` property. |
+| `scale`, `shift` | Logical = physical * scale (+ shift) (facet). Used by `sys.scale` when it has no `scale` property. |
 | `options` | Allowed physical values mapped to names (facet; not consumed by a built-in processor yet). |
 | `processors`, `properties` | Merged into every field that uses the data type (base chain first, then the field's own). |
 
