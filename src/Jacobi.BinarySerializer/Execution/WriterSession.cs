@@ -96,7 +96,7 @@ internal sealed class WriterSession : SessionState
         var cursor = new PlanCursor<IValueSource>(root, range, EngineLogger);
         while (true)
         {
-            if (cursor.AtOpenRepeat && ProbeEndOfData(source, cursor))
+            if (cursor.AtOpenRepeat && EndsOpenRepeat(cursor))
             {
                 cursor.CloseRepeat();
             }
@@ -115,7 +115,7 @@ internal sealed class WriterSession : SessionState
                         {
                             if (group is RepeatInfo { UntilEnd: true } openRoot)
                             {
-                                if (source is FieldSourceAdapter)
+                                if (source is FieldSourceAdapter or IOpenRepeatSource)
                                 {
                                     cursor.EnterOpenRepeat(source);
                                 }
@@ -151,7 +151,7 @@ internal sealed class WriterSession : SessionState
                                 cursor.Enter(source);
                             }
                         }
-                        else if (group is RepeatInfo { UntilEnd: true } flatRepeat && step.Scope is FieldSourceAdapter)
+                        else if (group is RepeatInfo { UntilEnd: true } flatRepeat && step.Scope is FieldSourceAdapter or IOpenRepeatSource)
                         {
                             EngineLogger.RepeatCount(flatRepeat.Path.ToString(), -1);
                             cursor.EnterOpenRepeat(step.Scope);
@@ -394,7 +394,32 @@ internal sealed class WriterSession : SessionState
         }
     }
 
-    private bool ProbeEndOfData(IValueSource source, PlanCursor<IValueSource> cursor)
+    // asks the scope that holds the repeat (IOpenRepeatSource) or falls back to the EndOfData probe.
+    private bool EndsOpenRepeat(PlanCursor<IValueSource> cursor)
+    {
+        var scope = cursor.CurrentScope;
+        if (scope is IOpenRepeatSource openSource)
+        {
+            var context = new OpenRepeatContext
+            {
+                Node = cursor.CurrentGroup!,
+                Services = _services,
+                Instance = cursor.Instance,
+                Index = cursor.NextItemIndex,
+            };
+            switch (openSource.NextItem(context))
+            {
+                case OpenRepeatAction.Next:
+                    return false;
+                case OpenRepeatAction.End:
+                    return true;
+            }
+        }
+        return ProbeEndOfData(scope, cursor);
+    }
+
+    // probes the first field of the next item on the scope that holds the repeat.
+    private bool ProbeEndOfData(IValueSource scope, PlanCursor<IValueSource> cursor)
     {
         GroupInfo node = cursor.CurrentGroup!;
         while (node is not RepeatInfo || ReferenceEquals(node, cursor.CurrentGroup))
@@ -403,7 +428,7 @@ internal sealed class WriterSession : SessionState
             if (first is FieldInfo field)
             {
                 var context = new FieldContext { Node = field, Services = _services, Instance = cursor.Instance.Append(cursor.NextItemIndex) };
-                return source.GetField(context).Status == SourceStatus.EndOfData;
+                return scope.GetField(context).Status == SourceStatus.EndOfData;
             }
             if (first is not GroupInfo child || first is ChoiceInfo)
             {

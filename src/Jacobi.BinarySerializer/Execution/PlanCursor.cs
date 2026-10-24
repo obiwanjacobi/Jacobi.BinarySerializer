@@ -298,6 +298,9 @@ internal sealed class PlanCursor<TScope>
     /// <summary>True when the next step is the start of an item (or the end) of a repeat without a count.</summary>
     public bool AtOpenRepeat => _pendingEnter is null && _frames.Count > 0 && _frames.Peek() is { Open: true };
 
+    /// <summary>The scope of the current frame (for a repeat frame: the scope that holds the repeat).</summary>
+    public TScope CurrentScope => _frames.Peek().Scope;
+
     /// <summary>The index the next item of the current repeat frame will get.</summary>
     public int NextItemIndex => _frames.Peek().Iteration + 1;
 

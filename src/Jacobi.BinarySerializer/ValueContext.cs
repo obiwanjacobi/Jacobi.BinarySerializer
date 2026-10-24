@@ -1,3 +1,4 @@
+using System.Buffers;
 using Jacobi.BinarySerializer.Execution;
 using Jacobi.BinarySerializer.Schema;
 
@@ -53,4 +54,49 @@ public sealed class OpenChoiceContext : ValueContext
     /// The nodeDef (contract) the selected group must conform to.
     /// </summary>
     public SchemaName? MemberNodeDef => ((SchemaChoice)Choice.Group).MemberNodeDef;
+}
+
+/// <summary>
+/// Describes the next item of an open repeat (a repeat without a count).
+/// <see cref="ValueContext.Instance"/> is the instance of the repeat itself; <see cref="Index"/> is the item the decision is for.
+/// </summary>
+public class OpenRepeatContext : ValueContext
+{
+    public RepeatInfo Repeat => (RepeatInfo)Node;
+
+    /// <summary>The index of the item the decision is for (also the number of items so far).</summary>
+    public required int Index { get; init; }
+}
+
+/// <summary>
+/// Describes the next item of an open repeat while reading. It gives a view of the input that is left,
+/// so the model can decide on a terminator or sentinel before that item is read.
+/// </summary>
+public sealed class OpenRepeatReadContext : OpenRepeatContext
+{
+    /// <summary>The physical bytes left before the readable end (enclosing size windows and reserved layout tails taken into account).</summary>
+    public required long Remaining { get; init; }
+
+    /// <summary>True when the engine's own rule would end the repeat here (what <see cref="OpenRepeatAction.Default"/> does).</summary>
+    public required bool AtDefaultEnd { get; init; }
+
+    /// <summary>The unread physical input up to the readable end; null when peeking is not reliable.</summary>
+    internal ReadOnlySequence<byte>? Input { get; init; }
+
+    /// <summary>
+    /// Peeks at the next physical bytes without consuming them, bounded by the readable end.
+    /// Returns false when peeking is not reliable at this point (a layout processor holds buffered input for the repeat's scope).
+    /// Fewer bytes than asked means the end of the data (the message is complete).
+    /// </summary>
+    public bool TryPeek(int count, out ReadOnlySequence<byte> bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        if (Input is not { } input)
+        {
+            bytes = default;
+            return false;
+        }
+        bytes = input.Slice(0, Math.Min(count, input.Length));
+        return true;
+    }
 }

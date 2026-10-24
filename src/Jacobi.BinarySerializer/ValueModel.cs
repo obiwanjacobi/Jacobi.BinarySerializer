@@ -55,7 +55,7 @@ public interface IValueSink
     /// <summary>Enters a child group of this scope.</summary>
     IValueSink EnterGroup(GroupContext context);
 
-    /// <summary>Enters one item of a child repeat. <paramref name="count"/> is the resolved item count.</summary>
+    /// <summary>Enters one item of a child repeat. <paramref name="count"/> is the resolved item count, or -1 for a repeat without a count (not known up front).</summary>
     IValueSink EnterItem(RepeatContext context, int index, int count);
 
     /// <summary>Enters a child choice with the resolved alternative index.</summary>
@@ -69,6 +69,7 @@ public interface IValueSink
 
     /// <summary>
     /// Called when a repeat item scope is exhausted, on the scope that was returned by EnterItem.
+    /// <paramref name="count"/> is the resolved item count, or -1 for a repeat without a count.
     /// </summary>
     void ExitItem(RepeatContext context, int index, int count);
 
@@ -118,4 +119,44 @@ public interface IOpenChoiceSink : IValueSink
     /// Selects the group for a child open choice (based on values already seen) and enters its scope.
     /// </summary>
     OpenChoiceSinkResult EnterOpenChoice(OpenChoiceContext context);
+}
+
+/// <summary>
+/// The value model's decision for the next item of an open repeat (a repeat without a count).
+/// </summary>
+public enum OpenRepeatAction
+{
+    /// <summary>Let the engine decide with its own rules (end of data/window on read, GetCount/EndOfData probe on write).</summary>
+    Default,
+    /// <summary>There is another item: enter it.</summary>
+    Next,
+    /// <summary>No more items: end the repeat and continue with the next sibling.</summary>
+    End,
+}
+
+/// <summary>
+/// Optional extension of <see cref="IValueSource"/> for models that decide when an open repeat ends.
+/// Implemented by the scope that holds the repeat (the parent scope, or the root for a root repeat).
+/// </summary>
+public interface IOpenRepeatSource : IValueSource
+{
+    /// <summary>
+    /// Called before each item of a child open repeat (including the first) to decide if the item is written.
+    /// The engine then does not ask <see cref="IValueSource.GetCount"/> for the repeat.
+    /// </summary>
+    OpenRepeatAction NextItem(OpenRepeatContext context);
+}
+
+/// <summary>
+/// Optional extension of <see cref="IValueSink"/> for models that decide when an open repeat ends.
+/// Implemented by the scope that holds the repeat (the parent scope, or the root for a root repeat).
+/// </summary>
+public interface IOpenRepeatSink : IValueSink
+{
+    /// <summary>
+    /// Called before each item of a child open repeat (including the first) to decide if another item is read.
+    /// The model has already received the values of the previous items, so it can stop after a terminating item (e.g. PNG IEND, MIDI End of Track)
+    /// or, by peeking, before a terminator that a sibling node reads (e.g. a 0x00 end marker).
+    /// </summary>
+    OpenRepeatAction NextItem(OpenRepeatReadContext context);
 }

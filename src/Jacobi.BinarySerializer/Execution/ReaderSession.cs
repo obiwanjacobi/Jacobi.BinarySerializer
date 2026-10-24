@@ -131,7 +131,7 @@ internal sealed class ReaderSession : SessionState
         var cursor = new PlanCursor<IValueSink>(root, range, EngineLogger);
         while (true)
         {
-            if (cursor.AtOpenRepeat && AtOpenRepeatEnd(ref reader, (RepeatInfo)cursor.CurrentGroup!))
+            if (cursor.AtOpenRepeat && EndsOpenRepeat(ref reader, cursor))
             {
                 cursor.CloseRepeat();
             }
@@ -314,10 +314,42 @@ internal sealed class ReaderSession : SessionState
         }
     }
 
+    // asks the scope that holds the repeat (IOpenRepeatSink) or falls back to the engine's own rule.
+    private bool EndsOpenRepeat(ref SequenceReader<byte> reader, PlanCursor<IValueSink> cursor)
+    {
+        var repeat = (RepeatInfo)cursor.CurrentGroup!;
+        var atEnd = AtOpenRepeatEnd(ref reader, repeat);
+        if (cursor.CurrentScope is not IOpenRepeatSink openSink)
+        {
+            return atEnd;
+        }
+
+        var remaining = Math.Max(0, ReadableEnd(ref reader) - reader.Consumed);
+        var context = new OpenRepeatReadContext
+        {
+            Node = repeat,
+            Services = _services,
+            Instance = cursor.Instance,
+            Index = cursor.NextItemIndex,
+            Remaining = remaining,
+            AtDefaultEnd = atEnd,
+            Input = HasBufferedLayoutInput(repeat) ? null : reader.UnreadSequence.Slice(0, remaining),
+        };
+        return openSink.NextItem(context) switch
+        {
+            OpenRepeatAction.Next => false,
+            OpenRepeatAction.End => true,
+            _ => atEnd,
+        };
+    }
+
+    private bool HasBufferedLayoutInput(RepeatInfo repeat)
+        => repeat.Pipeline.LayoutProcessors.Any(binding => _layoutContext.BufferedInputs.GetValueOrDefault(binding)
+            || _layoutInputs.TryGetValue(binding, out var input) && input.Remaining > 0);
+
     private bool AtOpenRepeatEnd(ref SequenceReader<byte> reader, RepeatInfo repeat)
     {
-        if (repeat.Pipeline.LayoutProcessors.Any(binding => _layoutContext.BufferedInputs.GetValueOrDefault(binding)
-            || _layoutInputs.TryGetValue(binding, out var input) && input.Remaining > 0))
+        if (HasBufferedLayoutInput(repeat))
         {
             return false;
         }
