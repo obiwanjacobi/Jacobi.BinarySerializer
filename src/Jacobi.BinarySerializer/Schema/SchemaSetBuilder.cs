@@ -739,7 +739,7 @@ public sealed class SchemaSetBuilder
             Name = property.Name,
             Value = property.Value
         }).ToList();
-        var nodeDef = Qualify(node.NodeDef, documentName);
+        var nodeDef = node.NodeDef?.Qualify(documentName);
         if (node is SchemaField field)
         {
             return new SchemaField
@@ -747,7 +747,7 @@ public sealed class SchemaSetBuilder
                 Name = node.Name,
                 NodeDef = nodeDef,
                 PropertyList = properties,
-                DataType = Qualify(field.DataType, documentName),
+                DataType = field.DataType?.Qualify(documentName),
                 Value = CloneValue(field.Value),
                 ByteLength = CloneValue(field.ByteLength),
                 ByteOffset = field.ByteOffset,
@@ -773,7 +773,7 @@ public sealed class SchemaSetBuilder
                 Name = node.Name, NodeDef = nodeDef, PropertyList = properties,
                 MemberList = members, ProcessorsList = processors, ByteSize = byteSize,
                 SelectedIndex = CloneValue(choice.SelectedIndex),
-                MemberNodeDef = Qualify(choice.MemberNodeDef, documentName),
+                MemberNodeDef = choice.MemberNodeDef?.Qualify(documentName),
                 PipelineOverride = choice.PipelineOverride,
                 ValueProcessorsList = CloneProcessors(choice.ValueProcessors, documentName)
             },
@@ -794,15 +794,10 @@ public sealed class SchemaSetBuilder
         _ => default
     };
 
-    private static SchemaName? Qualify(SchemaName? name, string? documentName)
-        => name is { } value && documentName is not null && String.IsNullOrEmpty(value.Namespace)
-            ? new SchemaName($"{documentName}.{value.Name}")
-            : name;
-
     private static List<SchemaProcessorRef> CloneProcessors(IEnumerable<SchemaProcessorRef> processors, string? documentName)
         => processors.Select(processor => new SchemaProcessorRef
         {
-            Processor = Qualify(processor.Processor, documentName)!.Value,
+            Processor = processor.Processor.Qualify(documentName),
             PublishNamespace = processor.PublishNamespace,
             PropertyList = processor.Properties.Select(property => new SchemaProperty
             {
@@ -841,18 +836,6 @@ public sealed class SchemaSetBuilder
 
 internal static class SchemaDocumentExtensions
 {
-    public static bool TryFindNodeDef(this SchemaDocument document, SchemaName schemaName, [NotNullWhen(true)] out SchemaNode? node)
-    {
-        if (String.IsNullOrEmpty(schemaName.Namespace))
-        {
-            node = document.NodeDefs.FirstOrDefault(n => String.Equals(n.Name, schemaName.Name, StringComparison.OrdinalIgnoreCase));
-            return node != null;
-        }
-
-        node = null;
-        return false;
-    }
-
     public static bool TryFindProcessorDef(this SchemaDocument document, string name, [NotNullWhen(true)] out SchemaProcessorDef? processorDef)
     {
         processorDef = document.ProcessorDefs.FirstOrDefault(n => String.Equals(n.Name, name, StringComparison.OrdinalIgnoreCase));

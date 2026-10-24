@@ -241,13 +241,13 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             var (group, ns) = work.Dequeue();
             foreach (var choice in FindOpenChoices(group))
             {
-                var contract = Qualify(((SchemaChoice)choice.Group).MemberNodeDef!.Value, ns);
+                var contract = ((SchemaChoice)choice.Group).MemberNodeDef!.Value.Qualify(ns);
                 var bodies = new Dictionary<SchemaName, GroupInfo>();
                 foreach (var document in schemas.Documents)
                 {
                     foreach (var candidate in document.Roots)
                     {
-                        if (candidate.NodeDef is not { } nodeDef || Qualify(nodeDef, document.Name) != contract)
+                        if (candidate.NodeDef is not { } nodeDef || nodeDef.Qualify(document.Name) != contract)
                         {
                             continue;
                         }
@@ -274,11 +274,6 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         }
         return result;
     }
-
-    private static SchemaName Qualify(SchemaName name, string? ns)
-        => String.IsNullOrEmpty(name.Namespace) && !String.IsNullOrEmpty(ns)
-            ? new SchemaName($"{ns}{SchemaName.Separator}{name.Name}")
-            : name;
 
     private static IEnumerable<ChoiceInfo> FindOpenChoices(GroupInfo group)
     {

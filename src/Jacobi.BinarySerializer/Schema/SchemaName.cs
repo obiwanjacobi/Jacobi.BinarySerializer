@@ -32,6 +32,12 @@ public readonly struct SchemaName
     public string FullName
         => String.IsNullOrEmpty(Namespace) ? Name : $"{Namespace}.{Name}";
 
+    /// <summary>The name in namespace <paramref name="ns"/> when it has no namespace of its own; otherwise the name itself.</summary>
+    public SchemaName Qualify(string? ns)
+        => String.IsNullOrEmpty(Namespace) && !String.IsNullOrEmpty(ns)
+            ? new SchemaName($"{ns}{Separator}{Name}")
+            : this;
+
     /// <summary>The processor this name designates. Not valid for names without a namespace.</summary>
     public ProcessorKey ToProcessorKey()
         => String.IsNullOrEmpty(Namespace)
