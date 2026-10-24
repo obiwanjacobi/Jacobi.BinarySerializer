@@ -321,6 +321,10 @@ internal sealed class ReaderSession : SessionState
         var atEnd = AtOpenRepeatEnd(ref reader, repeat);
         if (cursor.CurrentScope is not IOpenRepeatSink openSink)
         {
+            if (!repeat.EndsAtInputEnd)
+            {
+                throw EngineLogger.Fail($"'{repeat.Path}': a repeat without a count that is followed by other nodes requires a value model that implements {nameof(IOpenRepeatSink)}.");
+            }
             return atEnd;
         }
 
@@ -339,6 +343,8 @@ internal sealed class ReaderSession : SessionState
         {
             OpenRepeatAction.Next => false,
             OpenRepeatAction.End => true,
+            _ when !repeat.EndsAtInputEnd => throw EngineLogger.Fail(
+                $"'{repeat.Path}': the value model answered {nameof(OpenRepeatAction.Default)} for a repeat without a count that is followed by other nodes; it must answer {nameof(OpenRepeatAction.Next)} or {nameof(OpenRepeatAction.End)}."),
             _ => atEnd,
         };
     }

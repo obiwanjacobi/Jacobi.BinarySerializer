@@ -33,13 +33,37 @@ public class SessionRepeatUntilEndTests
     }
 
     [Test]
-    public void Build_RepeatWithoutCountNotLast_ReportsError()
+    public void Read_RepeatWithoutCountNotLastWithoutOpenRepeatSink_Throws()
     {
-        var root = Group("Root", [], Items(), Field("Tail", "sys.uint8"));
+        var plan = Build(Group("Root", [], Items(), Field("Tail", "sys.uint8")));
 
-        var ex = Assert.Throws<ExecutionPlanException>(() => Build(root));
+        Assert.That(() => new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 1, 2 }), new Sink()),
+            Throws.Exception.With.Message.Contain("Root.Items").And.Message.Contain(nameof(IOpenRepeatSink)));
+    }
 
-        Assert.That(ex!.Message, Does.Contain("Root.Items").And.Contain("last"));
+    [Test]
+    public void Read_RepeatWithoutCountLastOfGroupNotLast_Throws()
+    {
+        // the repeat is last of 'Body', but 'Body' is followed by 'Tail'
+        var plan = Build(Group("Root", [], Group("Body", [], Field("Head", "sys.uint8"), Items()), Field("Tail", "sys.uint8")));
+
+        Assert.That(() => new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 1, 2 }), new Sink()),
+            Throws.Exception.With.Message.Contain("Root.Body.Items"));
+    }
+
+    [Test]
+    public void Read_RepeatWithoutCountLastInSizedGroupNotLast_ReadsUntilWindowEnd()
+    {
+        var body = new SchemaGroup { Name = "Body", ByteSize = 3 };
+        body.MemberList.Add(Field("Head", "sys.uint8"));
+        body.MemberList.Add(Items());
+        var plan = Build(Group("Root", [], body, Field("Tail", "sys.uint8")));
+        var sink = new Sink();
+
+        var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 1, 2, 3, 4 }), sink);
+
+        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That(sink.Count, Is.EqualTo(4));
     }
 
     [Test]
@@ -69,16 +93,25 @@ public class SessionRepeatUntilEndTests
     }
 
     [Test]
-    public void Build_ChoiceWithOpenAlternativeNotLast_ReportsError()
+    public void Build_ChoiceWithOpenAlternativeNotLast_Succeeds()
     {
         var choice = new SchemaChoice { Name = "Pick", SelectedIndex = 0 };
         choice.MemberList.Add(Items());
         choice.MemberList.Add(Field("Other", "sys.uint8"));
-        var root = Group("Root", [], choice, Field("Tail", "sys.uint8"));
 
-        var ex = Assert.Throws<ExecutionPlanException>(() => Build(root));
+        Assert.That(() => Build(Group("Root", [], choice, Field("Tail", "sys.uint8"))), Throws.Nothing);
+    }
 
-        Assert.That(ex!.Message, Does.Contain("Root.Pick"));
+    [Test]
+    public void Build_BytesWithoutLengthNotLast_ReportsError()
+    {
+        var body = new SchemaGroup { Name = "Body", ByteSize = 4 };
+        body.MemberList.Add(Field("Data", "sys.bytes"));
+        body.MemberList.Add(Field("Tail", "sys.uint8"));
+
+        var ex = Assert.Throws<ExecutionPlanException>(() => Build(Group("Root", [], body)));
+
+        Assert.That(ex!.Message, Does.Contain("Root.Body.Data").And.Contain("last"));
     }
 
     [Test]

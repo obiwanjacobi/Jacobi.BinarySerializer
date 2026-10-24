@@ -97,6 +97,16 @@ public sealed class RepeatInfo : GroupInfo
     /// True when the schema gives no count: the repeat runs until the end of the input.
     /// </summary>
     public bool UntilEnd => Count is not (int or PublishedValueKey);
+
+    /// <summary>
+    /// True when the engine can end a repeat without a count by itself: it has a size, or nothing follows it up to the end of the input or of an enclosing size window.
+    /// Otherwise (an open repeat followed by other nodes) the value model must end it on read (<see cref="IOpenRepeatSink"/>).
+    /// </summary>
+    public bool EndsAtInputEnd => UntilEnd && (HasByteSize || IsLast(this));
+
+    private static bool IsLast(NodeInfo node)
+        => node.Parent is not { } parent
+            || (parent is ChoiceInfo || node.Index == parent.Members.Count - 1) && (parent.HasByteSize || IsLast(parent));
 }
 
 public sealed class ChoiceInfo : GroupInfo

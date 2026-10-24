@@ -120,6 +120,51 @@ public class SessionOpenRepeatModelTests
         Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 9 }));
     }
 
+    private static SchemaGroup MidRoot()
+    {
+        var repeat = new SchemaRepeat { Name = "Items" };
+        repeat.MemberList.Add(Field("Byte", "sys.uint8"));
+        return Group("Root", [], Field("Head", "sys.uint8"), repeat, Field("Tail", "sys.uint8"));
+    }
+
+    [Test]
+    public void Read_OpenRepeatInTheMiddle_SinkEndsBeforeTerminatorSibling()
+    {
+        var sink = new Sink((context, items) =>
+        {
+            Assert.That(context.TryPeek(1, out var next), Is.True);
+            return next.FirstSpan[0] == 0 ? OpenRepeatAction.End : OpenRepeatAction.Next;
+        });
+        var session = new ReaderSession(Build(MidRoot()));
+
+        var result = session.Read(new ReadOnlySequence<byte>(new byte[] { 9, 1, 2, 0 }), sink);
+
+        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That(sink.Items, Is.EqualTo(new byte[] { 1, 2 }));
+        Assert.That(sink.Tail, Is.EqualTo(0));
+        Assert.That(session.BytesRead, Is.EqualTo(4));
+    }
+
+    [Test]
+    public void Read_OpenRepeatInTheMiddle_SinkAnswersDefault_Throws()
+    {
+        var sink = new Sink((context, items) => OpenRepeatAction.Default);
+
+        Assert.That(() => new ReaderSession(Build(MidRoot())).Read(new ReadOnlySequence<byte>(new byte[] { 9, 1, 0 }), sink),
+            Throws.Exception.With.Message.Contain("Root.Items").And.Message.Contain(nameof(OpenRepeatAction.Default)));
+    }
+
+    [Test]
+    public void Write_OpenRepeatInTheMiddle_WritesSiblingAfterItems()
+    {
+        var output = new ArrayBufferWriter<byte>();
+
+        var result = new WriterSession(Build(MidRoot()), output).Write(new Source([1, 2], [], tail: 0));
+
+        Assert.That(result, Is.EqualTo(WriteResult.Success));
+        Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 9, 1, 2, 0 }));
+    }
+
     [Test]
     public void Read_OpenRepeatItems_GetUnknownCount()
     {
@@ -150,6 +195,7 @@ public class SessionOpenRepeatModelTests
         public List<byte> Items { get; } = [];
         // the counts EnterItem and ExitItem received, in call order.
         public List<int> Counts { get; } = [];
+        public byte? Tail { get; private set; }
 
         public OpenRepeatAction NextItem(OpenRepeatReadContext context) => decide(context, Items);
 
@@ -158,6 +204,10 @@ public class SessionOpenRepeatModelTests
             if (context.Path == "Root.Items.Byte")
             {
                 Items.Add((byte)value.Value!);
+            }
+            else if (context.Path == "Root.Tail")
+            {
+                Tail = (byte)value.Value!;
             }
         }
 
@@ -174,7 +224,7 @@ public class SessionOpenRepeatModelTests
         public void ExitChoice(ChoiceContext context, int selectedIndex) { }
     }
 
-    private sealed class Source(byte[] items, List<int> indexes) : IOpenRepeatSource
+    private sealed class Source(byte[] items, List<int> indexes, byte tail = 0) : IOpenRepeatSource
     {
         private int _item = -1;
 
@@ -188,6 +238,7 @@ public class SessionOpenRepeatModelTests
         {
             "Root.Head" => SourceResult.Provided(new LogicalField("Head", typeof(byte), (byte)9)),
             "Root.Items.Byte" => SourceResult.Provided(new LogicalField("Byte", typeof(byte), items[_item])),
+            "Root.Tail" => SourceResult.Provided(new LogicalField("Tail", typeof(byte), tail)),
             _ => SourceResult.NoValue(),
         };
 

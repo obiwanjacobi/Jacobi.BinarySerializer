@@ -77,7 +77,10 @@ public sealed class OpenRepeatReadContext : OpenRepeatContext
     /// <summary>The physical bytes left before the readable end (enclosing size windows and reserved layout tails taken into account).</summary>
     public required long Remaining { get; init; }
 
-    /// <summary>True when the engine's own rule would end the repeat here (what <see cref="OpenRepeatAction.Default"/> does).</summary>
+    /// <summary>
+    /// True when the engine's own rule (end of the input or size window) would end the repeat here (what <see cref="OpenRepeatAction.Default"/> does).
+    /// Default is not allowed for a repeat that is followed by other nodes (<see cref="RepeatInfo.EndsAtInputEnd"/> is false).
+    /// </summary>
     public required bool AtDefaultEnd { get; init; }
 
     /// <summary>The unread physical input up to the readable end; null when peeking is not reliable.</summary>

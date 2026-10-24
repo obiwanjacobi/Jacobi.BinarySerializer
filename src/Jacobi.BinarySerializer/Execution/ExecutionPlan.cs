@@ -451,9 +451,9 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
 
         for (var i = 0; i < members.Count; i++)
         {
-            if (info is not ChoiceInfo && i < members.Count - 1 && IsOpenEnded(members[i]))
+            if (info is not ChoiceInfo && i < members.Count - 1 && TakesRestOfWindow(members[i]))
             {
-                state.Error(members[i].Path, "A node that reads until the end of the input or size window (a repeat without a count or size, a bytes field without a length, or a group or choice that ends in one) must be the last node of its group.");
+                state.Error(members[i].Path, "A node that takes the rest of the size window (a bytes field without a length, or a group or choice that ends in one) must be the last node of its group.");
             }
             members[i].Parent = info;
             members[i].Index = i;
@@ -492,14 +492,15 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         }
     }
 
-    private static bool IsOpenEnded(NodeInfo node)
+    // a repeat without a count may be followed by other nodes: the value model ends it (checked when reading).
+    private static bool TakesRestOfWindow(NodeInfo node)
         => node switch
         {
             GroupInfo { HasByteSize: true } => false,
             FieldInfo { DataType.TakesRestOfWindow: true, HasByteLength: false } => true,
-            RepeatInfo repeat => repeat.UntilEnd,
-            ChoiceInfo choice => choice.Members.Any(IsOpenEnded),
-            GroupInfo group => group.Members.Count > 0 && IsOpenEnded(group.Members[^1]),
+            RepeatInfo => false,
+            ChoiceInfo choice => choice.Members.Any(TakesRestOfWindow),
+            GroupInfo group => group.Members.Count > 0 && TakesRestOfWindow(group.Members[^1]),
             _ => false,
         };
 

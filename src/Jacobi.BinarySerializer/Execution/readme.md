@@ -67,13 +67,14 @@ On read, `OpenRepeatReadContext` gives the next item's `Index`, the `Remaining` 
 
 On write, a scope that implements `IOpenRepeatSource` is not asked `GetCount` for an open repeat; `Default` falls back to the `EndOfData` probe.
 
-Without these interfaces the rules below apply.
+Without these interfaces the rules below apply; a repeat that the engine cannot end by itself then fails to read.
 
 ### Plan building
 
-- **Last in its group.** A node that reads until the end of the input or size window must be the last member of its group; otherwise plan building reports an error. This does not apply to the members of a choice (they are alternatives, not a sequence).
-- **Open-endedness propagates.** A node is open-ended when it is a repeat without a count, a bytes field without a `byteLength`, a group whose last member is open-ended, or a choice with any open-ended alternative.
-- **A `byteSize` bounds it.** A group, repeat or choice with a `byteSize` is never open-ended. A count-less repeat with a `byteSize` repeats until that window is full and may be followed by other members.
+- **Anywhere in the schema.** An open repeat may be followed by other nodes. Plan building accepts it; the reader checks at runtime who ends it (see `RepeatInfo.EndsAtInputEnd`).
+- **Engine can end it** when the repeat has a `byteSize`, or nothing follows it up to the end of the input or of an enclosing size window: it is the last member of its group (or a choice alternative), and so is every enclosing group up to the root or a group with a `byteSize`.
+- **Model must end it** in every other case: the scope that holds it must implement `IOpenRepeatSink` and answer `Next` or `End`. Without the interface, or on a `Default` answer, the read fails naming the repeat path. Writing has no such restriction.
+- **Bytes without a length** still must be last: a bytes field without a `byteLength` (or a group or choice that ends in one) takes the rest of the size window, so plan building reports an error when it is followed by other members. This does not apply to the members of a choice (they are alternatives, not a sequence).
 
 ### Read
 
