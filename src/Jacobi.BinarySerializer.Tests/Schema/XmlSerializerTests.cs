@@ -360,7 +360,7 @@ public class XmlSerializerTests
         var xml = """
             <schema name="DefSchema">
               <dataTypeDefs>
-                <dataTypeDef name="Celsius" basedOn="sys.int16" min="-40" max="125" scale="10">
+                <dataTypeDef name="Celsius" basedOn="sys.int16" min="-40" max="125" scale="10" valueType="sys.string" optionsDefault="Unknown">
                   <options><option value="1" name="One" /></options>
                   <processors><processor name="sys.scale" /></processors>
                 </dataTypeDef>
@@ -379,10 +379,12 @@ public class XmlSerializerTests
         {
             Assert.That(def.Name, Is.EqualTo("Celsius"));
             Assert.That(def.BasedOn.FullName, Is.EqualTo("sys.int16"));
-            Assert.That(def.Min, Is.EqualTo(-40m));
-            Assert.That(def.Max, Is.EqualTo(125m));
+            Assert.That(def.Min, Is.EqualTo("-40"));
+            Assert.That(def.Max, Is.EqualTo("125"));
             Assert.That(def.Scale, Is.EqualTo(10m));
-            Assert.That(def.Options![1], Is.EqualTo("One"));
+            Assert.That(def.Options!["1"], Is.EqualTo("One"));
+            Assert.That(def.ValueType?.FullName, Is.EqualTo("sys.string"));
+            Assert.That(def.OptionsDefault, Is.EqualTo("Unknown"));
             Assert.That(def.Processors, Has.Count.EqualTo(1));
         }
     }

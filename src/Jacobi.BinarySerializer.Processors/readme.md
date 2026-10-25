@@ -23,11 +23,11 @@ The built-in processors of namespace `sys`. Property names are short names as us
 
 Applies all facets of the field's data type (a `dataTypeDef`), so a custom data type works without declaring processors. The plan builder adds it to every field whose data type has facets and that has no semantic processor of its own (declared on the field or its data type chain, or inherited from its group). A representation processor such as `sys.varint` keeps it. It has no properties.
 
-- `options`: reading maps the physical value to its name (an unknown value is an error); writing accepts a name or one of the option values. Cannot be combined with `scale`/`shift`.
+- `options`: reading maps the physical value to its logical value (of the `valueType`, default `sys.string`); an unknown physical value reads as `optionsDefault`, or is an error without one. Writing maps the logical value back to its physical value; a physical value is not accepted. The `optionsDefault` cannot be written (it has no physical value). Cannot be combined with `scale`/`shift`.
 - `scale`, `shift`: as `sys.scale`: `logical = physical * scale + shift`; reading yields a `decimal`, writing rounds (away from zero) to a `long`.
-- `min`, `max`: the logical numeric value (the physical value with `options`) must be in range on write and read.
+- `min`, `max`: the logical value (converted to the `valueType`) must be in range on write and read; with `options` that is the option value (or the `optionsDefault`). Strings compare ordinal, other types with `IComparable`.
 
-A `null` value passes through; a value without scale/shift/options keeps its type.
+A `null` value passes through. Writing yields a value of the physical type of the data type; the engine converts between the result and the `valueType` of the data type.
 
 ### `sys.scale`
 

@@ -322,7 +322,8 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
     {
         var processors = BindProcessors(field.Processors, path, state);
         var fieldPipeline = CreatePipeline(parentPipeline, processors);
-        if (fieldPipeline.ValueProcessors.Count == 0 && BindDataTypeProcessor(field, path, state) is { } dataTypeProcessor)
+        var declaresSemantics = fieldPipeline.ValueProcessors.Count > 0;
+        if (!declaresSemantics && BindDataTypeProcessor(field, path, state) is { } dataTypeProcessor)
         {
             fieldPipeline = CreatePipeline(parentPipeline, [.. processors, dataTypeProcessor]);
         }
@@ -334,7 +335,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         {
             ValidateLayoutChain(fieldPipeline.LayoutProcessors, path, state);
         }
-        return BuildFieldInfo(field, path, fieldPipeline, state);
+        return BuildFieldInfo(field, path, fieldPipeline, declaresSemantics, state);
     }
 
     /// <summary>
@@ -357,7 +358,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
 
     private static readonly ProcessorKey DataTypeProcessorKey = new("sys", "datatype");
 
-    private FieldInfo? BuildFieldInfo(SchemaField field, SchemaPath path, ProcessorPipeline fieldPipeline, BuildState state)
+    private FieldInfo? BuildFieldInfo(SchemaField field, SchemaPath path, ProcessorPipeline fieldPipeline, bool declaresSemantics, BuildState state)
     {
         var length = BindValueSource(field.ByteLength, path, state);
         if (field.DataType is not { } fieldDataType)
@@ -378,16 +379,19 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         {
             state.Error(path, $"The length {constantLength} does not match the {fixedSize} bytes of a {dataType} field; a field processor is needed to represent it.");
         }
+        var valueType = declaresSemantics ? null : dataType.ValueType;
         return new FieldInfo
         {
             Name = field.Name,
             Path = path,
             Field = field,
             DataType = dataType,
+            ValueType = valueType,
             Pipeline = fieldPipeline,
             ByteLength = length,
             ByteOffset = field.ByteOffset,
-            ConstantValue = BindConstant(field, dataType, path, state),
+            // the constant is a logical value
+            ConstantValue = BindConstant(field, valueType ?? dataType, path, state),
             ValueReference = BindValueReference(field, path, state),
         };
     }

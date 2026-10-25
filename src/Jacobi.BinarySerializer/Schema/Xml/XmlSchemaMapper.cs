@@ -82,6 +82,8 @@ internal static class XmlSchemaMapper
         nameof(XmlSchemaDataTypeDef.Scale),
         nameof(XmlSchemaDataTypeDef.Shift),
         nameof(XmlSchemaDataTypeDef.Options),
+        nameof(XmlSchemaDataTypeDef.ValueType),
+        nameof(XmlSchemaDataTypeDef.OptionsDefault),
         nameof(XmlSchemaDataTypeDef.Processors),
         nameof(XmlSchemaDataTypeDef.Properties)
     };
@@ -206,13 +208,15 @@ internal static class XmlSchemaMapper
         {
             Name = xmlDef.Name,
             BasedOn = new SchemaName(xmlDef.BasedOn),
-            Min = ParseDecimal(xmlDef.Min),
-            Max = ParseDecimal(xmlDef.Max),
+            Min = String.IsNullOrWhiteSpace(xmlDef.Min) ? null : xmlDef.Min,
+            Max = String.IsNullOrWhiteSpace(xmlDef.Max) ? null : xmlDef.Max,
             Scale = ParseDecimal(xmlDef.Scale),
             Shift = ParseDecimal(xmlDef.Shift),
             Options = xmlDef.Options is { Count: > 0 } options
-                ? options.ToDictionary(option => Int64.Parse(option.Value, CultureInfo.InvariantCulture), option => option.Name)
+                ? options.ToDictionary(option => option.Value, option => option.Name)
                 : null,
+            ValueType = String.IsNullOrWhiteSpace(xmlDef.ValueType) ? (SchemaName?)null : new SchemaName(xmlDef.ValueType),
+            OptionsDefault = xmlDef.OptionsDefault,
             Processors = (xmlDef.Processors ?? []).Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(
                 xmlDef.Properties,
@@ -234,11 +238,13 @@ internal static class XmlSchemaMapper
         {
             Name = def.Name,
             BasedOn = def.BasedOn.FullName,
-            Min = FormatDecimal(def.Min),
-            Max = FormatDecimal(def.Max),
+            Min = def.Min,
+            Max = def.Max,
             Scale = FormatDecimal(def.Scale),
             Shift = FormatDecimal(def.Shift),
-            Options = ToXmlList(def.Options, option => new XmlSchemaOption { Value = option.Key.ToString(CultureInfo.InvariantCulture), Name = option.Value }),
+            Options = ToXmlList(def.Options, option => new XmlSchemaOption { Value = option.Key, Name = option.Value }),
+            ValueType = def.ValueType?.FullName,
+            OptionsDefault = def.OptionsDefault,
             Processors = ToXmlList(def.Processors, FromSchemaProcessorRef),
             Properties = ToXmlList(def.Properties, FromSchemaProperty)
         };

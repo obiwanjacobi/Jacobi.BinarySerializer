@@ -558,6 +558,7 @@ internal sealed class ReaderSession : SessionState
             Prepare(_valueContext, valueProcessors[i]);
             logical = ((IValueProcessor)valueProcessors[i].Processor).Read(logical, _valueContext);
         }
+        logical = ToValueType(field, logical);
 
         if (field.HasExpectedValue)
         {

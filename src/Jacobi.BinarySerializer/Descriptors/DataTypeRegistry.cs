@@ -53,30 +53,49 @@ public sealed class DataTypeRegistry : IDataTypeRegistry
             throw new InvalidOperationException($"Circular data type definition '{name}'.");
         }
 
-        var baseName = def.BasedOn;
-        var baseOwner = String.IsNullOrEmpty(baseName.Namespace) ? document.Name : baseName.Namespace;
-        var found = all
-            .Where(a => String.Equals(a.Document.Name, baseOwner, StringComparison.OrdinalIgnoreCase) &&
-                String.Equals(a.Def.Name, baseName.Name, StringComparison.OrdinalIgnoreCase))
-            .Select(a => ((SchemaDocument, SchemaDataTypeDef)?)(a.Document, a.Def))
-            .FirstOrDefault();
+        var baseDescriptor = ResolveReference(document, def.BasedOn, all, visiting)
+            ?? throw new InvalidOperationException($"The data type '{def.BasedOn}' that '{name}' is based on is not registered.");
 
-        DataTypeDescriptor baseDescriptor;
-        if (found is var (baseDocument, baseDef))
+        // the value type: explicit, or implied by the facets of this def (options: string, scale/shift: decimal), or inherited.
+        var valueTypeName = def.ValueType
+            ?? (def.Options is not null ? SystemName("string")
+            : def.Scale is not null || def.Shift is not null ? SystemName("decimal")
+            : (SchemaName?)null);
+        DataTypeDescriptor? valueType = null;
+        if (valueTypeName is { } valueTypeReference)
         {
-            baseDescriptor = Resolve(baseDocument, baseDef, all, visiting);
-        }
-        else if (String.IsNullOrEmpty(baseName.Namespace) || !TryGet(baseName, out baseDescriptor!))
-        {
-            baseDescriptor = null!;
-            throw new InvalidOperationException($"The data type '{baseName}' that '{name}' is based on is not registered.");
+            valueType = ResolveReference(document, valueTypeReference, all, visiting)?.ValueType
+                ?? throw new InvalidOperationException($"The value type '{valueTypeReference}' of '{name}' is not registered.");
         }
 
-        var descriptor = baseDescriptor.Derive(name, def);
+        var descriptor = baseDescriptor.Derive(name, def, valueType);
         _types[name.FullName] = descriptor;
         visiting.Remove(def);
         return descriptor;
     }
+
+    // a data type def in the documents (without a namespace: in the referring document) or a registered type.
+    private DataTypeDescriptor? ResolveReference(SchemaDocument document, SchemaName reference, List<(SchemaDocument Document, SchemaDataTypeDef Def)> all, HashSet<SchemaDataTypeDef> visiting)
+    {
+        var owner = String.IsNullOrEmpty(reference.Namespace) ? document.Name : reference.Namespace;
+        var found = all
+            .Where(a => String.Equals(a.Document.Name, owner, StringComparison.OrdinalIgnoreCase) &&
+                String.Equals(a.Def.Name, reference.Name, StringComparison.OrdinalIgnoreCase))
+            .Select(a => ((SchemaDocument, SchemaDataTypeDef)?)(a.Document, a.Def))
+            .FirstOrDefault();
+
+        if (found is var (foundDocument, foundDef))
+        {
+            return Resolve(foundDocument, foundDef, all, visiting);
+        }
+        if (!String.IsNullOrEmpty(reference.Namespace) && TryGet(reference, out var descriptor))
+        {
+            return descriptor;
+        }
+        return null;
+    }
+
+    private static SchemaName SystemName(string name) => new($"{SystemNamespace}{SchemaName.Separator}{name}");
 
     public bool TryGet(SchemaName name, [NotNullWhen(true)] out DataTypeDescriptor? descriptor)
         => _types.TryGetValue(name.FullName, out descriptor);

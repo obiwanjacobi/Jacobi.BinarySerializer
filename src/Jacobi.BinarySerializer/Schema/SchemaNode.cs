@@ -24,13 +24,31 @@ public sealed class SchemaDataTypeDef : SchemaProcessor
     /// <summary>The data type this type is based on: a built-in type or another data type def.</summary>
     public required SchemaName BasedOn { get; init; }
 
-    public decimal? Min { get; init; }
-    public decimal? Max { get; init; }
+    /// <summary>The smallest allowed logical value (inclusive): a literal of the <see cref="ValueType"/>.</summary>
+    public string? Min { get; init; }
+    /// <summary>The largest allowed logical value (inclusive): a literal of the <see cref="ValueType"/>.</summary>
+    public string? Max { get; init; }
     public decimal? Scale { get; init; }
     public decimal? Shift { get; init; }
 
-    /// <summary>The allowed physical values mapped to their names.</summary>
-    public IReadOnlyDictionary<long, string>? Options { get; init; }
+    /// <summary>
+    /// The allowed physical values mapped to their logical values (both literals).
+    /// The physical values are parsed with this data type, the logical values with <see cref="ValueType"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? Options { get; init; }
+
+    /// <summary>
+    /// The data type of the value the value model sees (the logical value): a built-in type or another data type def.
+    /// Without it: 'sys.string' with <see cref="Options"/>, 'sys.decimal' with a <see cref="Scale"/> or <see cref="Shift"/>,
+    /// otherwise the value type of <see cref="BasedOn"/>.
+    /// </summary>
+    public SchemaName? ValueType { get; init; }
+
+    /// <summary>
+    /// The logical value (a literal of the value type) read for a physical value that is not one of the options.
+    /// Without a default such a value is an error. The default has no physical value, so it cannot be written.
+    /// </summary>
+    public string? OptionsDefault { get; init; }
 
     /// <summary>Processors merged into every field that uses this data type (those of the base come first).</summary>
     public IReadOnlyList<SchemaProcessorRef> Processors { get; init; } = [];

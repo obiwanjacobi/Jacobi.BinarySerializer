@@ -1,4 +1,6 @@
-﻿using System.Text.Json;
+﻿using System.Globalization;
+using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Jacobi.BinarySerializer.Schema.Json;
@@ -23,16 +25,47 @@ internal sealed class JsonSchemaDataTypeDef
     public required string Name { get; init; }
     [JsonPropertyName("basedOn")]
     public required string BasedOn { get; init; }
-    public decimal? Min { get; init; }
-    public decimal? Max { get; init; }
+    [JsonConverter(typeof(JsonLiteralConverter))]
+    public string? Min { get; init; }
+    [JsonConverter(typeof(JsonLiteralConverter))]
+    public string? Max { get; init; }
     public decimal? Scale { get; init; }
     public decimal? Shift { get; init; }
     public IDictionary<string, string>? Options { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ValueType { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OptionsDefault { get; init; }
     public IReadOnlyList<JsonSchemaProcessorRef> Processors { get; init; } = [];
     public IReadOnlyList<JsonSchemaProperty> Properties { get; init; } = [];
 
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? AdditionalData { get; init; }
+}
+
+/// <summary>A literal written as a JSON string, number or boolean; written back as a number when it is one.</summary>
+internal sealed class JsonLiteralConverter : JsonConverter<string>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        => reader.TokenType switch
+        {
+            JsonTokenType.String => reader.GetString(),
+            JsonTokenType.Number or JsonTokenType.True or JsonTokenType.False => Encoding.UTF8.GetString(reader.ValueSpan),
+            JsonTokenType.Null => null,
+            _ => throw new JsonException($"Expected a literal (string, number or boolean), not {reader.TokenType}."),
+        };
+
+    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
+    {
+        if (Decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var number))
+        {
+            writer.WriteNumberValue(number);
+        }
+        else
+        {
+            writer.WriteStringValue(value);
+        }
+    }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]

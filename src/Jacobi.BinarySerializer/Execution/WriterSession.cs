@@ -289,7 +289,7 @@ internal sealed class WriterSession : SessionState
     }
 
     private LogicalField DerivedSize(FieldInfo field, long size)
-        => new(field.Name, field.DataType.ClrType, checked((int)size));
+        => new(field.Name, field.ModelType.ClrType, ToModelType(field, checked((int)size)));
 
     /// <summary>
     /// The size field precedes the content it measures: probe its encoded width, then redirect the output to a scratch buffer until the group ends.
@@ -455,7 +455,7 @@ internal sealed class WriterSession : SessionState
         }
         else if (!_valueFieldsUseModel && field.HasExpectedValue && field.CountOf is null)
         {
-            logical = new LogicalField(field.Name, field.DataType.ClrType, ResolveExpected(field, _instance));
+            logical = new LogicalField(field.Name, field.ModelType.ClrType, ResolveExpected(field, _instance));
         }
         else if ((sourced = scope.GetField(new FieldContext { Node = field, Services = _services, Instance = _instance })).Status != SourceStatus.Value)
         {
@@ -466,12 +466,12 @@ internal sealed class WriterSession : SessionState
             if (field.CountOf is { } countOf)
             {
                 var count = scope.GetCount(new RepeatContext { Node = countOf, Services = _services, Instance = _instance });
-                logical = new LogicalField(field.Name, field.DataType.ClrType, count);
+                logical = new LogicalField(field.Name, field.ModelType.ClrType, ToModelType(field, count));
             }
             else if (field.HasExpectedValue)
             {
                 var expected = ResolveExpected(field, _instance);
-                logical = new LogicalField(field.Name, field.DataType.ClrType, expected);
+                logical = new LogicalField(field.Name, field.ModelType.ClrType, expected);
             }
             else if (field.ByteLengthOf is { } lengthOf)
             {
@@ -481,7 +481,7 @@ internal sealed class WriterSession : SessionState
                 {
                     throw EngineLogger.Fail($"'{field.Path}': cannot derive the length, the value model has no bytes value for '{lengthOf.Path}'.");
                 }
-                logical = new LogicalField(field.Name, field.DataType.ClrType, derivedBytes.Length);
+                logical = new LogicalField(field.Name, field.ModelType.ClrType, ToModelType(field, derivedBytes.Length));
             }
             else if (field.ByteSizeOf is not null)
             {
@@ -495,11 +495,17 @@ internal sealed class WriterSession : SessionState
         }
         else
         {
-            logical = sourced.Value!;
+            logical = ToValueType(field, sourced.Value!);
             if (field.HasExpectedValue)
             {
                 CheckExpected(field, logical.Value, _instance);
             }
+        }
+
+        // the published value is the logical value (as on read)
+        if (field.PublishesValue)
+        {
+            Publish(PublishedValueKey.ForPath(field.Path, _instance), logical.Value);
         }
 
         // Semantic: logical value transforms (chained)
@@ -511,11 +517,6 @@ internal sealed class WriterSession : SessionState
         }
 
         // Representation: logical -> encoded
-        if (field.PublishesValue)
-        {
-            Publish(PublishedValueKey.ForPath(field.Path, _instance), logical.Value);
-        }
-
         return logical;
     }
 

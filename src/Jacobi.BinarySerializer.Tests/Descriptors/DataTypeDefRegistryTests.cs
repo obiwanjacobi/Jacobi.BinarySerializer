@@ -22,8 +22,8 @@ public class DataTypeDefRegistryTests
     public void Register_DefBasedOnDef_InheritsAndOverridesFacets()
     {
         var registry = DataTypeRegistry.CreateDefault();
-        var a = new SchemaDataTypeDef { Name = "A", BasedOn = "sys.int32", Scale = 10m, Min = 0m, Max = 100m };
-        var b = new SchemaDataTypeDef { Name = "B", BasedOn = "Doc.A", Max = 50m, Shift = 2m };
+        var a = new SchemaDataTypeDef { Name = "A", BasedOn = "sys.int32", Scale = 10m, Min = "0", Max = "100" };
+        var b = new SchemaDataTypeDef { Name = "B", BasedOn = "Doc.A", Max = "50", Shift = 2m };
 
         registry.RegisterDataTypeDefs([Document("Doc", b, a)]);
 

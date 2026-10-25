@@ -77,6 +77,12 @@ public sealed class XmlSchemaDataTypeDef
     [XmlArrayItem("option")]
     public List<XmlSchemaOption>? Options { get; set; }
 
+    [XmlAttribute("valueType")]
+    public string? ValueType { get; set; }
+
+    [XmlAttribute("optionsDefault")]
+    public string? OptionsDefault { get; set; }
+
     [XmlArray("processors")]
     [XmlArrayItem("processor")]
     public List<XmlSchemaProcessorRef>? Processors { get; set; }

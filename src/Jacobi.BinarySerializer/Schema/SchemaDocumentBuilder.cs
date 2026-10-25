@@ -109,9 +109,9 @@ public sealed class SchemaDocumentBuilder
     }
 
     public SchemaDocumentBuilder DataTypeDef(string name, string basedOn,
-        decimal? min = null, decimal? max = null, decimal? scale = null, decimal? shift = null,
-        IReadOnlyDictionary<long, string>? options = null, Action<ProcessorBuilder>? processors = null,
-        IEnumerable<SchemaProperty>? properties = null)
+        string? min = null, string? max = null, decimal? scale = null, decimal? shift = null,
+        IReadOnlyDictionary<string, string>? options = null, Action<ProcessorBuilder>? processors = null,
+        IEnumerable<SchemaProperty>? properties = null, string? valueType = null, string? optionsDefault = null)
     {
         _dataTypeDefs.Add(new SchemaDataTypeDef
         {
@@ -122,6 +122,8 @@ public sealed class SchemaDocumentBuilder
             Scale = scale,
             Shift = shift,
             Options = options,
+            ValueType = valueType is null ? (SchemaName?)null : new SchemaName(valueType),
+            OptionsDefault = optionsDefault,
             Processors = CreateProcessorRefs(processors),
             PropertyList = properties?.ToList() ?? [],
         });

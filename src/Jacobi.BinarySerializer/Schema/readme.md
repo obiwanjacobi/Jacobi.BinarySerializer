@@ -98,7 +98,7 @@ The members below are part of the schema model itself (as opposed to the free-fo
 | Member | Meaning | Use it to |
 |--------|---------|-----------|
 | `type` | The data type of the *logical* value (`UInt16`, `String`, `Bytes`, ...). It says how the value is represented in the model, not how many bytes it takes on the wire. | Choose the model type. Representation processors (varint, bit slicer) may encode it differently from the type's default fixed width. |
-| `value` | An expected value (constant or reference), compared with the logical value after the semantic processors. | Check magic numbers/signatures on read (a mismatch fails). The writer supplies the value when the model has none (so the model need not know it). |
+| `value` | An expected logical value (constant or reference): a literal of the field's value type, compared with the logical value after the semantic processors. | Check magic numbers/signatures on read (a mismatch fails). The writer supplies the value when the model has none (so the model need not know it). |
 | `byteLength` | The physical length of the encoded field in bytes (constant or reference). Allowed on every data type except `Boolean`. | Fix the width of `Bytes`/`String`; give a field processor its byte count (`sys.bitslicer`); point at a length field (`ref:`) so a length prefix is read before the data and derived on write. Without a field processor, a fixed-size type needs a length equal to its size. |
 | `byteOffset` | A signed offset in bytes from the current position. The field is read there and the position is restored afterwards: it is *virtual*. The model sees the value on read and must supply it on write; no bytes are written. Its value can be referenced. | Peek at bytes without consuming them: e.g. a MIDI status byte used as a choice `selectedIndex`, before the alternative reads it again. |
 | `processors` | The processors (semantic, field, layout) of this field. | Transform or encode the value, see [Processors](../../Jacobi.BinarySerializer.Processors/readme.md). |
@@ -234,10 +234,14 @@ A `dataTypeDef` derives a new logical data type from an existing one (built-in o
 |---------------------|---------|
 | `name` | Name of the new data type; registered as `Document.Name`. |
 | `basedOn` | The data type it derives from. |
-| `min`, `max` | Allowed logical range (facet). |
+| `min`, `max` | Allowed range of the logical value (facet), inclusive: literals of the value type, which must be comparable (numbers, strings, date/time, enums). Strings compare ordinal (`"10"` < `"9"`). With `options` the option value (and `optionsDefault`) is checked. `min` may not be larger than `max`. |
 | `scale`, `shift` | Logical = physical * scale (+ shift) (facet). Also used by `sys.scale` when it has no `scale`/`shift` property. |
-| `options` | Allowed physical values mapped to names (facet); cannot be combined with `scale`/`shift`. |
+| `options` | Allowed physical values (parsed with the data type) mapped to logical values (parsed with the value type) (facet); cannot be combined with `scale`/`shift`. |
+| `optionsDefault` | The logical value read for a physical value that is not one of the options (without it that is an error). Cannot be written. |
+| `valueType` | The data type of the value the value model sees and provides (the logical value). Default: `sys.string` with `options`, `sys.decimal` with `scale`/`shift`, otherwise the value type of `basedOn`. |
 | `processors`, `properties` | Merged into every field that uses the data type (base chain first, then the field's own). |
+
+**Physical and logical.** `basedOn` gives the physical side: the CLR type, default representation and size of the encoded value (the built-in type at the end of the `basedOn` chain). The facets and `valueType` give the logical side: the value the value model sees. The engine converts the logical value to and from the `valueType` at the boundary with the value model, so a processor may produce any convertible type. The field's `value`, and the value a reference to the field yields, are logical values. A field that declares its own semantic processors (e.g. `sys.map`) has no value type: their output is passed on as is.
 
 Facets just work: a field whose data type has facets and no semantic processor (on the field, its data type chain or inherited from its group) gets `sys.datatype`, which applies all facets (see the [Processors readme](../../Jacobi.BinarySerializer.Processors/readme.md)). Declaring a semantic processor replaces it; a representation processor (e.g. `sys.varint`) does not. Without the `sys` processors registered, facets are a plan-build error.
 

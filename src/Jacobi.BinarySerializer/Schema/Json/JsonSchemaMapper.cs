@@ -117,7 +117,9 @@ internal static class JsonSchemaMapper
             Max = jsonDef.Max,
             Scale = jsonDef.Scale,
             Shift = jsonDef.Shift,
-            Options = jsonDef.Options?.ToDictionary(o => Int64.Parse(o.Key, CultureInfo.InvariantCulture), o => o.Value),
+            Options = jsonDef.Options?.ToDictionary(),
+            ValueType = String.IsNullOrWhiteSpace(jsonDef.ValueType) ? (SchemaName?)null : new SchemaName(jsonDef.ValueType),
+            OptionsDefault = jsonDef.OptionsDefault,
             Processors = jsonDef.Processors.Select(ToSchemaProcessorRef).ToList(),
             PropertyList = MergeProperties(jsonDef.Properties, jsonDef.AdditionalData)
         };
@@ -133,7 +135,9 @@ internal static class JsonSchemaMapper
             Max = def.Max,
             Scale = def.Scale,
             Shift = def.Shift,
-            Options = def.Options?.ToDictionary(o => o.Key.ToString(CultureInfo.InvariantCulture), o => o.Value),
+            Options = def.Options?.ToDictionary(),
+            ValueType = def.ValueType?.FullName,
+            OptionsDefault = def.OptionsDefault,
             Processors = def.Processors.Select(FromSchemaProcessorRef).ToList(),
             Properties = def.Properties.Select(FromSchemaProperty).ToList()
         };

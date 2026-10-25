@@ -22,8 +22,21 @@ public sealed class FieldInfo : NodeInfo
     // schema field
     public required SchemaField Field { get; init; }
 
-    /// <summary>The descriptor of the logical data type of the field, resolved from the registry.</summary>
+    /// <summary>
+    /// The descriptor of the data type of the field, resolved from the registry.
+    /// Its physical part (CLR type, default representation, size) describes the encoded value; its facets the transformation to the logical value.
+    /// </summary>
     public required DataTypeDescriptor DataType { get; init; }
+
+    /// <summary>
+    /// The data type of the value the value model sees and provides (the logical value): <see cref="DataTypeDescriptor.ValueType"/> of <see cref="DataType"/>.
+    /// The engine converts the value to and from it at the boundary with the value model.
+    /// Null when the field declares its own semantic processors (e.g. 'sys.map'): then their output is passed as is.
+    /// </summary>
+    public DataTypeDescriptor? ValueType { get; init; }
+
+    /// <summary>The type of the values the engine supplies for the field (constants, counts, lengths): <see cref="ValueType"/>, or <see cref="DataType"/> without one.</summary>
+    internal DataTypeDescriptor ModelType => ValueType ?? DataType;
 
     /// <summary>True when another node refers to this field's value by schema path; the session publishes it.</summary>
     public bool PublishesValue { get; internal set; }
