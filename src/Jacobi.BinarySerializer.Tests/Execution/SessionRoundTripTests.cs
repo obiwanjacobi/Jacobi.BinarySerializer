@@ -17,7 +17,8 @@ public class SessionRoundTripTests
     [TestCase("sys.uint32", 4000000000u)]
     [TestCase("sys.int64", long.MinValue)]
     [TestCase("sys.uint64", ulong.MaxValue)]
-    [TestCase("sys.double", 3.14159d)]
+    [TestCase("sys.float32", 3.14159f)]
+    [TestCase("sys.float64", 3.14159d)]
     [TestCase("sys.bool", true)]
     public void RoundTrip_FixedWidthTypes_PreserveValueAndClrType(string type, object value)
     {

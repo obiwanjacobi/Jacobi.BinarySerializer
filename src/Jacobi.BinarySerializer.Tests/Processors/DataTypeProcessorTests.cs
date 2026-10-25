@@ -173,7 +173,7 @@ public class DataTypeProcessorTests
     [Test]
     public void ValueType_OfAScaledType_ConvertsTheScaledValue()
     {
-        var plan = Build(new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int16", Scale = 0.5m, ValueType = "sys.double" });
+        var plan = Build(new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int16", Scale = 0.5m, ValueType = "sys.float32" });
 
         var (bytes, value) = RoundTrip(plan, 2.5);
 

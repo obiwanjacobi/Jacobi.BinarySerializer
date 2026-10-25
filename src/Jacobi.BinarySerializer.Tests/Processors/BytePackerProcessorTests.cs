@@ -37,7 +37,7 @@ public class BytePackerProcessorTests
     {
         var root = Group("Root", [Ref("bytepacker", ("byteorder", "big"))],
             Field("A", "sys.int64"),
-            Field("B", "sys.double"));
+            Field("B", "sys.float64"));
         var values = new Dictionary<string, object?> { ["Root.A"] = -2L, ["Root.B"] = 3.25d };
 
         var (bytes, read) = RoundTrip(root, values);

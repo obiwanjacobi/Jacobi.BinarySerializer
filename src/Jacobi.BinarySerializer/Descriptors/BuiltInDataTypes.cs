@@ -25,7 +25,8 @@ internal static class BuiltInDataTypes
         yield return Integer<uint>("uint32", 4, v => Convert.ToUInt32(v, Culture), b => unchecked((uint)b));
         yield return Integer<ulong>("uint64", 8, v => Convert.ToUInt64(v, Culture), b => b);
         yield return CreateBoolean();
-        yield return CreateDouble();
+        yield return CreateFloat32();
+        yield return CreateFloat64();
         yield return new DataTypeDescriptor(Name("decimal"), typeof(decimal),
             (string? text, out object? value) =>
             {
@@ -36,7 +37,7 @@ internal static class BuiltInDataTypes
         yield return CreateDateTime();
         yield return CreateBytes();
         yield return DataTypeDescriptor.ForEnum<Codecs.Endianness>(Name("endianness"));
-        yield return new DataTypeDescriptor(Name("object"), typeof(object), (string? text, out object? value) => { value = text; return text is not null; });
+        //yield return new DataTypeDescriptor(Name("object"), typeof(object), (string? text, out object? value) => { value = text; return text is not null; });
     }
 
     private static CultureInfo Culture => CultureInfo.InvariantCulture;
@@ -61,8 +62,19 @@ internal static class BuiltInDataTypes
             v => Convert.ToBoolean(v, Culture) ? 1UL : 0UL,
             bits => bits != 0);
 
-    private static DataTypeDescriptor CreateDouble()
-        => Fixed<double>("double", 8,
+    private static DataTypeDescriptor CreateFloat32()
+        => Fixed<float>("float32", 4,
+            (string? text, out object? value) =>
+            {
+                value = null;
+                if (text is not null && Single.TryParse(text, NumberStyles.Float, Culture, out var number)) { value = number; return true; }
+                return false;
+            },
+            v => BitConverter.SingleToUInt32Bits(Convert.ToSingle(v, Culture)),
+            bits => BitConverter.UInt32BitsToSingle(checked((UInt32)bits)));
+
+    private static DataTypeDescriptor CreateFloat64()
+        => Fixed<double>("float64", 8,
             (string? text, out object? value) =>
             {
                 value = null;

@@ -491,7 +491,7 @@ public class BitPackerSerializerTests
     [Test]
     public void ReadAndWrite_UnsupportedFloatingPointType_Fails()
     {
-        const string fields = """{ "name": "A", "kind": "field", "datatype": "sys.double", "bits": 8 }""";
+        const string fields = """{ "name": "A", "kind": "field", "datatype": "sys.float32", "bits": 8 }""";
         var plan = CreateSerializer(Json(fields)).GetPlan(MsgName);
         var input = Values(("Msg.Header", (byte)0), ("Msg.Flags.A", 1.0d), ("Msg.Trailer", (byte)0));
 

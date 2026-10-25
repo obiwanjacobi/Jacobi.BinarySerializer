@@ -143,7 +143,7 @@ public class DefaultProcessorTests
     [Test]
     public void DefaultStages_WriteThenRead_RoundTripsAValue()
     {
-        var field = CreateField("sys.double");
+        var field = CreateField("sys.float64");
         var writeContext = new FieldProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
         writeContext.Field = field;
         var layoutWrite = new LayoutProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
