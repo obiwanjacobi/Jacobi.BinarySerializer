@@ -734,7 +734,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
                     field.PublishesValue = true;
                     if (Find(root, from) is GroupInfo { ValueProcessors.Count: > 0 } valueGroup && IsValueKey(valueGroup, target))
                     {
-                        valueGroup.ValueType = field.DataType;
+                        valueGroup.FieldRefValueType = field.ValueType;
                     }
                     if (Find(root, from) is RepeatInfo { Count: PublishedValueKey countKey } repeat
                         && countKey.Namespace.Length == 0 && countKey.Name == target.Value

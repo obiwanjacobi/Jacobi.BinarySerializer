@@ -167,7 +167,7 @@ public class DataTypeProcessorTests
 
         Assert.That(bytes, Is.EqualTo(new byte[] { 7 }));
         Assert.That(value, Is.EqualTo(7));
-        Assert.That(plan.Root.Members.OfType<FieldInfo>().Single().ValueType!.ClrType, Is.EqualTo(typeof(int)));
+        Assert.That(plan.Root.Members.OfType<FieldInfo>().Single().ValueType.ClrType, Is.EqualTo(typeof(int)));
     }
 
     [Test]
@@ -193,7 +193,7 @@ public class DataTypeProcessorTests
             new SchemaDataTypeDef { Name = "Color", BasedOn = "sys.uint8", Options = Colors },
             new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.uint8", Scale = 0.5m });
 
-        Assert.That(plan.Root.Members.OfType<FieldInfo>().Single().ValueType!.ClrType, Is.EqualTo(expected));
+        Assert.That(plan.Root.Members.OfType<FieldInfo>().Single().ValueType.ClrType, Is.EqualTo(expected));
     }
 
     [Test]
@@ -212,11 +212,67 @@ public class DataTypeProcessorTests
     }
 
     [Test]
-    public void DeclaredSemanticProcessor_HasNoValueType()
+    public void DeclaredSemanticProcessor_ValueTypeIsTheDataType()
     {
         var plan = Build(new SchemaDataTypeDef { Name = "Celsius", BasedOn = "sys.int32", Scale = 0.01m, Processors = [Ref("scale", ("scale", "0.1"))] });
 
-        Assert.That(plan.Root.Members.OfType<FieldInfo>().Single().ValueType, Is.Null);
+        var field = plan.Root.Members.OfType<FieldInfo>().Single();
+        Assert.That(field.ValueType, Is.SameAs(field.DataType));
+    }
+
+    [Test]
+    public void Constant_WithAnExplicitValueType_IsTheLogicalValue()
+    {
+        var plan = Build([Field("Temperature", "Code", "200")],
+            new SchemaDataTypeDef
+            {
+                Name = "Code", BasedOn = "sys.uint8", ValueType = "sys.int32",
+                Options = new Dictionary<string, string> { ["1"] = "100", ["2"] = "200" },
+            });
+
+        Assert.That(plan.Root.Members.OfType<FieldInfo>().Single().ConstantValue, Is.EqualTo(200));
+        Assert.That(Write(plan, []), Is.EqualTo(new byte[] { 2 }));
+        Assert.That(ReadAll(plan, [2]), Is.Empty);
+        Assert.That(() => ReadAll(plan, [1]), Throws.InstanceOf<InvalidOperationException>().With.Message.Contain("200"));
+    }
+
+    [Test]
+    public void FieldRefValueType_IsTheValueTypeOfTheReferencedField()
+    {
+        var plan = Build([Field("Type", "Kind"), Choice(Ref("map", ("to", "sys.int32"), ("Header", "0"), ("Palette", "1")))],
+            new SchemaDataTypeDef { Name = "Kind", BasedOn = "sys.uint8", Options = new Dictionary<string, string> { ["1"] = "Header", ["2"] = "Palette" } });
+
+        var choice = plan.Root.Members.OfType<ChoiceInfo>().Single();
+        Assert.That(choice.FieldRefValueType!.ClrType, Is.EqualTo(typeof(string)));
+    }
+
+    [Test]
+    public void ChoiceIndex_MappedFromTheLogicalValueOfAnOptionsField()
+    {
+        // the map receives the published (logical) value: its keys are option values, not physical values
+        var plan = Build([Field("Type", "Kind"), Choice(Ref("map", ("to", "sys.int32"), ("Header", "0"), ("Palette", "1")))],
+            new SchemaDataTypeDef { Name = "Kind", BasedOn = "sys.uint8", Options = new Dictionary<string, string> { ["1"] = "Header", ["2"] = "Palette" } });
+
+        var bytes = Write(plan, new() { ["Root.Type"] = "Palette", ["Root.Pick.B"] = (short)7 });
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 2, 7, 0 }));
+        var values = ReadAll(plan, bytes);
+        Assert.That(values["Root.Type"], Is.EqualTo("Palette"));
+        Assert.That(values["Root.Pick.B"], Is.EqualTo((short)7));
+    }
+
+    [Test]
+    public void ChoiceIndex_FacetsOfTheReferencedField_AreNotAppliedTwice()
+    {
+        // the published value is already scaled (physical 2 -> 1.0); scaling it again would select index 0
+        var plan = Build([Field("Type", "Half"), Choice(Ref("datatype"))],
+            new SchemaDataTypeDef { Name = "Half", BasedOn = "sys.uint8", Scale = 0.5m });
+
+        var values = ReadAll(plan, [2, 7, 0]);
+
+        Assert.That(values["Root.Type"], Is.EqualTo(1.0m));
+        Assert.That(values["Root.Pick.B"], Is.EqualTo((short)7));
+        Assert.That(values, Does.Not.ContainKey("Root.Pick.A"));
     }
 
     [Test]
@@ -378,9 +434,9 @@ public class DataTypeProcessorTests
     private static SchemaSet Compile(params SchemaDataTypeDef[] dataTypeDefs)
         => Compile([new SchemaField { Name = "Temperature", DataType = dataTypeDefs[0].Name }], dataTypeDefs);
 
-    private static SchemaSet Compile(SchemaField[] fields, SchemaDataTypeDef[] dataTypeDefs)
+    private static SchemaSet Compile(SchemaNode[] nodes, SchemaDataTypeDef[] dataTypeDefs)
     {
-        var rootGroup = Group("Root", [], fields);
+        var rootGroup = Group("Root", [], nodes);
         var document = new SchemaDocument
         {
             Name = "Doc",
@@ -401,7 +457,7 @@ public class DataTypeProcessorTests
     private static ExecutionPlan Build(params SchemaDataTypeDef[] dataTypeDefs)
         => Build([new SchemaField { Name = "Temperature", DataType = dataTypeDefs[0].Name }], dataTypeDefs);
 
-    private static ExecutionPlan Build(SchemaField[] fields, params SchemaDataTypeDef[] dataTypeDefs)
+    private static ExecutionPlan Build(SchemaNode[] nodes, params SchemaDataTypeDef[] dataTypeDefs)
     {
         var manager = new ProcessorManager();
         manager.Register(new Jacobi.BinarySerializer.Processors.ProcessorFactory());
@@ -410,7 +466,21 @@ public class DataTypeProcessorTests
         {
             dataTypes.Register(dataType);
         }
-        return ExecutionPlan.Create(Compile(fields, dataTypeDefs), new SchemaName("Doc.Root"), manager, dataTypes);
+        return ExecutionPlan.Create(Compile(nodes, dataTypeDefs), new SchemaName("Doc.Root"), manager, dataTypes);
+    }
+
+    // a choice of two int16 alternatives, selected by the value of the field 'Root.Type'
+    private static SchemaChoice Choice(params SchemaProcessorRef[] valueProcessors)
+    {
+        var choice = new SchemaChoice
+        {
+            Name = "Pick",
+            SelectedIndex = new SchemaNodeRef { Path = "Root.Type" },
+            ValueProcessorsList = [.. valueProcessors],
+        };
+        choice.MemberList.Add(Field("A", "sys.int16"));
+        choice.MemberList.Add(Field("B", "sys.int16"));
+        return choice;
     }
 
     private static SchemaField Field(string name, string dataType, SchemaValueOrRef<string> value = default)

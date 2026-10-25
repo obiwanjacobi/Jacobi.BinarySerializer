@@ -188,13 +188,13 @@ public closed class SessionState
     internal object? ResolveExpected(FieldInfo field, InstancePath current)
     {
         var expected = field.ValueReference is { } key ? ResolvePublished(key, field.Path, current) : field.ConstantValue;
-        return ToModelType(field, expected);
+        return ToValueType(field, expected);
     }
 
-    /// <summary>Converts a logical value of the field to the type of the value model (<see cref="FieldInfo.ModelType"/>).</summary>
-    internal object? ToModelType(FieldInfo field, object? value)
+    /// <summary>Converts a logical value of the field to the type of the value model (<see cref="FieldInfo.ValueType"/>).</summary>
+    internal object? ToValueType(FieldInfo field, object? value)
     {
-        var type = field.ModelType;
+        var type = field.ValueType;
         return type.TryConvert(value, out var converted)
             ? converted
             : throw EngineLogger.Fail($"'{field.Path}': the value '{value}' cannot be converted to {type}.");
@@ -202,8 +202,8 @@ public closed class SessionState
 
     /// <summary>Converts a logical value to the value type of the field; unchanged when the field has none (its semantic processors decide).</summary>
     internal LogicalField ToValueType(FieldInfo field, LogicalField logical)
-        => field.ValueType is { } type
-            ? new LogicalField(logical.Name, type.ClrType, ToModelType(field, logical.Value))
+        => field.ConvertsToValueType
+            ? new LogicalField(logical.Name, field.ValueType.ClrType, ToValueType(field, logical.Value))
             : logical;
 
     /// <summary>Fails when <paramref name="actual"/> differs from the value the field must have.</summary>

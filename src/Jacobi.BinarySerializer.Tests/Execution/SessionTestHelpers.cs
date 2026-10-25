@@ -201,7 +201,11 @@ internal sealed class DictSource(Dictionary<string, object?> values, List<string
     public int GetCount(RepeatContext context) => throw new NotSupportedException();
     public IValueSource EnterItem(RepeatContext context, int index) => throw new NotSupportedException();
     public int GetSelectedIndex(ChoiceContext context) => throw new NotSupportedException();
-    public IValueSource EnterChoice(ChoiceContext context) => throw new NotSupportedException();
+    public IValueSource EnterChoice(ChoiceContext context)
+    {
+        events?.Add($"Enter:{context.Path}");
+        return this;
+    }
 }
 
 /// <summary>Dictionary-backed value sink (keyed by node path); records group entries and completions.</summary>
@@ -229,8 +233,12 @@ internal sealed class DictSink : IValueSink
         _root.Events.Add($"Item:{context.Path}[{index}/{count}]");
         return new DictSink(_root, $"{context.Path}[{index}]");
     }
-    public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => throw new NotSupportedException();
+    public IValueSink EnterChoice(ChoiceContext context, int selectedIndex)
+    {
+        _root.Events.Add($"Choice:{context.Path}[{selectedIndex}]");
+        return new DictSink(_root, context.Path);
+    }
     public void ExitGroup(GroupContext context) => _root.Events.Add($"Complete:{_path}");
     public void ExitItem(RepeatContext context, int index, int count) => _root.Events.Add($"Complete:{_path}");
-    public void ExitChoice(ChoiceContext context, int selectedIndex) => throw new NotSupportedException();
+    public void ExitChoice(ChoiceContext context, int selectedIndex) => _root.Events.Add($"Complete:{_path}");
 }

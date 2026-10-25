@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Jacobi.BinarySerializer.Descriptors;
 using Jacobi.BinarySerializer.Processor;
 using Jacobi.BinarySerializer.Schema;
@@ -30,13 +31,19 @@ public sealed class FieldInfo : NodeInfo
 
     /// <summary>
     /// The data type of the value the value model sees and provides (the logical value): <see cref="DataTypeDescriptor.ValueType"/> of <see cref="DataType"/>.
-    /// The engine converts the value to and from it at the boundary with the value model.
-    /// Null when the field declares its own semantic processors (e.g. 'sys.map'): then their output is passed as is.
+    /// The engine converts the value to and from it at the boundary with the value model, and supplies its own values for the field (constants, counts, lengths) as this type.
+    /// <see cref="DataType"/> when not set: a field that declares its own semantic processors (e.g. 'sys.map').
     /// </summary>
-    public DataTypeDescriptor? ValueType { get; init; }
+    [AllowNull]
+    public DataTypeDescriptor ValueType
+    {
+        get => _valueType ?? DataType;
+        init => _valueType = value;
+    }
+    private readonly DataTypeDescriptor? _valueType;
 
-    /// <summary>The type of the values the engine supplies for the field (constants, counts, lengths): <see cref="ValueType"/>, or <see cref="DataType"/> without one.</summary>
-    internal DataTypeDescriptor ModelType => ValueType ?? DataType;
+    /// <summary>True when the engine converts the logical value to <see cref="ValueType"/>; false when the declared semantic processors decide the value (passed as is).</summary>
+    internal bool ConvertsToValueType => _valueType is not null;
 
     /// <summary>True when another node refers to this field's value by schema path; the session publishes it.</summary>
     public bool PublishesValue { get; internal set; }
@@ -91,8 +98,11 @@ public class GroupInfo : NodeInfo
     /// </summary>
     public IReadOnlyList<ProcessorBinding> ValueProcessors { get; init; } = [];
 
-    /// <summary>The data type of the field the count/index refers to (null for constants and published values).</summary>
-    public DataTypeDescriptor? ValueType { get; internal set; }
+    /// <summary>
+    /// The value type of the field the count/index refers to: the type of the (published, logical) value the <see cref="ValueProcessors"/> receive.
+    /// Their output is converted to the int count/index. Null without value processors, and for constants and processor-published values.
+    /// </summary>
+    public DataTypeDescriptor? FieldRefValueType { get; internal set; }
 
     /// <summary>
     /// The size in bytes of the encoded content of the group (unset when the group has no size).

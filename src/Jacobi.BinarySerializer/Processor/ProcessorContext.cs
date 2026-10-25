@@ -113,7 +113,7 @@ public sealed class ValueProcessorContext : ProcessorContext
     public GroupInfo? Group { get; internal set; }
 
     /// <summary>The data type of the value being processed (null when unknown).</summary>
-    public DataTypeDescriptor? DataType => Field is not null ? Field.DataType : Group?.ValueType;
+    public DataTypeDescriptor? DataType => Field is not null ? Field.DataType : Group?.FieldRefValueType;
 }
 
 public sealed class FieldProcessorContext : ProcessorContext
