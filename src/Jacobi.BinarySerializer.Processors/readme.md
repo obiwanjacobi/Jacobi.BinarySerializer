@@ -4,6 +4,7 @@ The built-in processors of namespace `sys`. Property names are short names as us
 
 | Key | Stage | Applies to | Purpose |
 |-----|-------|------------|---------|
+| `sys.datatype` | Semantic | field (added by default) | Applies the facets of the field's data type (options, scale/shift, min/max). |
 | `sys.scale` | Semantic | field, repeat/choice (`valueProcessors`) | Scales a raw integer to a decimal. |
 | `sys.map` | Semantic | field, repeat/choice (`valueProcessors`) | Maps source values to result values (enumerations, discriminators). |
 | `sys.nullable` | Semantic | field | Not implemented yet. |
@@ -17,6 +18,16 @@ The built-in processors of namespace `sys`. Property names are short names as us
 | `sys.crc` | Layout | group (fields inherit) | Appends/validates a CRC over a group. |
 
 ## Semantic (value) processors
+
+### `sys.datatype`
+
+Applies all facets of the field's data type (a `dataTypeDef`), so a custom data type works without declaring processors. The plan builder adds it to every field whose data type has facets and that has no semantic processor of its own (declared on the field or its data type chain, or inherited from its group). A representation processor such as `sys.varint` keeps it. It has no properties.
+
+- `options`: reading maps the physical value to its name (an unknown value is an error); writing accepts a name or one of the option values. Cannot be combined with `scale`/`shift`.
+- `scale`, `shift`: as `sys.scale`: `logical = physical * scale + shift`; reading yields a `decimal`, writing rounds (away from zero) to a `long`.
+- `min`, `max`: the logical numeric value (the physical value with `options`) must be in range on write and read.
+
+A `null` value passes through; a value without scale/shift/options keeps its type.
 
 ### `sys.scale`
 

@@ -72,6 +72,9 @@ public sealed class DataTypeDescriptor
     /// <summary>Facet: the allowed physical values mapped to their names, or null when unrestricted.</summary>
     public IReadOnlyDictionary<long, string>? Options { get; init; }
 
+    /// <summary>The type has at least one facet (<see cref="Min"/>, <see cref="Max"/>, <see cref="Scale"/>, <see cref="Shift"/> or <see cref="Options"/>).</summary>
+    public bool HasFacets => Min is not null || Max is not null || Scale is not null || Shift is not null || Options is not null;
+
     /// <summary>
     /// Creates a descriptor for an enum: the schema literal is the member name, case-insensitive and ignoring '-' and '_'
     /// (so 'crc32-bzip2' matches the member Crc32Bzip2).

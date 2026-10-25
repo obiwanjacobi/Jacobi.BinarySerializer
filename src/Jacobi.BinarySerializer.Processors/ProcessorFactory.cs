@@ -9,6 +9,7 @@ public sealed class ProcessorFactory : IProcessorFactory
     {
         // Value Processors
         { "null", new NullProcessor() },
+        { "datatype", new DataTypeProcessor() },
         { "scale", new ScaleProcessor() },
         { "map", new MapProcessor() },
         { "bits", new BitsProcessor() },

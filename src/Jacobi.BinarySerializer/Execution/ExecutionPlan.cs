@@ -322,6 +322,10 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
     {
         var processors = BindProcessors(field.Processors, path, state);
         var fieldPipeline = CreatePipeline(parentPipeline, processors);
+        if (fieldPipeline.ValueProcessors.Count == 0 && BindDataTypeProcessor(field, path, state) is { } dataTypeProcessor)
+        {
+            fieldPipeline = CreatePipeline(parentPipeline, [.. processors, dataTypeProcessor]);
+        }
         if (!ReferenceEquals(fieldPipeline.FieldProcessors, parentPipeline.FieldProcessors))
         {
             ValidateFieldChain(fieldPipeline.FieldProcessors, path, state);
@@ -332,6 +336,26 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         }
         return BuildFieldInfo(field, path, fieldPipeline, state);
     }
+
+    /// <summary>
+    /// The default semantic processor ('sys.datatype') of a field whose data type has facets (e.g. a dataTypeDef with a scale),
+    /// so the facets apply without declaring a processor. Not used when the field (or its group) has a semantic processor.
+    /// </summary>
+    private ProcessorBinding? BindDataTypeProcessor(SchemaField field, SchemaPath path, BuildState state)
+    {
+        if (field.DataType is not { } fieldDataType || !_dataTypes.TryGet(fieldDataType, out var dataType) || !dataType.HasFacets)
+        {
+            return null;
+        }
+        if (!processorProvider.TryCreateProcessor(DataTypeProcessorKey, out var processor) || processor is not IValueProcessor)
+        {
+            return state.Error<ProcessorBinding>(path,
+                $"The data type '{dataType}' has facets that need the '{DataTypeProcessorKey}' processor (register the 'sys' processors) or a semantic processor on the field.");
+        }
+        return new(processor, [], null);
+    }
+
+    private static readonly ProcessorKey DataTypeProcessorKey = new("sys", "datatype");
 
     private FieldInfo? BuildFieldInfo(SchemaField field, SchemaPath path, ProcessorPipeline fieldPipeline, BuildState state)
     {

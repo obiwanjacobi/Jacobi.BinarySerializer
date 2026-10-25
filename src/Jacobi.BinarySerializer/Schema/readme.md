@@ -225,9 +225,7 @@ A `dataTypeDef` derives a new logical data type from an existing one (built-in o
 
 ```xml
 <dataTypeDefs>
-  <dataTypeDef name="Celsius" basedOn="sys.int32" scale="0.01">
-    <processors><processor name="sys.scale" /></processors>
-  </dataTypeDef>
+  <dataTypeDef name="Celsius" basedOn="sys.int32" scale="0.01" />
 </dataTypeDefs>
 <field name="Temperature" datatype="Celsius" />
 ```
@@ -237,11 +235,13 @@ A `dataTypeDef` derives a new logical data type from an existing one (built-in o
 | `name` | Name of the new data type; registered as `Document.Name`. |
 | `basedOn` | The data type it derives from. |
 | `min`, `max` | Allowed logical range (facet). |
-| `scale`, `shift` | Logical = physical * scale (+ shift) (facet). Used by `sys.scale` when it has no `scale` property. |
-| `options` | Allowed physical values mapped to names (facet; not consumed by a built-in processor yet). |
+| `scale`, `shift` | Logical = physical * scale (+ shift) (facet). Also used by `sys.scale` when it has no `scale`/`shift` property. |
+| `options` | Allowed physical values mapped to names (facet); cannot be combined with `scale`/`shift`. |
 | `processors`, `properties` | Merged into every field that uses the data type (base chain first, then the field's own). |
 
-Facets are fallbacks: a processor's own property wins. Resolution rules:
+Facets just work: a field whose data type has facets and no semantic processor (on the field, its data type chain or inherited from its group) gets `sys.datatype`, which applies all facets (see the [Processors readme](../../Jacobi.BinarySerializer.Processors/readme.md)). Declaring a semantic processor replaces it; a representation processor (e.g. `sys.varint`) does not. Without the `sys` processors registered, facets are a plan-build error.
+
+Facets are fallbacks for processors that use them: a processor's own property wins. Resolution rules:
 
 - A field that uses a def gets its datatype rewritten to `Document.Name`; use `Document.Name` to refer to a def in another (included) document.
 - Data type names are always full names (`sys.int32`, `Document.Celsius`); there is no `sys` shorthand. Names are case-insensitive.
