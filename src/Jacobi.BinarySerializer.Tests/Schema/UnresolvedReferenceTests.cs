@@ -132,6 +132,24 @@ public class UnresolvedReferenceTests
             "The Group 'Doc.Header' references the processor 'Doc.nope' that is not defined in the schema 'Doc'."));
     }
 
+    [Test]
+    public void Compile_ProcessorKeyWithTheNamespaceOfTheDocument_IsAKey()
+    {
+        var builder = new SchemaSetBuilder();
+        builder.LoadFromJson("""
+            { "name": "Acme", "nodeDefs": [
+                { "name": "Header", "kind": "group", "processors": [ { "name": "acme.checksum" } ] }
+            ], "members": [
+                { "name": "Root", "kind": "group", "members": [
+                    { "name": "A", "kind": "field", "datatype": "sys.uint8", "processors": [ { "name": "acme.scale" } ] },
+                    { "name": "Msg", "kind": "group", "nodeDef": "Header" }
+                ] }
+            ] }
+            """);
+
+        Assert.DoesNotThrow(() => builder.Compile());
+    }
+
     private static InvalidOperationException Compile(string json)
     {
         var builder = new SchemaSetBuilder();

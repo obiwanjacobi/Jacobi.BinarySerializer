@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Jacobi.BinarySerializer.Processor;
 
@@ -8,6 +9,9 @@ namespace Jacobi.BinarySerializer.Processors;
 /// 'length' is a fixed byte count: shorter strings are padded with the 'padding' byte (default 0), which is trimmed again on read.
 /// 'terminator' is a single byte value that ends the string and is not part of it.
 /// The 'encoding' property names the text encoding (default 'utf-8'). See also <see cref="System.Text.Encoding.WebName"/>.
+/// 'validBytes' restricts the bytes of the string (padding included, terminator excluded) to a list of byte ranges.
+/// Every other property is a character map entry: the name is a byte value, the value the text element it stands for.
+/// The map replaces those bytes of a single-byte encoding (device character sets).
 /// </summary>
 internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
 {
@@ -19,6 +23,13 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
     private static readonly PropertyDescriptor TerminatorProperty = new("terminator", "sys.uint8", false, description: "The byte value (0-255) that ends the string. Exclusive with 'byteLength'.");
     private static readonly PropertyDescriptor PaddingProperty = new("padding", "sys.uint8", false, description: "The byte value (0-255) that pads a fixed length; 0 by default. Trailing padding is trimmed on read.");
     private static readonly PropertyDescriptor LengthProperty = new(PublishedLength, "sys.int32", false, isReadOnly: true, isPublished: true, description: "Published: the length of the string in chars.");
+    private static readonly PropertyDescriptor ValidBytesProperty = new("validBytes", "sys.string", false, description: "The byte values the string may hold, as a comma separated list of values and ranges (e.g. '0x16-0x7F'); all by default.");
+
+    // the property names that are not character map entries
+    private static readonly HashSet<string> KnownNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        EncodingProperty.Name, ByteLengthProperty.Name, TerminatorProperty.Name, PaddingProperty.Name, LengthProperty.Name, ValidBytesProperty.Name
+    };
 
     public FieldWriteResult<EncodedField> Write(LogicalField field, FieldProcessorContext context)
     {
@@ -56,7 +67,7 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
         }
 
         context.Publish(PublishedLength, text.Length);
-        var bytes = options.Encoding.GetBytes(text);
+        var bytes = Encode(text, options, path);
         if (options.Length is { } length)
         {
             if (bytes.Length > length)
@@ -76,8 +87,14 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
                 throw new InvalidOperationException($"'{path}': the string contains the terminator byte {terminator}.");
             }
 
+            options.CharacterSet.CheckBytes(bytes, bytes.Length, path);
             Array.Resize(ref bytes, bytes.Length + 1);
             bytes[^1] = terminator;
+        }
+
+        if (options.Length is not null)
+        {
+            options.CharacterSet.CheckBytes(bytes, bytes.Length, path);
         }
 
         return FieldWriteResult<EncodedField>.Written(new(field.Name, typeof(byte[]), bytes, bytes.Length * 8), bytes.Length * 8);
@@ -120,18 +137,81 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
             consumed = textLength + 1;
         }
 
-        string text;
+        // the bytes of the field: padding included, terminator excluded
+        options.CharacterSet.CheckBytes(bytes, options.Length ?? textLength, path);
+        var text = Decode(bytes, textLength, options, path);
+
+        context.Publish(PublishedLength, text.Length);
+        return FieldReadResult<LogicalField>.Consumed(new(field.Name, typeof(string), text), consumed * 8);
+    }
+
+    private static byte[] Encode(string text, Options options, string path)
+    {
+        var characterSet = options.CharacterSet;
         try
         {
-            text = options.Encoding.GetString(bytes, 0, textLength);
+            if (characterSet.ByByte.Count == 0)
+            {
+                return options.Encoding.GetBytes(text);
+            }
+
+            var bytes = new List<byte>(text.Length);
+            var elements = StringInfo.GetTextElementEnumerator(text);
+            while (elements.MoveNext())
+            {
+                var element = elements.GetTextElement();
+                if (characterSet.ByText.TryGetValue(element, out var mapped))
+                {
+                    bytes.Add(mapped);
+                    continue;
+                }
+
+                foreach (var b in options.Encoding.GetBytes(element))
+                {
+                    // the byte stands for another character: this one cannot be written
+                    if (characterSet.ByByte.TryGetValue(b, out var other))
+                    {
+                        throw new InvalidOperationException(
+                            $"'{path}': '{element}' is not in the character set; its byte 0x{b:X2} stands for '{other}'.");
+                    }
+                    bytes.Add(b);
+                }
+            }
+            return [.. bytes];
+        }
+        catch (EncoderFallbackException ex)
+        {
+            throw new InvalidOperationException($"'{path}': the text '{text}' cannot be encoded as {options.Encoding.WebName}.", ex);
+        }
+    }
+
+    private static string Decode(byte[] bytes, int length, Options options, string path)
+    {
+        var characterSet = options.CharacterSet;
+        try
+        {
+            if (characterSet.ByByte.Count == 0)
+            {
+                return options.Encoding.GetString(bytes, 0, length);
+            }
+
+            // decode the runs of unmapped bytes with the (single-byte) encoding
+            var text = new StringBuilder(length);
+            var start = 0;
+            for (var i = 0; i < length; i++)
+            {
+                if (characterSet.ByByte.TryGetValue(bytes[i], out var mapped))
+                {
+                    text.Append(options.Encoding.GetString(bytes, start, i - start)).Append(mapped);
+                    start = i + 1;
+                }
+            }
+            return text.Append(options.Encoding.GetString(bytes, start, length - start)).ToString();
         }
         catch (DecoderFallbackException ex)
         {
             throw new InvalidOperationException($"'{path}': the bytes are not valid {options.Encoding.WebName} text.", ex);
         }
-
-        context.Publish(PublishedLength, text.Length);
-        return FieldReadResult<LogicalField>.Consumed(new(field.Name, typeof(string), text), consumed * 8);
     }
 
     private static void CheckType(FieldProcessorContext context, string path)
@@ -183,13 +263,115 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
                 $"The string processor requires exactly one of the field byte length, '{properties.FullName(ByteLengthProperty.Name)}' or '{properties.FullName(TerminatorProperty.Name)}'.");
         }
 
-        return new Options(encoding, length, terminator, padding);
+        var characterSet = context.GetOrCreateState<CharacterSet>();
+        if (!characterSet.IsParsed)
+        {
+            characterSet.Parse(properties, encoding);
+        }
+
+        return new Options(encoding, length, terminator, padding, characterSet);
     }
 
-    private sealed record Options(Encoding Encoding, int? Length, byte? Terminator, byte Padding);
+    private sealed record Options(Encoding Encoding, int? Length, byte? Terminator, byte Padding, CharacterSet CharacterSet);
+
+    /// <summary>
+    /// The character map ('byte' = 'text element' properties) and the valid bytes ('validBytes') of one processor binding,
+    /// parsed once from the properties.
+    /// </summary>
+    private sealed class CharacterSet
+    {
+        private readonly List<(byte From, byte To)> _validBytes = [];
+
+        public bool IsParsed { get; private set; }
+        public Dictionary<byte, string> ByByte { get; } = [];
+        public Dictionary<string, byte> ByText { get; } = new(StringComparer.Ordinal);
+
+        public void Parse(ProcessorProperties properties, Encoding encoding)
+        {
+            if (properties.GetOrDefault<string>(ValidBytesProperty) is { } validBytes)
+            {
+                ParseValidBytes(validBytes, properties.FullName(ValidBytesProperty.Name));
+            }
+
+            foreach (var (name, value) in properties.ShortNames())
+            {
+                if (KnownNames.Contains(name))
+                {
+                    continue;
+                }
+
+                var fullName = properties.FullName(name);
+                if (!TryParseByte(name, out var b))
+                {
+                    throw new InvalidOperationException(
+                        $"Invalid property '{fullName}': not a property of the string processor, nor a byte value (0-255) of a character map entry.");
+                }
+                if (value is null || new StringInfo(value).LengthInTextElements != 1)
+                {
+                    throw new InvalidOperationException($"Invalid '{fullName}' value '{value}': a character map entry is one text element.");
+                }
+                if (!IsValid(b))
+                {
+                    throw new InvalidOperationException($"Invalid property '{fullName}': the byte is not in '{properties.FullName(ValidBytesProperty.Name)}'.");
+                }
+                if (!ByByte.TryAdd(b, value))
+                {
+                    throw new InvalidOperationException($"Invalid property '{fullName}': the byte 0x{b:X2} is mapped more than once.");
+                }
+                if (!ByText.TryAdd(value, b))
+                {
+                    throw new InvalidOperationException($"Invalid property '{fullName}': '{value}' is mapped more than once.");
+                }
+            }
+
+            if (ByByte.Count > 0 && !encoding.IsSingleByte)
+            {
+                throw new InvalidOperationException(
+                    $"A character map requires a single-byte encoding, not {encoding.WebName}; set '{properties.FullName(EncodingProperty.Name)}'.");
+            }
+
+            IsParsed = true;
+        }
+
+        public void CheckBytes(byte[] bytes, int length, string path)
+        {
+            for (var i = 0; i < length; i++)
+            {
+                if (!IsValid(bytes[i]))
+                {
+                    throw new InvalidOperationException($"'{path}': the byte 0x{bytes[i]:X2} is not a valid byte of the string.");
+                }
+            }
+        }
+
+        private bool IsValid(byte b)
+            => _validBytes.Count == 0 || _validBytes.Exists(range => b >= range.From && b <= range.To);
+
+        private void ParseValidBytes(string text, string fullName)
+        {
+            foreach (var item in text.Split(',', StringSplitOptions.TrimEntries))
+            {
+                var bounds = item.Split('-', StringSplitOptions.TrimEntries);
+                if (bounds.Length is < 1 or > 2
+                    || !TryParseByte(bounds[0], out var from)
+                    || !TryParseByte(bounds[^1], out var to)
+                    || from > to)
+                {
+                    throw new InvalidOperationException(
+                        $"Invalid '{fullName}' value '{text}'. Expected a comma separated list of byte values (0-255) and ranges (e.g. '0x16-0x7F').");
+                }
+                _validBytes.Add((from, to));
+            }
+        }
+
+        private static bool TryParseByte(string text, out byte value)
+            => text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                ? Byte.TryParse(text.AsSpan(2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out value)
+                : Byte.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value);
+    }
 
     public ProcessorKey Key => new("sys.string");
     public string Name => "String Processor";
     public PipelineStage Stage => PipelineStage.Representation;
-    public IReadOnlyList<PropertyDescriptor> Properties => [EncodingProperty, ByteLengthProperty, TerminatorProperty, PaddingProperty, LengthProperty];
+    public IReadOnlyList<PropertyDescriptor> Properties => [EncodingProperty, ByteLengthProperty, TerminatorProperty, PaddingProperty, ValidBytesProperty, LengthProperty];
 }

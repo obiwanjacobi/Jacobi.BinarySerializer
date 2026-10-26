@@ -133,6 +133,8 @@
 - [ ] **Typed-object API.** Where interfacing is done through client-defined POCOs, not by implementing interfaces.
 - [ ] **EndOfData probe: layout side effects.** The writer ends a count-less repeat for a flat source by probing the first field of the next item (`SourceResult.EndOfData`) before the item is entered; the probe only covers a direct first field (not a first field inside a nested repeat or choice). Layout processors may have side-effects if the item/group were entered before the probe; revisit if that shows up.
 - [ ] **String follow-ups.** 
+  - [ ] character map entries for multi-byte character sets (e.g. Shift-JIS): byte sequences as keys, matched only at the character boundaries of the base encoding. The map now requires a single-byte encoding.
+  - [ ] code page encodings (`shift_jis`, `windows-1252`, ...) need `CodePagesEncodingProvider` registered (`Encoding.RegisterProvider`); nothing registers it, so `Encoding.GetEncoding` fails for them. Decide who registers it (the processor, the serializer builder or the application).
   - [ ] multi-byte terminators for UTF-16/32
   - [ ] reporting property errors at plan build instead of at read time. A field processor that needs more data than the open-width window (10 bytes) is retried by the reader with a doubled window while more input is available.
 - [ ] **CRC follow-ups.** require engine changes:

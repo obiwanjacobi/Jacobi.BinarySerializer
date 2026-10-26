@@ -695,7 +695,9 @@ public sealed class SchemaSetBuilder
             return;
         }
 
-        if (IsLocal(document, processorRef.Processor))
+        // a qualified name that is not a def is a processor key, also when its namespace equals the document name
+        // ('roland.checksum' in the document 'Roland'); an unknown key is reported at plan build
+        if (String.IsNullOrEmpty(processorRef.Processor.Namespace))
         {
             throw new InvalidOperationException(
                 $"{referrer} references the processor '{LocalName(document, processorRef.Processor)}' that is not defined in the schema '{document.Name}'.");
@@ -746,8 +748,9 @@ public sealed class SchemaSetBuilder
     private static SchemaNode CloneNode(SchemaNode node)
         => CloneNode(node, null);
 
-    private static SchemaNode CloneNode(SchemaNode node, string? documentName)
+    private static SchemaNode CloneNode(SchemaNode node, SchemaDocument? document)
     {
+        var documentName = document?.Name;
         var properties = node.Properties.Select(property => new SchemaProperty
         {
             Name = property.Name,
@@ -765,13 +768,13 @@ public sealed class SchemaSetBuilder
                 Value = CloneValue(field.Value),
                 ByteLength = CloneValue(field.ByteLength),
                 ByteOffset = field.ByteOffset,
-                ProcessorsList = CloneProcessors(field.Processors, documentName)
+                ProcessorsList = CloneProcessors(field.Processors, document)
             };
         }
 
         var group = (SchemaGroup)node;
-        var members = group.Members.Select(member => CloneNode(member, documentName)).ToList();
-        var processors = CloneProcessors(group.Processors, documentName);
+        var members = group.Members.Select(member => CloneNode(member, document)).ToList();
+        var processors = CloneProcessors(group.Processors, document);
         var byteSize = CloneValue(group.ByteSize);
         return group switch
         {
@@ -780,7 +783,7 @@ public sealed class SchemaSetBuilder
                 Name = node.Name, NodeDef = nodeDef, PropertyList = properties,
                 MemberList = members, ProcessorsList = processors, ByteSize = byteSize,
                 Count = CloneValue(repeat.Count),
-                ValueProcessorsList = CloneProcessors(repeat.ValueProcessors, documentName)
+                ValueProcessorsList = CloneProcessors(repeat.ValueProcessors, document)
             },
             SchemaChoice choice => new SchemaChoice
             {
@@ -789,7 +792,7 @@ public sealed class SchemaSetBuilder
                 SelectedIndex = CloneValue(choice.SelectedIndex),
                 MemberNodeDef = choice.MemberNodeDef?.Qualify(documentName),
                 PipelineOverride = choice.PipelineOverride,
-                ValueProcessorsList = CloneProcessors(choice.ValueProcessors, documentName)
+                ValueProcessorsList = CloneProcessors(choice.ValueProcessors, document)
             },
             _ when group.GetType() == typeof(SchemaGroup) => new SchemaGroup
             {
@@ -808,10 +811,15 @@ public sealed class SchemaSetBuilder
         _ => default
     };
 
-    private static List<SchemaProcessorRef> CloneProcessors(IEnumerable<SchemaProcessorRef> processors, string? documentName)
+    // an unqualified name is qualified with the defining document only when that document defines it, so the clone
+    // resolves from any document; an undefined name stays unqualified and is reported when it is resolved
+    private static List<SchemaProcessorRef> CloneProcessors(IEnumerable<SchemaProcessorRef> processors, SchemaDocument? document)
         => processors.Select(processor => new SchemaProcessorRef
         {
-            Processor = processor.Processor.Qualify(documentName),
+            Processor = document is not null && String.IsNullOrEmpty(processor.Processor.Namespace)
+                && document.TryFindProcessorDef(processor.Processor.Name, out _)
+                    ? processor.Processor.Qualify(document.Name)
+                    : processor.Processor,
             PublishNamespace = processor.PublishNamespace,
             PropertyList = processor.Properties.Select(property => new SchemaProperty
             {
@@ -832,7 +840,7 @@ public sealed class SchemaSetBuilder
         }
         try
         {
-            var nodes = new List<SchemaNode> { CloneNode(definition, document.Name) };
+            var nodes = new List<SchemaNode> { CloneNode(definition, document) };
             ResolveReferences(document, nodes, document.Name);
             _resolvedNodeDefs.Add(definition, nodes[0]);
             return nodes[0];

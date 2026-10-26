@@ -87,6 +87,30 @@ Strings, delimited by exactly one of `byteLength` or `terminator`.
 | `byteLength` | one of | Fixed length in bytes. Shorter strings are padded with `padding`; trailing padding is trimmed on read. |
 | `terminator` | one of | Byte value (0-255) that ends the string; not part of the string. |
 | `padding` | no | Byte value (0-255) used for padding a fixed length (default 0). |
+| `validBytes` | no | The byte values the string may hold: a comma separated list of values and ranges, decimal or `0x` hex (e.g. `0x16-0x7F, 0x0A`). The padding bytes are checked too, the terminator is not. A byte outside the list is an error on read and on write. Default: all. |
+| any other name | no | A character map entry: the name is a byte value (decimal or `0x` hex), the value the text element it stands for (one character, a surrogate pair or a combining sequence). |
+
+A character map describes a device character set: it replaces the mapped bytes of the `encoding`, which must then be a
+single-byte encoding (e.g. `ascii`). On read a mapped byte gives its text element and the other bytes are decoded by the
+encoding; on write a mapped text element gives its byte. A character the encoding writes as a mapped byte (`~` when
+`0x7E` is mapped to `→`) cannot be written, so a read and write round trip is exact. Each byte and each text element
+is mapped once; a mapped byte must be in `validBytes`.
+
+Give the map in the explicit property list (byte values are no valid XML attribute names), usually once in a
+`processorDefs` entry or on a `dataTypeDef`:
+
+```xml
+<dataTypeDef name="displayText" basedOn="sys.string">
+  <processors>
+    <processor name="sys.string" encoding="ascii" padding="32" validBytes="0x20-0x7F">
+      <properties>
+        <property name="0x7E" value="→" />
+        <property name="0x7F" value="←" />
+      </properties>
+    </processor>
+  </processors>
+</dataTypeDef>
+```
 
 ### `sys.bitslicer`
 
