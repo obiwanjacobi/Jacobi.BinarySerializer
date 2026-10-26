@@ -34,6 +34,8 @@
   - [ ] running status (a first byte below 0x80 reuses the previous status); 
   - [ ] the status peek must be supplied by the model on write (not derived from the chosen alternative); 
   - [ ] the repeated `Status` group cannot be reused (nodeDef/group reuse); no test parses `Midi.xml` yet. See item on Group NodeDef to include members.
+- [ ] **Unused `type` on XML properties.** `schema.xsd` (`property`) and `XmlSchemaProperty` have a `type` attribute, but `XmlSchemaMapper.ToSchemaProperty` drops it and `SchemaProperty` has no type. Remove it from the XSD and the XML model, or carry it into the schema model (e.g. to select the data type that parses the value, see complex schema property values).
+- [ ] **Stale `IntegrationTests/Midi/MidiFile.xml`.** It uses the old processor syntax `<processor processor="sys.map">` without a `name`, and no code or project references the file, so nothing detects it. The `processor` attribute is not reported either: it is in `ProcessorRefKnownNames` (the C# property name of `XmlSchemaProcessorRef.Processor`, whose XML attribute is `name`), so it is silently skipped instead of becoming a property or an error, and the processor name stays empty. Update the file to the current syntax and load it in a test; build the known-name sets from the XML attribute names, and report an unknown attribute that collides with a model member.
 
 ---
 
