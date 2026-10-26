@@ -600,7 +600,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         var lookup = new ProcessorProperties(properties, processor.Key, _dataTypes);
         foreach (var descriptor in processor.Properties)
         {
-            if (!_dataTypes.TryGet(new SchemaName(descriptor.DataType.FullName), out var dataType))
+            if (!_dataTypes.TryGet(descriptor.DataType, out var dataType))
             {
                 state.Error(path, $"The data type '{descriptor.DataType}' of the '{lookup.FullName(descriptor.Name)}' property is not registered.");
                 continue;
