@@ -391,16 +391,20 @@ public sealed class SchemaSetBuilder
 
         foreach (var dataTypeDef in document.DataTypeDefs)
         {
+            var referrer = $"The dataTypeDef '{document.Name}{SchemaName.Separator}{dataTypeDef.Name}'";
+            if (IsLocal(document, dataTypeDef.BasedOn) && !TryFindDataTypeDef(document, dataTypeDef.BasedOn, out _, out _))
+            {
+                throw new InvalidOperationException(
+                    $"{referrer} is based on the data type '{LocalName(document, dataTypeDef.BasedOn)}' that is not defined in the schema '{document.Name}'.");
+            }
+
             foreach (var processor in dataTypeDef.Processors)
             {
-                if (!TryResolveProcessorRef(document, processor))
-                {
-                    allResolved = false;
-                }
+                ResolveProcessorRef(document, processor, referrer);
             }
         }
 
-        allResolved &= ResolveReferences(document, document.MemberList, roots: true);
+        ResolveReferences(document, document.MemberList, document.Name, roots: true);
         document.RefreshIndexes();
 
         return allResolved;
@@ -425,22 +429,24 @@ public sealed class SchemaSetBuilder
         return allResolved;
     }
 
-    private bool ResolveReferences(SchemaDocument document, List<SchemaNode> schemaNodes, bool roots = false)
+    // parentPath is the qualified path of the parent ('document.root.group'); it names the referring node in errors.
+    private void ResolveReferences(SchemaDocument document, List<SchemaNode> schemaNodes, string parentPath, bool roots = false)
     {
-        bool allResolved = true;
         var resolvedNodes = new List<SchemaNode>(schemaNodes);
 
         // Resolve references for groups, fields and processors
         foreach (var originalNode in schemaNodes)
         {
             var node = originalNode;
+            var path = $"{parentPath}{SchemaName.Separator}{node.Name}";
+            var referrer = $"The {node.Kind} '{path}'";
             if (node.NodeDef.HasValue)
             {
-                var nodeDef = FindNodeDef(document, node.NodeDef.Value, $"The {node.Kind} '{node.Name}'");
+                var nodeDef = FindNodeDef(document, node.NodeDef.Value, referrer);
                 if (nodeDef.Kind != node.Kind)
                 {
                     throw new InvalidOperationException(
-                        $"The {node.Kind} '{node.Name}' references the nodeDef '{nodeDef.Name}' that defines a {nodeDef.Kind}: the kinds must match.");
+                        $"{referrer} references the nodeDef '{nodeDef.Name}' that defines a {nodeDef.Kind}: the kinds must match.");
                 }
 
                 if (!roots || node.GetType() != typeof(SchemaGroup))
@@ -455,26 +461,23 @@ public sealed class SchemaSetBuilder
             {
                 foreach (var processor in field.Processors)
                 {
-                    if (!TryResolveProcessorRef(document, processor))
-                    {
-                        allResolved = false;
-                    }
+                    ResolveProcessorRef(document, processor, referrer);
                 }
             }
 
             if (node is SchemaChoice { MemberNodeDef: null, Pipeline: SchemaPipelineMode.Isolate })
             {
                 throw new InvalidOperationException(
-                    $"The Choice '{node.Name}' sets a pipeline mode, which is only valid for an open choice (with a memberNodeDef).");
+                    $"{referrer} sets a pipeline mode, which is only valid for an open choice (with a memberNodeDef).");
             }
 
             if (node is SchemaChoice { MemberNodeDef: { } memberNodeDef })
             {
-                var memberDef = FindNodeDef(document, memberNodeDef, $"The Choice '{node.Name}' (member nodeDef)");
+                var memberDef = FindNodeDef(document, memberNodeDef, $"{referrer} (member nodeDef)");
                 if (memberDef.Kind != SchemaNodeKind.Group)
                 {
                     throw new InvalidOperationException(
-                        $"The Choice '{node.Name}' references the member nodeDef '{memberDef.Name}' that defines a {memberDef.Kind}: it must be a Group.");
+                        $"{referrer} references the member nodeDef '{memberDef.Name}' that defines a {memberDef.Kind}: it must be a Group.");
                 }
             }
 
@@ -482,16 +485,10 @@ public sealed class SchemaSetBuilder
             {
                 foreach (var processor in group.Processors.Concat(ValueProcessorsOf(group)))
                 {
-                    if (!TryResolveProcessorRef(document, processor))
-                    {
-                        allResolved = false;
-                    }
+                    ResolveProcessorRef(document, processor, referrer);
                 }
 
-                if (!ResolveReferences(document, group.MemberList))
-                {
-                    allResolved = false;
-                }
+                ResolveReferences(document, group.MemberList, path);
             }
         }
 
@@ -500,14 +497,21 @@ public sealed class SchemaSetBuilder
 
         for (var i = 0; i < schemaNodes.Count; i++)
         {
-            if (schemaNodes[i] is SchemaField { DataType: { } fieldDataType } dataTypeField &&
-                TryFindDataTypeDef(document, fieldDataType, out var defDocument, out var dataTypeDef))
+            if (schemaNodes[i] is not SchemaField { DataType: { } fieldDataType } dataTypeField)
+            {
+                continue;
+            }
+
+            if (TryFindDataTypeDef(document, fieldDataType, out var defDocument, out var dataTypeDef))
             {
                 schemaNodes[i] = InstantiateDataType(dataTypeField, defDocument, dataTypeDef);
             }
+            else if (IsLocal(document, fieldDataType))
+            {
+                throw new InvalidOperationException(
+                    $"The {dataTypeField.Kind} '{parentPath}{SchemaName.Separator}{dataTypeField.Name}' references the data type '{LocalName(document, fieldDataType)}' that is not defined in the schema '{document.Name}'.");
+            }
         }
-
-        return allResolved;
     }
 
     private bool TryFindDataTypeDef(SchemaDocument document, SchemaName dataType, [NotNullWhen(true)] out SchemaDocument? defDocument, [NotNullWhen(true)] out SchemaDataTypeDef? dataTypeDef)
@@ -682,16 +686,20 @@ public sealed class SchemaSetBuilder
     /// designates a processor definition. A name with a namespace that is not a definition is a processor key ('namespace.id').
     /// A name without a namespace must be a definition.
     /// </summary>
-    private bool TryResolveProcessorRef(SchemaDocument document, SchemaProcessorRef processorRef)
+    private void ResolveProcessorRef(SchemaDocument document, SchemaProcessorRef processorRef, string referrer)
     {
         if (TryFindProcessorDef(document, processorRef.Processor, out var definition))
         {
             processorRef.Definition = definition;
             ExpandPropertyNames(processorRef, definition.Processor);
-            return true;
+            return;
         }
 
-        return !String.IsNullOrEmpty(processorRef.Processor.Namespace);
+        if (IsLocal(document, processorRef.Processor))
+        {
+            throw new InvalidOperationException(
+                $"{referrer} references the processor '{LocalName(document, processorRef.Processor)}' that is not defined in the schema '{document.Name}'.");
+        }
     }
 
     private bool TryFindProcessorDef(SchemaDocument document, SchemaName name, [NotNullWhen(true)] out SchemaProcessorDef? definition)
@@ -706,10 +714,16 @@ public sealed class SchemaSetBuilder
     }
 
     // A name without a namespace (or with the document's own name) must resolve in the local document.
+    private static bool IsLocal(SchemaDocument document, SchemaName name)
+        => String.IsNullOrEmpty(name.Namespace) || String.Equals(name.Namespace, document.Name, StringComparison.OrdinalIgnoreCase);
+
+    private static string LocalName(SchemaDocument document, SchemaName name)
+        => $"{document.Name}{SchemaName.Separator}{name.Name}";
+
     private SchemaNode FindNodeDef(SchemaDocument document, SchemaName schemaName, string referrer)
     {
         var ns = schemaName.Namespace;
-        var isLocal = String.IsNullOrEmpty(ns) || String.Equals(ns, document.Name, StringComparison.OrdinalIgnoreCase);
+        var isLocal = IsLocal(document, schemaName);
 
         SchemaDocument? definingDocument = isLocal ? document : _documents.GetValueOrDefault(ns!);
         var nodeDef = definingDocument?.NodeDefs.FirstOrDefault(n =>
@@ -819,10 +833,7 @@ public sealed class SchemaSetBuilder
         try
         {
             var nodes = new List<SchemaNode> { CloneNode(definition, document.Name) };
-            if (!ResolveReferences(document, nodes))
-            {
-                throw new InvalidOperationException($"Failed to resolve node definition '{document.Name}.{definition.Name}'.");
-            }
+            ResolveReferences(document, nodes, document.Name);
             _resolvedNodeDefs.Add(definition, nodes[0]);
             return nodes[0];
         }

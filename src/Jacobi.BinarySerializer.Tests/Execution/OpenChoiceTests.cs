@@ -128,7 +128,7 @@ public class OpenChoiceTests
 
         var ex = Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
 
-        Assert.That(ex.Message, Does.Contain("'Msg'").And.Contain("must be a Group"));
+        Assert.That(ex.Message, Does.Contain("'OpenTest.Root.Msg'").And.Contain("must be a Group"));
     }
 
     [Test]

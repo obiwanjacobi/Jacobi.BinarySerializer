@@ -111,7 +111,7 @@ public class NodeDefTests
 
         var ex = Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
 
-        Assert.That(ex.Message, Does.Contain("'A'").And.Contain("'Word'").And.Contain("kinds must match"));
+        Assert.That(ex.Message, Does.Contain("'NodeDefTest.Root.A'").And.Contain("'Word'").And.Contain("kinds must match"));
     }
 
     [Test]
