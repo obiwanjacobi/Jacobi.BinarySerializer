@@ -38,6 +38,19 @@ public sealed class SchemaSet
     }
 
     /// <summary>
+    /// Finds the document that holds <paramref name="node"/> (the instance itself, at any depth in a root or node def);
+    /// null when the node is not part of this set.
+    /// </summary>
+    public SchemaDocument? FindDocument(SchemaNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return _documents.Values.FirstOrDefault(document => ContainsNode(document.Roots, node) || ContainsNode(document.NodeDefs, node));
+    }
+
+    private static bool ContainsNode(IEnumerable<SchemaNode> nodes, SchemaNode target)
+        => nodes.Any(node => ReferenceEquals(node, target) || (node is SchemaGroup group && ContainsNode(group.Members, target)));
+
+    /// <summary>
     /// Finds a node by its schema name.
     /// The namespace of the name identifies the document and the name identifies the node inside that document.
     /// The node can be nested at any depth; node names are assumed to be unique within a document.

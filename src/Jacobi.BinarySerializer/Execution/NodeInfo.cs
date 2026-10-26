@@ -43,7 +43,7 @@ public sealed class FieldInfo : NodeInfo
     private readonly DataTypeDescriptor? _valueType;
 
     /// <summary>True when the engine converts the logical value to <see cref="ValueType"/>; false when the declared semantic processors decide the value (passed as is).</summary>
-    internal bool ConvertsToValueType => _valueType is not null;
+    public bool ConvertsToValueType => _valueType is not null;
 
     /// <summary>True when another node refers to this field's value by schema path; the session publishes it.</summary>
     public bool PublishesValue { get; internal set; }

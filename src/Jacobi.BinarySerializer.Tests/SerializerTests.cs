@@ -27,6 +27,27 @@ public class SerializerTests
     }
 
     [Test]
+    public void GetPlan_ByGroup_IsThePlanOfTheGroup()
+    {
+        var serializer = CreateSerializer("Main", "Root");
+        var root = serializer.Schemas.FindRoot(new SchemaName("Main.Root"));
+
+        var plan = serializer.GetPlan(root);
+
+        Assert.That(plan, Is.SameAs(serializer.GetPlan(new SchemaName("Main.Root"))));
+        Assert.That(plan.Name?.FullName, Is.EqualTo("Main.Root"));
+    }
+
+    [Test]
+    public void GetPlan_GroupOfOtherSchemas_Throws()
+    {
+        var serializer = CreateSerializer("Main", "Root");
+        var other = CreateSerializer("Main", "Root").Schemas.FindRoot(new SchemaName("Main.Root"));
+
+        Assert.Throws<ArgumentException>(() => serializer.GetPlan(other));
+    }
+
+    [Test]
     public void Schemas_IsTheSchemaSetOfTheSerializer()
     {
         var serializer = CreateSerializer("Main", "Root");

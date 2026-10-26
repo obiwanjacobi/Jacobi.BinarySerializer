@@ -175,14 +175,23 @@ public sealed class ExecutionPlan
     }
 
     public static ExecutionPlan Create(SchemaSet schemas, SchemaName schemaName, IProcessorProvider processorProvider, DataTypeRegistry? dataTypes = null)
+        => Create(schemas, schemas.FindRoot(schemaName), processorProvider, dataTypes);
+
+    /// <summary>
+    /// Creates the plan of any group of <paramref name="schemas"/>: a root, a node def or a group nested in one of them.
+    /// The plan is named after the group in its document; the open choices in it resolve their bodies in all <paramref name="schemas"/>.
+    /// </summary>
+    /// <exception cref="ArgumentException">The group is not part of <paramref name="schemas"/>.</exception>
+    public static ExecutionPlan Create(SchemaSet schemas, SchemaGroup group, IProcessorProvider processorProvider, DataTypeRegistry? dataTypes = null)
     {
+        var document = schemas.FindDocument(group)
+            ?? throw new ArgumentException($"The group '{group.Name}' is not part of the schemas.", nameof(group));
         dataTypes ??= DataTypeRegistry.CreateDefault();
         dataTypes.RegisterDataTypeDefs(schemas.Documents);
         var builder = new ExecutionPlanBuilder(processorProvider, dataTypes);
-        var root = schemas.FindRoot(schemaName);
-        var plan = builder.Build(root);
-        plan.Name = schemaName;
-        plan.SetOpenChoiceBodies(builder.BuildOpenChoiceBodies(plan.Root, schemas, schemaName.Namespace));
+        var plan = builder.Build(group);
+        plan.Name = new SchemaName($"{document.Name}{SchemaName.Separator}{group.Name}");
+        plan.SetOpenChoiceBodies(builder.BuildOpenChoiceBodies(plan.Root, schemas, document.Name));
         return plan;
     }
 

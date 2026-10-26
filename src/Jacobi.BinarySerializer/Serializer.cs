@@ -14,7 +14,8 @@ public sealed class Serializer
     private readonly IServiceProvider? _serviceProvider;
     private readonly DataTypeRegistry _dataTypes;
     private readonly bool _valueFieldsUseModel;
-    private readonly ConcurrentDictionary<SchemaName, Lazy<ExecutionPlan>> _plans = new();
+    // by the group instance: a plan can be created for any group of the schemas
+    private readonly ConcurrentDictionary<SchemaGroup, Lazy<ExecutionPlan>> _plans = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>
     /// The compiled (frozen) schemas the serializer creates its plans from.
@@ -34,9 +35,18 @@ public sealed class Serializer
     /// Returns the cached plan for the schema; it is built once, thread-safe.
     /// </summary>
     public ExecutionPlan GetPlan(SchemaName schemaName)
+        => GetPlan(_schemas.FindRoot(schemaName));
+
+    /// <summary>
+    /// Returns the cached plan for any group of the <see cref="Schemas"/>: a root, a node def or a group nested in one of them.
+    /// It is built once, thread-safe.
+    /// </summary>
+    /// <exception cref="ArgumentException">The group is not part of the <see cref="Schemas"/>.</exception>
+    public ExecutionPlan GetPlan(SchemaGroup group)
     {
-        return _plans.GetOrAdd(schemaName,
-            name => new Lazy<ExecutionPlan>(() => ExecutionPlan.Create(_schemas, name, _processorProvider, _dataTypes))).Value;
+        ArgumentNullException.ThrowIfNull(group);
+        return _plans.GetOrAdd(group,
+            key => new Lazy<ExecutionPlan>(() => ExecutionPlan.Create(_schemas, key, _processorProvider, _dataTypes))).Value;
     }
 
     /// <summary>
