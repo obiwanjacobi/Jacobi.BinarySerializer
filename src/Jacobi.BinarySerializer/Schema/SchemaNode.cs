@@ -8,8 +8,18 @@ public closed class SchemaNode
     internal List<SchemaProperty> PropertyList { get; init; } = [];
     /// <summary>
     /// Optional reference to a reusable node in the schema's nodeDefs collection.
+    /// After compiling it is kept (qualified) on the instance of the node def (see <see cref="IsNodeDefInstance"/>).
     /// </summary>
     public SchemaName? NodeDef { get; init; }
+
+    /// <summary>
+    /// True when the node was created by compiling a node that references a <see cref="NodeDef"/>: the members, data type,
+    /// processors and properties of the node def are merged into it. The <see cref="NodeDef"/> (qualified) then only tells
+    /// which node def the node is an instance of: compiling does not merge the node def again (e.g. when the node is
+    /// cloned into another use of a node def, or the document is compiled again).
+    /// A root group with a node def conforms to it (it is not merged), so it is not an instance.
+    /// </summary>
+    public bool IsNodeDefInstance { get; internal init; }
 }
 
 /// <summary>

@@ -440,7 +440,8 @@ public sealed class SchemaSetBuilder
             var node = originalNode;
             var path = $"{parentPath}{SchemaName.Separator}{node.Name}";
             var referrer = $"The {node.Kind} '{path}'";
-            if (node.NodeDef.HasValue)
+            // an instance of a node def already holds it: its NodeDef only tells where it came from
+            if (node.NodeDef.HasValue && !node.IsNodeDefInstance)
             {
                 var nodeDef = FindNodeDef(document, node.NodeDef.Value, referrer);
                 if (nodeDef.Kind != node.Kind)
@@ -451,7 +452,7 @@ public sealed class SchemaSetBuilder
 
                 if (!roots || node.GetType() != typeof(SchemaGroup))
                 {
-                    var replacementNode = InstantiateNodeDef(node, nodeDef);
+                    var replacementNode = InstantiateNodeDef(node, nodeDef, node.NodeDef.Value.Qualify(document.Name));
                     resolvedNodes.Replace(node, replacementNode);
                     node = replacementNode;
                 }
@@ -574,6 +575,7 @@ public sealed class SchemaSetBuilder
         {
             Name = field.Name,
             NodeDef = field.NodeDef,
+            IsNodeDefInstance = field.IsNodeDefInstance,
             DataType = new SchemaName($"{defDocument.Name}{SchemaName.Separator}{dataTypeDef.Name}"),
             Value = field.Value,
             ByteLength = field.ByteLength,
@@ -591,13 +593,16 @@ public sealed class SchemaSetBuilder
             _ => []
         };
 
-    private SchemaNode InstantiateNodeDef(SchemaNode node, SchemaNode nodeDef)
+    // qualifiedNodeDef: the name of the node def as the node references it, qualified with the document of the node
+    private SchemaNode InstantiateNodeDef(SchemaNode node, SchemaNode nodeDef, SchemaName qualifiedNodeDef)
     {
         if (node is SchemaField fieldNode && nodeDef is SchemaField fieldDef)
         {
             return new SchemaField
             {
                 Name = node.Name,
+                NodeDef = qualifiedNodeDef,
+                IsNodeDefInstance = true,
                 DataType = fieldNode.DataType ?? fieldDef.DataType ?? throw new InvalidOperationException($"The nodeDef '{nodeDef.Name}' has no data type and cannot be applied to the field '{node.Name}'."),
                 Value = Inherit(fieldNode.Value, fieldDef.Value),
                 ByteLength = Inherit(fieldNode.ByteLength, fieldDef.ByteLength),
@@ -611,6 +616,8 @@ public sealed class SchemaSetBuilder
             return new SchemaRepeat
             {
                 Name = node.Name,
+                NodeDef = qualifiedNodeDef,
+                IsNodeDefInstance = true,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(repeatDef.Processors, repeatNode.Processors),
                 MemberList = [.. repeatDef.Members.Select(CloneNode), .. repeatNode.MemberList],
@@ -624,6 +631,8 @@ public sealed class SchemaSetBuilder
             return new SchemaChoice
             {
                 Name = node.Name,
+                NodeDef = qualifiedNodeDef,
+                IsNodeDefInstance = true,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(choiceDef.Processors, choiceNode.Processors),
                 MemberList = [.. choiceDef.Members.Select(CloneNode), .. choiceNode.MemberList],
@@ -641,6 +650,8 @@ public sealed class SchemaSetBuilder
             return new SchemaGroup
             {
                 Name = node.Name,
+                NodeDef = qualifiedNodeDef,
+                IsNodeDefInstance = true,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(groupDef.Processors, groupNode.Processors),
                 MemberList = [.. groupDef.Members.Select(CloneNode), .. groupNode.MemberList],
@@ -763,6 +774,7 @@ public sealed class SchemaSetBuilder
             {
                 Name = node.Name,
                 NodeDef = nodeDef,
+                IsNodeDefInstance = node.IsNodeDefInstance,
                 PropertyList = properties,
                 DataType = field.DataType?.Qualify(documentName),
                 Value = CloneValue(field.Value),
@@ -780,14 +792,14 @@ public sealed class SchemaSetBuilder
         {
             SchemaRepeat repeat => new SchemaRepeat
             {
-                Name = node.Name, NodeDef = nodeDef, PropertyList = properties,
+                Name = node.Name, NodeDef = nodeDef, IsNodeDefInstance = node.IsNodeDefInstance, PropertyList = properties,
                 MemberList = members, ProcessorsList = processors, ByteSize = byteSize,
                 Count = CloneValue(repeat.Count),
                 ValueProcessorsList = CloneProcessors(repeat.ValueProcessors, document)
             },
             SchemaChoice choice => new SchemaChoice
             {
-                Name = node.Name, NodeDef = nodeDef, PropertyList = properties,
+                Name = node.Name, NodeDef = nodeDef, IsNodeDefInstance = node.IsNodeDefInstance, PropertyList = properties,
                 MemberList = members, ProcessorsList = processors, ByteSize = byteSize,
                 SelectedIndex = CloneValue(choice.SelectedIndex),
                 MemberNodeDef = choice.MemberNodeDef?.Qualify(documentName),
@@ -796,7 +808,7 @@ public sealed class SchemaSetBuilder
             },
             _ when group.GetType() == typeof(SchemaGroup) => new SchemaGroup
             {
-                Name = node.Name, NodeDef = nodeDef, PropertyList = properties,
+                Name = node.Name, NodeDef = nodeDef, IsNodeDefInstance = node.IsNodeDefInstance, PropertyList = properties,
                 MemberList = members, ProcessorsList = processors, ByteSize = byteSize
             },
             _ => throw new NotSupportedException($"Unsupported schema node type: {node.GetType().Name}.")

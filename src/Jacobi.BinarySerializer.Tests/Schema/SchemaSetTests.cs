@@ -92,6 +92,61 @@ public class SchemaSetTests
     }
 
     [Test]
+    public void Compile_NestedNodeDefs_KeepTheQualifiedNodeDefWithoutMergingAgain()
+    {
+        var document = new SchemaDocumentBuilder("Doc")
+            .NodeDefs(definitions => definitions
+                .Group("Inner", members => members.Field("Value", "sys.uint8"))
+                .Group("Outer", members => members.Group("Nested", nodeDef: "Inner")))
+            .Group("Root", members => members
+                .Group("First", nodeDef: "Outer")
+                .Group("Second", nodeDef: "Outer"))
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(document);
+        builder.Compile();
+        // compiling again does not merge the node defs again
+        builder.Compile();
+
+        var root = document.Roots.Single();
+        Assert.That(root.IsNodeDefInstance, Is.False);
+        foreach (var use in root.Members.Cast<SchemaGroup>())
+        {
+            Assert.That(use.NodeDef?.ToString(), Is.EqualTo("Doc.Outer"));
+            Assert.That(use.IsNodeDefInstance, Is.True);
+            var nested = (SchemaGroup)use.Members.Single();
+            Assert.That(nested.NodeDef?.ToString(), Is.EqualTo("Doc.Inner"));
+            Assert.That(nested.IsNodeDefInstance, Is.True);
+            Assert.That(nested.Members.Single().Name, Is.EqualTo("Value"));
+        }
+    }
+
+    [Test]
+    public void Compile_NodeDefOfOtherDocument_KeepsItsQualifiedName()
+    {
+        var shared = new SchemaDocumentBuilder("Shared")
+            .NodeDefs(definitions => definitions
+                .Field("Common", "sys.uint8")
+                .Group("Template", members => members.Field("Value", dataType: null, nodeDef: "Common")))
+            .Build();
+        var main = new SchemaDocumentBuilder("Main")
+            .Group("Root", members => members.Group("Use", nodeDef: "Shared.Template"))
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(main);
+        builder.AddDocument(shared);
+        builder.Compile();
+
+        var use = (SchemaGroup)main.Roots.Single().Members.Single();
+        Assert.That(use.NodeDef?.ToString(), Is.EqualTo("Shared.Template"));
+        Assert.That(use.IsNodeDefInstance, Is.True);
+        var field = (SchemaField)use.Members.Single();
+        Assert.That(field.NodeDef?.ToString(), Is.EqualTo("Shared.Common"));
+        Assert.That(field.IsNodeDefInstance, Is.True);
+        Assert.That(field.DataType?.ToString(), Is.EqualTo("sys.uint8"));
+    }
+
+    [Test]
     public void Compile_Definitions_KeepTheirDeclaringNamespace()
     {
         var shared = new SchemaDocumentBuilder("Shared")
