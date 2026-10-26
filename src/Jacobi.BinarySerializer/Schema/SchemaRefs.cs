@@ -23,6 +23,8 @@ public readonly record struct SchemaInstanceIndex(string Node, int Index)
 
 /// <summary>
 /// A reference to a node (field) in the schema by its schema path: 'ref:Root.Header.Length'.
+/// A path that starts with one or more '^' segments is relative to the referring node: each '^' goes up one level,
+/// so 'ref:^.Sibling' is a sibling of the referrer and 'ref:^.^.Group.Node' goes up two levels and then down.
 /// A repeat on the path may carry an instance index ('[n]' or '[]'); without one the first item is meant.
 /// Validated when the execution plan is built.
 /// </summary>
@@ -30,10 +32,59 @@ public sealed class SchemaNodeRef
 {
     public const string Prefix = "ref:";
 
+    /// <summary>The path segment that goes up one level from the referring node.</summary>
+    public const string Up = "^";
+
     /// <summary>The schema path without instance indices.</summary>
     public required string Path { get; init; }
 
     public IReadOnlyList<SchemaInstanceIndex> Indices { get; init; } = [];
+
+    /// <summary>True when the path is relative to the referring node (starts with '^').</summary>
+    public bool IsRelative => Path == Up || Path.StartsWith(Up + SchemaPath.Separator, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Resolves a relative reference against the path of the referring node (an absolute reference is returned as is).
+    /// Returns null when the path goes up beyond the root.
+    /// </summary>
+    public SchemaNodeRef? Resolve(SchemaPath referrer)
+    {
+        if (!IsRelative)
+        {
+            return this;
+        }
+
+        var path = ResolvePath(Path, referrer);
+        if (path is null)
+        {
+            return null;
+        }
+
+        var indices = Indices.Select(index => index with { Node = ResolvePath(index.Node, referrer)! }).ToArray();
+        return new SchemaNodeRef { Path = path, Indices = indices };
+    }
+
+    private static string? ResolvePath(string relative, SchemaPath referrer)
+    {
+        var current = referrer;
+        var segments = relative.Split(SchemaPath.Separator);
+        var i = 0;
+        for (; i < segments.Length && segments[i] == Up; i++)
+        {
+            current = current.Parent;
+            if (current.IsEmpty)
+            {
+                return null;
+            }
+        }
+
+        for (; i < segments.Length; i++)
+        {
+            current = current.Append(segments[i]);
+        }
+
+        return current.Value;
+    }
 
     public override string ToString()
     {
@@ -76,6 +127,11 @@ public sealed class SchemaNodeRef
         }
 
         var payload = text[Prefix.Length..];
+        if (!IsValidUp(payload))
+        {
+            return false;
+        }
+
         if (payload.IndexOf('[') < 0 && payload.IndexOf(']') < 0)
         {
             value = new SchemaNodeRef { Path = payload };
@@ -126,6 +182,32 @@ public sealed class SchemaNodeRef
         }
 
         value = new SchemaNodeRef { Path = path.ToString(), Indices = indices };
+        return true;
+    }
+
+    // '<' segments may only lead the path, without an index, and must be followed by at least one node name.
+    private static bool IsValidUp(string payload)
+    {
+        var segments = payload.Split(SchemaPath.Separator);
+        var i = 0;
+        while (i < segments.Length && segments[i] == Up)
+        {
+            i++;
+        }
+
+        if (i == segments.Length)
+        {
+            return false;
+        }
+
+        for (; i < segments.Length; i++)
+        {
+            if (segments[i].StartsWith(Up, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 }

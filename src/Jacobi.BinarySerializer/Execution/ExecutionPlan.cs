@@ -683,6 +683,13 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             return null;
         }
 
+        if (nodeRef.Resolve(path) is not { } resolved)
+        {
+            state.Error(path, $"Value reference '{nodeRef}' goes up beyond the root of the schema.");
+            return null;
+        }
+
+        nodeRef = resolved;
         var target = new SchemaPath(nodeRef.Path);
         state.PathReferences.Add((path, target));
         return PublishedValueKey.ForPath(target, BindInstance(nodeRef, target, path, state));

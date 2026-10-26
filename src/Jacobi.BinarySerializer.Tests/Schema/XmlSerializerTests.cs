@@ -415,6 +415,28 @@ public class XmlSerializerTests
     }
 
     [Test]
+    public void Serialize_RoundTrip_PreservesRelativeNodeRef()
+    {
+        var xml = """
+            <schema name="ValueSchema">
+              <members><group name="Root"><members>
+                <field name="Len" datatype="sys.int32" />
+                <field name="Node" datatype="sys.int32"><value ref="^.^.Root.Len" /></field>
+              </members></group></members>
+              <properties />
+            </schema>
+            """;
+
+        var document = new SchemaSetBuilder().LoadFromXml(xml);
+        var serialized = XmlSerializer.Serialize(document);
+        var roundTripped = new SchemaSetBuilder().LoadFromXml(serialized);
+        var node = roundTripped.Groups.Single().Members.OfType<SchemaField>().Single(f => f.Name == "Node");
+
+        Assert.That(serialized, Does.Contain("ref=\"^.^.Root.Len\""));
+        Assert.That(node.Value is SchemaNodeRef nodeRef && nodeRef.Path == "^.^.Root.Len");
+    }
+
+    [Test]
     public void Serialize_RoundTrip_PreservesValueProcessors()
     {
         var xml = """
