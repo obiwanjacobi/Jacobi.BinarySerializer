@@ -689,14 +689,42 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             return null;
         }
 
-        nodeRef = resolved;
-        var target = new SchemaPath(nodeRef.Path);
+        var target = new SchemaPath(resolved.Path);
         state.PathReferences.Add((path, target));
-        return PublishedValueKey.ForPath(target, BindInstance(nodeRef, target, path, state));
+        var instance = nodeRef.IsRelative
+            ? BindRelativeInstance(nodeRef, target, path, state)
+            : BindInstance(nodeRef, target, path, state);
+        return PublishedValueKey.ForPath(target, instance);
     }
 
     /// <summary>
-    /// Builds the instance template of a reference: one entry per repeat on the way to the target (outermost first),
+    /// Builds the instance template of a relative reference: it keeps the instance of the referrer, so every repeat on the way
+    /// to the target is the item of the referrer (<see cref="InstancePath.Current"/>). A repeat that does not hold the referrer
+    /// cannot be reached: which of its items is meant would need an index.
+    /// </summary>
+    private static InstancePath BindRelativeInstance(SchemaNodeRef nodeRef, SchemaPath target, SchemaPath referrer, BuildState state)
+    {
+        if (state.RepeatsOnPath(target) is not { } repeats)
+        {
+            return default;   // unknown target: reported when the path references are resolved
+        }
+
+        var template = new List<int>(repeats.Count);
+        foreach (var repeat in repeats)
+        {
+            if (!referrer.IsSameOrDescendantOf(repeat) || referrer.Equals(repeat))
+            {
+                state.Error(referrer, $"Value reference '{nodeRef}' reaches into the repeat '{repeat}' that does not hold the referrer: "
+                    + "use an absolute path with an instance index.");
+            }
+            template.Add(InstancePath.Current);
+        }
+
+        return new InstancePath(template);
+    }
+
+    /// <summary>
+    /// Builds the instance template of an absolute reference: one entry per repeat on the way to the target (outermost first),
     /// the explicit index, <see cref="InstancePath.Current"/> for '[]', or 0 (the first item) when no index is given.
     /// </summary>
     private static InstancePath BindInstance(SchemaNodeRef nodeRef, SchemaPath target, SchemaPath referrer, BuildState state)

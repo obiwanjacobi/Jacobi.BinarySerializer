@@ -25,7 +25,9 @@ public readonly record struct SchemaInstanceIndex(string Node, int Index)
 /// A reference to a node (field) in the schema by its schema path: 'ref:Root.Header.Length'.
 /// A path that starts with one or more '^' segments is relative to the referring node: each '^' goes up one level,
 /// so 'ref:^.Sibling' is a sibling of the referrer and 'ref:^.^.Group.Node' goes up two levels and then down.
-/// A repeat on the path may carry an instance index ('[n]' or '[]'); without one the first item is meant.
+/// A relative reference keeps the instance of the referrer: it has no instance indices, the repeats it goes up through are
+/// the item of the referrer, and it cannot reach into another repeat (use an absolute path with an index for that).
+/// A repeat on an absolute path may carry an instance index ('[n]' or '[]'); without one the first item is meant.
 /// Validated when the execution plan is built.
 /// </summary>
 public sealed class SchemaNodeRef
@@ -45,6 +47,7 @@ public sealed class SchemaNodeRef
 
     /// <summary>
     /// Resolves a relative reference against the path of the referring node (an absolute reference is returned as is).
+    /// The resolved reference has no instance indices: the instance of the referrer applies (see <see cref="IsRelative"/>).
     /// Returns null when the path goes up beyond the root.
     /// </summary>
     public SchemaNodeRef? Resolve(SchemaPath referrer)
@@ -55,13 +58,7 @@ public sealed class SchemaNodeRef
         }
 
         var path = ResolvePath(Path, referrer);
-        if (path is null)
-        {
-            return null;
-        }
-
-        var indices = Indices.Select(index => index with { Node = ResolvePath(index.Node, referrer)! }).ToArray();
-        return new SchemaNodeRef { Path = path, Indices = indices };
+        return path is null ? null : new SchemaNodeRef { Path = path };
     }
 
     private static string? ResolvePath(string relative, SchemaPath referrer)
@@ -185,9 +182,15 @@ public sealed class SchemaNodeRef
         return true;
     }
 
-    // '<' segments may only lead the path, without an index, and must be followed by at least one node name.
+    // '^' segments may only lead the path and must be followed by at least one node name;
+    // a relative path has no instance indices (it keeps the instance of the referrer).
     private static bool IsValidUp(string payload)
     {
+        if (payload.StartsWith(Up, StringComparison.Ordinal) && (payload.Contains('[') || payload.Contains(']')))
+        {
+            return false;
+        }
+
         var segments = payload.Split(SchemaPath.Separator);
         var i = 0;
         while (i < segments.Length && segments[i] == Up)
