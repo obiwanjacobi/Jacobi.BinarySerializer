@@ -1,44 +1,62 @@
 ﻿# TODOs
 
 - [ ] **Processor validation follow-ups.** Validate field-level processor property ranges at plan time instead of at runtime; let `Serializer` surface a processor failure result instead of returning silently.
+
 - [ ] **Docs for local-only name resolution.** An unqualified data type or nodeDef name resolves only to a def in the current document (no `sys` fallback, no included documents, no registry fallback; matching is case-insensitive). Reflect this in `Schema/readme.md` (Resolution rules) and the nodeDef section.
+
 - [x] **Report unresolved references with a clear error.** An unresolved nodeDef/dataTypeDef reference currently surfaces as a generic compile exception; report the node path and the name that was not found. Add tests for the message.
+
 - [ ] **`MemberNodeDef` is missing from the dependency graph.** `SchemaSetBuilder.CollectNodeDependencies` adds `node.NodeDef` but not `SchemaChoice.MemberNodeDef`. Lookups still work (`FindNodeDef` searches all loaded documents and resolves lazily), but a missing document surfaces as "schema not known" during resolution instead of the up-front "Missing schema dependencies" error, and the compile order does not reflect the dependency.
+
 - [ ] **`dataTypeDef` follow-ups.** Validate facet combinations (`options` with `scale`/`shift`, `scale` 0) at plan/compile time instead of at runtime in `sys.datatype`.
+
 - [ ] **Plan-time check of the `valueType` conversion.** The engine converts the output of the semantic processors to the field's `valueType` (and back) at runtime; a type that can never convert (e.g. `sys.bytes` to `sys.int32`) only fails on the first value. Let value processors report their output type at plan build (an optional member on `IValueProcessor`; `sys.datatype`: the value type, `sys.map`: its `to` type, `sys.scale`: `sys.decimal`) and check that it converts to the `valueType`.
+
 - [ ] **Write API documentation for the public API** including some examples. Describe what services are supported and expected.
+
 - [ ] **Open repeat at the end of an open choice body.** The body group of an open choice is resolved as a separate root (`Parent` is null), so `RepeatInfo.EndsAtInputEnd` treats a count-less repeat at the end of the body as last, even when the open choice itself is followed by siblings (and has no `byteSize`). With the engine rule (no `IOpenRepeatSink`, or `Default`) the reader then reads those siblings as items instead of failing. Take the position of the open choice into account (e.g. pass whether the open choice ends at the input end into the runtime check when entering the body); add a test.
+
 - [ ] **Open choice pipeline follow-ups.** A referenced group (body root) may get a say in the `pipeline` mode. The `isolate`/`integrate` property is on the open choice only. The engine does not yet restrict `memberNodeDef` to groups beyond the compile check; a dynamic repeat count (from a size field) is not supported.
+
 - [ ] **Layout chain follow-ups.** A per-group opt-out of the inherited layout chain (e.g. `layoutReplace`) is not available; stream processors are root-only. Add an end-to-end test of a nested layout chain with a stateful follower (checksum-like).
   - [ ] A cleaner approach would have the engine hand a follower only the field's bytes. Chained `Read` now gets all unread input (`sys.bytepacker` copies it per field, which is quadratic over long groups).
+
 - [ ] **Complex schema property values.** `PropertyDescriptor.DataType` now names a registered data type (`DataTypeDescriptor`, with a parser), so a processor can declare typed properties (including custom types such as `my.point`) and the string in `SchemaProperty.Value` is parsed by that type instead of by the processor itself. The plan builder already validates presence of required properties and that each value parses (`ExecutionPlanBuilder.ValidateProperties`).
-  - [ ] the value is still a single string in the schema model (`SchemaNode.cs`), so lists and nested objects need a parser-defined text syntax; decide whether to allow structured JSON/XML values (list/object) that are handed to the data type parser. 
+  - [ ] the value is still a single string in the schema model (`SchemaNode.cs`), so lists and nested objects need a parser-defined text syntax; decide whether to allow structured JSON/XML values (list/object) that are handed to the data type parser.
   - [ ] report unknown property names (typos) and value constraints (ranges) at plan build.
   - [ ] resolve value references (`ref:`/`pub:`) in processor property values, simple and complex. The engine does not resolve them for any property value yet: `ValidateProperties` parses the raw text, the binding keeps it, and `ProcessorProperties.Get` parses it again at runtime. Bind each reference at plan build (like `BindValue`/`BindNodeRef` for `count`/`byteLength`, including instance indices), resolve it per instance at runtime from the published values, and skip the constant parse check at plan build for references (check the type of the referenced value instead, where it is known).
+
 - [ ] **Data type follow-ups.** Composite/structured data types and a neutral value tree for processor property types; enum data types for the remaining string-valued properties (align `relative`, varint `encoding`); built-in nodeDefs; replacing a registered descriptor; unit tests for the `Descriptors` namespace.
-- [ ] **Size on groups: follow-ups.** 
-  - [x] `byteSize` (constant or `ref:`/`pub:`) on any group/repeat/choice is done (see below). 
+
+- [ ] **Size on groups: follow-ups.**
+  - [x] `byteSize` (constant or `ref:`/`pub:`) on any group/repeat/choice is done (see below).
   - [x] a variable-width (varint) derived size field: the size is encoded at group exit into its own buffer and flushed before the group content, so it takes the width its value needs.
-  - [ ] a variable-width derived size field in a group that contains layout processors (e.g. align) fails when the width differs from the assumed one (the probe of size 0); estimate a common width from the schema, or retry with ascending widths (beware oscillation); 
-  - [ ] size value processors; a size field that comes after its group is not derived; 
+  - [ ] a variable-width derived size field in a group that contains layout processors (e.g. align) fails when the width differs from the assumed one (the probe of size 0); estimate a common width from the schema, or retry with ascending widths (beware oscillation);
+  - [ ] size value processors; a size field that comes after its group is not derived;
   - [x] bit-level layouts/positions inside the deferred region; the probe encode of the size field runs twice.
   - [ ] size on a root and overlapping size regions; the reader checks the window only at group exit/open-repeat end (a field crossing the window is caught at exit).
+
 - [ ] **ReaderSession: consolidate group stacks.** `_groupStarts` (layout group start, pushed in `BeginLayout`, popped in `EndLayout`, never for repeats) and `_windows` (size window end, pushed at group entry, popped at group exit, repeats included) are popped at different moments, so one stack needs a record per group (`Start`, `End?`, `HasLayout`) pushed at EnterGroup and popped at ExitGroup, with `GroupPosition` reading the nearest layout record. Same for the writer's `_sizeStarts`.
   - [ ] Add: window end/remaining to the groupData.
-- [ ] **Map processor follow-ups.** `sys:map` maps only scalar types (the `to` property selects the result type) 
-  - [x] reparses its properties on every call. Use state in context to cache the parsed map.
+
 - [ ] **Bare JSON `value` literals.** `SchemaField.Value` is a string union, so a bare JSON number or boolean (`"value": 42`) is not supported; only strings (e.g. `"0x2A"`).
+
 - [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage?
+
 - [ ] A `byteLength` given as a reference on a fixed-size field without a field processor is not checked against the type size at plan build (only fails when read/written).
-- [ ] **MIDI schema gaps** (see `IntegrationTests/Midi/Midi.xml`): 
-  - [ ] running status (a first byte below 0x80 reuses the previous status); 
-  - [ ] the status peek must be supplied by the model on write (not derived from the chosen alternative); 
+
+- [ ] **MIDI schema gaps** (see `IntegrationTests/Midi/Midi.xml`):
+  - [ ] running status (a first byte below 0x80 reuses the previous status);
+  - [ ] the status peek must be supplied by the model on write (not derived from the chosen alternative);
   - [ ] the repeated `Status` group cannot be reused (nodeDef/group reuse); no test parses `Midi.xml` yet. See item on Group NodeDef to include members.
-- [ ] **Unused `type` on XML properties.** `schema.xsd` (`property`) and `XmlSchemaProperty` have a `type` attribute, but `XmlSchemaMapper.ToSchemaProperty` drops it and `SchemaProperty` has no type. Remove it from the XSD and the XML model, or carry it into the schema model (e.g. to select the data type that parses the value, see complex schema property values).
+
 - [ ] **Stale `IntegrationTests/Midi/MidiFile.xml`.** It uses the old processor syntax `<processor processor="sys.map">` without a `name`, and no code or project references the file, so nothing detects it. The `processor` attribute is not reported either: it is in `ProcessorRefKnownNames` (the C# property name of `XmlSchemaProcessorRef.Processor`, whose XML attribute is `name`), so it is silently skipped instead of becoming a property or an error, and the processor name stays empty. Update the file to the current syntax and load it in a test; build the known-name sets from the XML attribute names, and report an unknown attribute that collides with a model member.
 
 ---
 
+- [x] **Unused `type` on XML properties.** `schema.xsd` (`property`) and `XmlSchemaProperty` have a `type` attribute, but `XmlSchemaMapper.ToSchemaProperty` drops it and `SchemaProperty` has no type. Remove it from the XSD and the XML model, or carry it into the schema model (e.g. to select the data type that parses the value, see complex schema property values).
+- [x] **Map processor follow-ups.** `sys:map` maps only scalar types (the `to` property selects the result type)
+  - [x] reparses its properties on every call. Use state in context to cache the parsed map.
 - [x] **Simplify registry lookups.** `ExecutionPlan` and `ProcessorProperties` call `_dataTypes.TryGet(new SchemaName(descriptor.DataType.FullName), ...)`; pass `descriptor.DataType` directly.
 - [x] **Default `sys.datatype` processor.** Applies all facets of a data type (`options`, `scale`/`shift`, `min`/`max`); the plan builder adds it to a field whose data type has facets and that has no semantic processor.
 - [x] **Unqualified processor names.** Processor names are not covered by the local-only rule yet; decide whether they should follow it.

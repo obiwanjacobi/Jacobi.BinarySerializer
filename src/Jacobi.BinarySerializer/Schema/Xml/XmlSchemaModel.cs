@@ -274,9 +274,6 @@ public sealed class XmlSchemaProperty
     [XmlAttribute("name")]
     public string Name { get; set; } = string.Empty;
 
-    [XmlAttribute("type")]
-    public string? Type { get; set; }
-
     [XmlAttribute("value")]
     public string? Value { get; set; }
 
