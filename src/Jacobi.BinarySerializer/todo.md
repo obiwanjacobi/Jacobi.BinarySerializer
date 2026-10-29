@@ -4,15 +4,12 @@
 
 - [ ] **Open choice pipeline follow-ups.** A referenced group (body root) may get a say in the `pipeline` mode. The `isolate`/`integrate` property is on the open choice only. The engine does not yet restrict `memberNodeDef` to groups beyond the compile check; a dynamic repeat count (from a size field) is not supported.
 
-- [ ] **Open Choice byteSize is ignored** That is implicit and not very clear. It should at least generate a warning or otherwise an error.
+- [ ] **Open Choice byteSize is ignored** That is implicit and not very clear. It should at least generate a warning or otherwise an error. Are there any other modes where hard node-properties are ignored in a certain situation? These should probably also become errors.
 
 - [ ] **Layout chain follow-ups.** A per-group opt-out of the inherited layout chain (e.g. `layoutReplace`) is not available; stream processors are root-only. Add an end-to-end test of a nested layout chain with a stateful follower (checksum-like).
-  - [ ] A cleaner approach would have the engine hand a follower only the field's bytes. Chained `Read` now gets all unread input (`sys.bytepacker` copies it per field, which is quadratic over long groups).
+  - [ ] A cleaner approach would have the engine hand a follower only the field's bytes. Chained `Read` now gets all unread input (`sys.bytepacker` copies it per field, which is quadratic over long groups). Does this still work on var-sized fields (VarInt/0-terminated strings)?
 
-- [ ] **Complex schema property values.** `PropertyDescriptor.DataType` now names a registered data type (`DataTypeDescriptor`, with a parser), so a processor can declare typed properties (including custom types such as `my.point`) and the string in `SchemaProperty.Value` is parsed by that type instead of by the processor itself. The plan builder already validates presence of required properties and that each value parses (`ExecutionPlanBuilder.ValidateProperties`).
-  - [ ] the value is still a single string in the schema model (`SchemaNode.cs`), so lists and nested objects need a parser-defined text syntax; decide whether to allow structured JSON/XML values (list/object) that are handed to the data type parser.
-  - [ ] report unknown property names (typos) and value constraints (ranges) at plan build.
-  - [ ] resolve value references (`ref:`/`pub:`) in processor property values, simple and complex. The engine does not resolve them for any property value yet: `ValidateProperties` parses the raw text, the binding keeps it, and `ProcessorProperties.Get` parses it again at runtime. Bind each reference at plan build (like `BindValue`/`BindNodeRef` for `count`/`byteLength`, including instance indices), resolve it per instance at runtime from the published values, and skip the constant parse check at plan build for references (check the type of the referenced value instead, where it is known).
+- [ ] resolve value references (`ref:`/`pub:`) in processor property values, simple and complex. The engine does not resolve them for any property value yet: `ValidateProperties` parses the raw text, the binding keeps it, and `ProcessorProperties.Get` parses it again at runtime. Bind each reference at plan build (like `BindValue`/`BindNodeRef` for `count`/`byteLength`, including instance indices), resolve it per instance at runtime from the published values, and skip the constant parse check at plan build for references (check the type of the referenced value instead, where it is known).
 
 - [ ] **Data type follow-ups.** Composite/structured data types and a neutral value tree for processor property types; enum data types for the remaining string-valued properties (align `relative`, varint `encoding`); built-in nodeDefs; replacing a registered descriptor; unit tests for the `Descriptors` namespace.
 
@@ -39,6 +36,8 @@
 - [ ] **Stale `IntegrationTests/Midi/MidiFile.xml`.** It uses the old processor syntax `<processor processor="sys.map">` without a `name`, and no code or project references the file, so nothing detects it. The `processor` attribute is not reported either: it is in `ProcessorRefKnownNames` (the C# property name of `XmlSchemaProcessorRef.Processor`, whose XML attribute is `name`), so it is silently skipped instead of becoming a property or an error, and the processor name stays empty. Update the file to the current syntax and load it in a test; build the known-name sets from the XML attribute names, and report an unknown attribute that collides with a model member.
 
 ---
+
+## Done
 
 - [x] **Open repeat at the end of an open choice body.** The reader keeps a stack of "the body ends at the input end" flags (pushed when it enters an open choice, from `RepeatInfo.IsLast(openChoice, outer flag)`); `EndsOpenRepeat` uses `RepeatInfo.EndsAtInputEndIn(flag)`. A count-less repeat at the end of a body followed by envelope nodes now requires `IOpenRepeatSink` (and rejects `Default`). Tests in `OpenChoiceTests`.
 - [x] **`MemberNodeDef` and the dependency graph.** Decided the other way round: an envelope only names its contract, the bodies that declare it depend on it. A `memberNodeDef` is not a schema dependency; a local one is checked at compile (exists, is a group), a qualified one is not resolved, so generic envelopes compile without the contract's document. No conforming body is reported at plan build ("no group in the plan conforms").
@@ -134,6 +133,8 @@
 - [x] **Field nodeDef processors replace instead of merge.** When a field references a nodeDef, the nodeDef's processors replace the field's own processors. They should be merged, with the field's own processors taking precedence.
 - [x] **Constant `Count` / `SelectedIndex` reported as unresolved.** In `SchemaSet.ResolveReferences` a literal count or selected index falls into the `_ => false` case, so a valid schema is reported as having unresolved references.
 
+---
+
 ## Nice to Have
 
 - [ ] **Detect repeat count mismatches at schema compile time.** A constant count that cannot match the model/referenced count (schema out of sync) should be reported when the plan is built, not only at write time (currently an `InvalidOperationException`).
@@ -142,7 +143,7 @@
 - [ ] **Repeat stream processors.** Stream processors on a repeat group should run once per repeat (around all items), not per item. The cursor already has that point (the repeat's EnterGroup/ExitGroup); builds on the non-root stream processor item below.
 - [ ] **Typed-object API.** Where interfacing is done through client-defined POCOs, not by implementing interfaces.
 - [ ] **EndOfData probe: layout side effects.** The writer ends a count-less repeat for a flat source by probing the first field of the next item (`SourceResult.EndOfData`) before the item is entered; the probe only covers a direct first field (not a first field inside a nested repeat or choice). Layout processors may have side-effects if the item/group were entered before the probe; revisit if that shows up.
-- [ ] **String follow-ups.** 
+- [ ] **String follow-ups.**
   - [ ] character map entries for multi-byte character sets (e.g. Shift-JIS): byte sequences as keys, matched only at the character boundaries of the base encoding. The map now requires a single-byte encoding.
   - [ ] code page encodings (`shift_jis`, `windows-1252`, ...) need `CodePagesEncodingProvider` registered (`Encoding.RegisterProvider`); nothing registers it, so `Encoding.GetEncoding` fails for them. Decide who registers it (the processor, the serializer builder or the application).
   - [ ] multi-byte terminators for UTF-16/32
@@ -150,6 +151,13 @@
 - [ ] **CRC follow-ups.** require engine changes:
   - [ ] a read error is thrown (no NeedMoreData) because `EndRead` has no result
   - [ ] the CRC covers the whole group only (no sub-range or exclusion) (nive to have/not doing)
+- [ ] **Complex schema property values.** `PropertyDescriptor.DataType` now names a registered data type (`DataTypeDescriptor`, with a parser), so a processor can declare typed properties (including custom types such as `my.point`) and the string in `SchemaProperty.Value` is parsed by that type instead of by the processor itself. The plan builder already validates presence of required properties and that each value parses (`ExecutionPlanBuilder.ValidateProperties`).
+  - [ ] the value is still a single string in the schema model (`SchemaNode.cs`), so lists and nested objects need a parser-defined text syntax; decide whether to allow structured JSON/XML values (list/object) that are handed to the data type parser.
+- [ ] **Processor validation follow-ups.** Validate field-level processor property ranges at plan time instead of at runtime. Want to keep the processor interface as simple as possible. Compile/plan-time validation would require extra processor logic and compilcate its interface. Maybe later.
+- [ ] **Plan-time check of the `valueType` conversion.** The engine converts the output of the semantic processors to the field's `valueType` (and back) at runtime; a type that can never convert (e.g. `sys.bytes` to `sys.int32`) only fails on the first value. Let value processors report their output type at plan build (an optional member on `IValueProcessor`; `sys.datatype`: the value type, `sys.map`: its `to` type, `sys.scale`: `sys.decimal`) and check that it converts to the `valueType`.
+Want to keep the processor interface as simple as possible. Compile/plan-time validation would require extra processor logic and compilcate its interface. Maybe later.
+
+---
 
 ## Not Doing These
 
@@ -158,6 +166,5 @@
 - [-] **Bytes follow-ups.** Length value processors; a length field that comes after its bytes field is not derived; `Bytes` is not supported by bit/byte-level layouts or field processors that assume fixed widths; no streaming/chunked access for large blobs (the model gets one `byte[]` per field); a flat model needs an explicit `byte[]` value.
 - [ ] **Expected-value stage.** A field `Value` (constant/ref) is compared against the logical value (after the semantic stage). Make the stage explicitly selectable (default logical).
 - [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage? No API change required, a processor can skip-self in its impl.
-- [ ] **Processor validation follow-ups.** Validate field-level processor property ranges at plan time instead of at runtime. Want to keep the processor interface as simple as possible. Compile/plan-time validation would require extra processor logic and compilcate its interface. Maybe later.
-- [ ] **Plan-time check of the `valueType` conversion.** The engine converts the output of the semantic processors to the field's `valueType` (and back) at runtime; a type that can never convert (e.g. `sys.bytes` to `sys.int32`) only fails on the first value. Let value processors report their output type at plan build (an optional member on `IValueProcessor`; `sys.datatype`: the value type, `sys.map`: its `to` type, `sys.scale`: `sys.decimal`) and check that it converts to the `valueType`.
-Want to keep the processor interface as simple as possible. Compile/plan-time validation would require extra processor logic and compilcate its interface. Maybe later.
+
+---
