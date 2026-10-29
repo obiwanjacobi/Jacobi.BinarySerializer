@@ -84,20 +84,31 @@ public interface IValueSink
 /// </summary>
 /// <param name="Scope">The scope for the values of the body.</param>
 /// <param name="Group">The selected group (a schema root that conforms to the nodeDef of the open choice).</param>
-/// <param name="Target">
-/// Optional: the path of a group inside the selected group (starting with its root name, e.g. 'BodyA.Part1.Sub').
-/// Only that group (and the groups leading to it) is read or written. Empty: the whole group.
+/// <param name="FromTarget">
+/// Optional: the path of a node (group or field) inside the selected group where the read or write starts (starting
+/// with its root name, e.g. 'BodyA.Part1.Sub'). Only the fields from there up to <paramref name="ToTarget"/> (and the
+/// groups leading to them) are read or written. Empty: the whole group.
 /// </param>
-/// <param name="TargetInstance">
-/// Optional: the item indices of the repeats around <paramref name="Target"/> inside the selected group (outermost first),
-/// e.g. [5] for 'BodyA.Items.Part' to read or write only item 5. Empty: all items.
+/// <param name="FromInstance">
+/// Optional: the item indices of the repeats around <paramref name="FromTarget"/> inside the selected group (outermost first),
+/// e.g. [5] for 'BodyA.Items.Part' to start at item 5. Empty: from the first item.
 /// </param>
-public readonly record struct OpenChoiceSourceResult(IValueSource Scope, SchemaName Group, SchemaPath Target = default, InstancePath TargetInstance = default);
+/// <param name="ToTarget">
+/// Optional: the path of the node (group or field) inside the selected group where the read or write ends (inclusive).
+/// Empty: the end of <paramref name="FromTarget"/>, so only that node is read or written.
+/// </param>
+/// <param name="ToInstance">
+/// Optional: the item indices of the repeats around the end node (outermost first). Empty: up to the last item; when
+/// <paramref name="ToTarget"/> is empty as well, the items of <paramref name="FromInstance"/>.
+/// </param>
+public readonly record struct OpenChoiceSourceResult(IValueSource Scope, SchemaName Group,
+    SchemaPath FromTarget = default, InstancePath FromInstance = default, SchemaPath ToTarget = default, InstancePath ToInstance = default);
 
 /// <summary>
 /// <inheritdoc cref="OpenChoiceSourceResult"/>
 /// </summary>
-public readonly record struct OpenChoiceSinkResult(IValueSink Scope, SchemaName Group, SchemaPath Target = default, InstancePath TargetInstance = default);
+public readonly record struct OpenChoiceSinkResult(IValueSink Scope, SchemaName Group,
+    SchemaPath FromTarget = default, InstancePath FromInstance = default, SchemaPath ToTarget = default, InstancePath ToInstance = default);
 
 /// <summary>
 /// Optional extension of <see cref="IValueSource"/> for models that support open choices.

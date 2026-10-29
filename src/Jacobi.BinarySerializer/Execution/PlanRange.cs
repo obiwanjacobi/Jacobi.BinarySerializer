@@ -26,16 +26,7 @@ public sealed class PlanRange
         FromInstance = fromInstance;
         ToInstance = toInstance;
 
-        var fields = new List<FieldInfo>();
-        CollectFields(Root(from), fields);
-
-        var start = fields.IndexOf(First);
-        var end = fields.IndexOf(Last);
-        if (start > end)
-        {
-            throw new ArgumentException($"The range start '{from.Path}' comes after the range end '{to.Path}' in the plan.");
-        }
-
+        // the order is checked on the keys, with the instances: a later field of an earlier item comes first
         CheckInstance(First, fromInstance);
         CheckInstance(Last, toInstance);
         _from = Key(from, fromInstance, 0);
@@ -140,15 +131,6 @@ public sealed class PlanRange
             }
         }
         return 0;
-    }
-
-    private static NodeInfo Root(NodeInfo node)
-    {
-        while (node.Parent is not null)
-        {
-            node = node.Parent;
-        }
-        return node;
     }
 
     private static void CollectFields(NodeInfo node, List<FieldInfo> fields)

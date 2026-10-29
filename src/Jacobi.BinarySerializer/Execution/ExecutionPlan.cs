@@ -63,25 +63,47 @@ public sealed class ExecutionPlan
     }
 
     /// <summary>
-    /// Creates the range for the target group inside a body of an open choice (null target: the whole body).
-    /// The instance selects the items of the repeats around the target inside the body (empty: all items).
+    /// Creates the range of the target nodes inside a body of an open choice (null for an empty from-target: the whole body):
+    /// from the first field of <paramref name="from"/> up to the last field of <paramref name="to"/>
+    /// (an empty to-target: the end of <paramref name="from"/>, at the items of <paramref name="fromInstance"/>).
+    /// The instances select the items of the repeats around the targets inside the body (empty: from the first, up to the last item).
     /// </summary>
-    internal PlanRange? CreateOpenChoiceRange(ChoiceInfo choice, GroupInfo body, SchemaPath target, InstancePath instance = default)
+    internal PlanRange? CreateOpenChoiceRange(ChoiceInfo choice, GroupInfo body,
+        SchemaPath from, InstancePath fromInstance = default, SchemaPath to = default, InstancePath toInstance = default)
     {
-        if (target.IsEmpty)
+        if (from.IsEmpty)
         {
+            if (!to.IsEmpty)
+            {
+                throw new InvalidOperationException(
+                    $"'{choice.Path}': the target end '{to}' is given without a target start.");
+            }
             return null;
         }
 
-        if (Find(body, target) is not GroupInfo group)
+        if (to.IsEmpty)
         {
-            throw new InvalidOperationException(
-                $"'{choice.Path}': the target '{target}' is not a group inside the selected group '{body.Path}'.");
+            to = from;
+            toInstance = fromInstance;
         }
-        return instance.IsEmpty
-            ? new PlanRange(this, group, group)
-            : new PlanRange(this, group, instance, group, instance);
+
+        var first = FindTarget(choice, body, from);
+        var last = FindTarget(choice, body, to);
+        try
+        {
+            return new PlanRange(this, first, fromInstance, last, toInstance);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidOperationException($"'{choice.Path}': the target '{from}{fromInstance}' to '{to}{toInstance}' is not a range inside the selected group '{body.Path}': {exception.Message}", exception);
+        }
     }
+
+    private static NodeInfo FindTarget(ChoiceInfo choice, GroupInfo body, SchemaPath target)
+        => Find(body, target) is { } node
+            ? node
+            : throw new InvalidOperationException(
+                $"'{choice.Path}': the target '{target}' is not a node inside the selected group '{body.Path}'.");
 
     /// <summary>
     /// Checks the open choices a read or write visits: an open choice outside the range is skipped,

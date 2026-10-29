@@ -41,6 +41,21 @@ public class SessionRangeInstanceTests
     }
 
     [Test]
+    public void Write_RangeFromALaterFieldOfAnEarlierItem_VisitsUpToTheEndItem()
+    {
+        var repeat = new SchemaRepeat { Name = "Items", Count = 4 };
+        repeat.MemberList.Add(Field("A", "sys.int16"));
+        repeat.MemberList.Add(Field("B", "sys.int16"));
+        var plan = Build(Group("Root", [], repeat));
+        var range = plan.CreateRange("Root.Items.B", InstancePath.Empty.Append(0), "Root.Items.A", InstancePath.Empty.Append(1));
+        var source = new RecordingSource();
+
+        new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(source, range);
+
+        Assert.That(source.Fields, Is.EqualTo(new[] { "Root.Items.B[0]", "Root.Items.A[1]" }));
+    }
+
+    [Test]
     public void CreateRange_StartAfterEnd_Throws()
     {
         var plan = Plan();
