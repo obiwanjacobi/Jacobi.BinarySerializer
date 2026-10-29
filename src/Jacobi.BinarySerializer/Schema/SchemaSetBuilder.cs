@@ -320,6 +320,7 @@ public sealed class SchemaSetBuilder
     {
         foreach (var node in nodes)
         {
+            // a memberNodeDef is not a dependency: an envelope only names its contract, the bodies that use it depend on it
             AddSchemaDependency(node.NodeDef, documentName, dependencies);
 
             if (node is SchemaField field)
@@ -472,7 +473,8 @@ public sealed class SchemaSetBuilder
                     $"{referrer} sets a pipeline mode, which is only valid for an open choice (with a memberNodeDef).");
             }
 
-            if (node is SchemaChoice { MemberNodeDef: { } memberNodeDef })
+            // only a local contract is checked here; a contract in another document is a name that the bodies resolve (they depend on it)
+            if (node is SchemaChoice { MemberNodeDef: { } memberNodeDef } && IsLocal(document, memberNodeDef))
             {
                 var memberDef = FindNodeDef(document, memberNodeDef, $"{referrer} (member nodeDef)");
                 if (memberDef.Kind != SchemaNodeKind.Group)

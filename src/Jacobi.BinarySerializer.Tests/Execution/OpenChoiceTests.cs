@@ -208,6 +208,45 @@ public class OpenChoiceTests
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("Body").And.Contain("conforms"));
     }
 
+    // the envelope names a contract of another document; only the body depends on that document
+    private const string EnvelopeSchema = """
+        { "name": "Envelope", "members": [
+            { "name": "Root", "kind": "group", "members": [
+                { "name": "Msg", "kind": "choice", "memberNodeDef": "Contracts.Body" }
+            ] }
+        ] }
+        """;
+
+    [Test]
+    public void Read_ContractInOtherDocument_EntersTheBody()
+    {
+        var serializer = CreateSerializer(
+            EnvelopeSchema,
+            """{ "name": "Contracts", "nodeDefs": [ { "name": "Body", "kind": "group" } ] }""",
+            """
+            { "name": "Device", "members": [
+                { "name": "BodyA", "kind": "group", "nodeDef": "Contracts.Body",
+                  "members": [ { "name": "Id", "kind": "field", "datatype": "sys.uint8" } ] }
+            ] }
+            """);
+        var sink = new OpenSink { Selected = new SchemaName("Device.BodyA") };
+
+        serializer.Deserialize(new SchemaName("Envelope.Root"), new ReadOnlySequence<byte>([0x07]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "BodyA.Id=7" }));
+    }
+
+    [Test]
+    public void Read_ContractInDocumentThatIsNotLoaded_ThrowsNoConformingGroup()
+    {
+        var serializer = CreateSerializer(EnvelopeSchema);
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => serializer.Deserialize(new SchemaName("Envelope.Root"), new ReadOnlySequence<byte>([0x07]), new OpenSink()));
+
+        Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("Contracts.Body").And.Contain("conforms"));
+    }
+
     private const string NestedSchema = """
         {
           "name": "NestedTest",
@@ -689,10 +728,13 @@ public class OpenChoiceTests
         Assert.That(ex.Message, Does.Contain("Pick").And.Contain("open choice"));
     }
 
-    private static Serializer CreateSerializer(string json)
+    private static Serializer CreateSerializer(params string[] jsons)
     {
         var schemaBuilder = new SchemaSetBuilder();
-        schemaBuilder.LoadFromJson(json);
+        foreach (var json in jsons)
+        {
+            schemaBuilder.LoadFromJson(json);
+        }
         var schemaSet = schemaBuilder.Compile();
 
         var manager = new ProcessorManager();

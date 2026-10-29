@@ -1,11 +1,5 @@
 ﻿# TODOs
 
-- [ ] **Processor validation follow-ups.** Validate field-level processor property ranges at plan time instead of at runtime.
-
-- [ ] **Docs for local-only name resolution.** An unqualified data type or nodeDef name resolves only to a def in the current document (no `sys` fallback, no included documents, no registry fallback; matching is case-insensitive). Reflect this in `Schema/readme.md` (Resolution rules) and the nodeDef section.
-
-- [ ] **`MemberNodeDef` is missing from the dependency graph.** `SchemaSetBuilder.CollectNodeDependencies` adds `node.NodeDef` but not `SchemaChoice.MemberNodeDef`. Lookups still work (`FindNodeDef` searches all loaded documents and resolves lazily), but a missing document surfaces as "schema not known" during resolution instead of the up-front "Missing schema dependencies" error, and the compile order does not reflect the dependency.
-
 - [ ] **Plan-time check of the `valueType` conversion.** The engine converts the output of the semantic processors to the field's `valueType` (and back) at runtime; a type that can never convert (e.g. `sys.bytes` to `sys.int32`) only fails on the first value. Let value processors report their output type at plan build (an optional member on `IValueProcessor`; `sys.datatype`: the value type, `sys.map`: its `to` type, `sys.scale`: `sys.decimal`) and check that it converts to the `valueType`.
 
 - [ ] **Write API documentation for the public API** including some examples. Describe what services are supported and expected.
@@ -48,6 +42,8 @@
 
 ---
 
+- [x] **`MemberNodeDef` and the dependency graph.** Decided the other way round: an envelope only names its contract, the bodies that declare it depend on it. A `memberNodeDef` is not a schema dependency; a local one is checked at compile (exists, is a group), a qualified one is not resolved, so generic envelopes compile without the contract's document. No conforming body is reported at plan build ("no group in the plan conforms").
+- [x] **Docs for local-only name resolution.** `Schema/readme.md` has one "Name resolution" section for data types, nodeDefs and processors; the nodeDef, open choice, processor and data type sections link to it.
 - [x] **`Serializer` surfaces processor failures.** A `Failure` result from the sessions throws an `InvalidOperationException` naming the node path (the session's `CurrentPath`) instead of returning the byte count.
 - [x] **`dataTypeDef` facet combinations.** `options` with `scale`/`shift` (also inherited) and `scale` 0 are rejected when the data type is registered (`DataTypeDescriptor.Derive`, `DataTypeRegistry.Register`), i.e. at plan build, instead of at runtime in `sys.datatype`.
 - [x] **Report unresolved references with a clear error.** An unresolved nodeDef/dataTypeDef reference currently surfaces as a generic compile exception; report the node path and the name that was not found. Add tests for the message.
@@ -163,3 +159,4 @@
 - [-] **Bytes follow-ups.** Length value processors; a length field that comes after its bytes field is not derived; `Bytes` is not supported by bit/byte-level layouts or field processors that assume fixed widths; no streaming/chunked access for large blobs (the model gets one `byte[]` per field); a flat model needs an explicit `byte[]` value.
 - [ ] **Expected-value stage.** A field `Value` (constant/ref) is compared against the logical value (after the semantic stage). Make the stage explicitly selectable (default logical).
 - [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage? No API change required, a processor can skip-self in its impl.
+- [ ] **Processor validation follow-ups.** Validate field-level processor property ranges at plan time instead of at runtime. Want to keep the processor interface as simple as possible. Compile/plan-time validation would require extra processor logic and compilcate its interface. Maybe later.

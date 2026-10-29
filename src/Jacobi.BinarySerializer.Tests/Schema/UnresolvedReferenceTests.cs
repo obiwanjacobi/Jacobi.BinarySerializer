@@ -56,6 +56,39 @@ public class UnresolvedReferenceTests
     }
 
     [Test]
+    public void Compile_MemberNodeDefInSchemaThatIsNotLoaded_Compiles()
+    {
+        // the envelope only names its contract; the bodies that declare it depend on its document
+        var builder = new SchemaSetBuilder();
+        builder.LoadFromJson("""
+            { "name": "Doc", "members": [
+                { "name": "Root", "kind": "group", "members": [
+                    { "name": "Msg", "kind": "choice", "memberNodeDef": "Other.Body" }
+                ] }
+            ] }
+            """);
+
+        var schemas = builder.Compile();
+
+        var choice = (SchemaChoice)schemas.FindRoot(new SchemaName("Doc.Root")).Members.Single();
+        Assert.That(choice.MemberNodeDef?.ToString(), Is.EqualTo("Other.Body"));
+    }
+
+    [Test]
+    public void Compile_BodyOfContractInSchemaThatIsNotLoaded_ReportsMissingDependency()
+    {
+        var ex = Compile("""
+            { "name": "Device", "members": [
+                { "name": "Patch", "kind": "group", "nodeDef": "Other.Body", "members": [
+                    { "name": "A", "kind": "field", "datatype": "sys.uint8" }
+                ] }
+            ] }
+            """);
+
+        Assert.That(ex.Message, Is.EqualTo("Missing schema dependencies: Device -> Other"));
+    }
+
+    [Test]
     public void Compile_UnknownDataType_ReportsPathAndName()
     {
         var ex = Compile("""

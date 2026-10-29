@@ -47,6 +47,26 @@ Status:
 | `properties` / `processors` | Document-level defaults. |
 | `members` | The root groups. |
 
+## Name resolution
+
+Data types, nodeDefs and processors are referenced by name, and `SchemaSet.Compile()` resolves all three with the same rule:
+
+- A **local name** has no namespace (`Celsius`) or the name of its own document as namespace (`Doc.Celsius` in the document `Doc`). It refers to a def in that document only: no `sys` fallback, no search of included documents and no registry fallback. A local name without a def is a compile error ("… is not defined in the schema 'Doc'"), except for the processor case below.
+- A **qualified name** (`Other.Celsius`) refers to a def in the loaded document `Other`.
+- Names are case-insensitive.
+
+What happens when no def has that name:
+
+| Reference | Local name | Qualified name |
+|-----------|------------|----------------|
+| Data type (field `datatype`, `basedOn`, `valueType`) | Compile error (for `valueType`: plan-build error). | A registered data type (`sys.int32`, a custom `my.point`); an unregistered type is a plan-build error. |
+| NodeDef (`nodeDef`, `memberNodeDef`) | Compile error. | `nodeDef`: compile error (a document that is not loaded is a missing schema dependency). `memberNodeDef`: not resolved at compile, see [Open choice](#open-choice). |
+| Processor (`name` on a processor entry) | Without a namespace: compile error. With the own document name: a processor key (`roland.checksum` in the document `Roland`). | A processor key (`sys.varint`); an unknown key is a plan-build error. |
+
+So built-in data types and processors always need their namespace (`sys.int32`, `sys.varint`). A def wins over a processor key with the same name, so do not give a document the name of a processor namespace (e.g. `sys`) and a def the id of one of its processors.
+
+Inside a def, local names keep referring to the document that declares the def, also when another document uses it.
+
 ## Reusable nodes
 
 `Schema.NodeDefs` holds ordinary `SchemaNode` instances. There is no separate definition model.
@@ -62,6 +82,8 @@ The JSON schema reuses the node `oneOf`; XML reuses the node-list `xs:choice`:
 ```
 
 Use `builder.NodeDefs(nodes => nodes.Field("sysex16", "sys.uint16", byteLength: 2))` for programmatic definitions; the callback offers the same typed operations as normal members.
+
+A node uses a definition with `nodeDef`: `sysex16` in the same document, `Midi.sysex16` from another one (see [Name resolution](#name-resolution)).
 
 Compilation requires matching kinds. Explicit use-site scalars override the template;
 omitted values inherit, including physical sizes, field values/offsets, repeat counts and choice
@@ -119,7 +141,9 @@ The members below are part of the schema model itself (as opposed to the free-fo
 A choice with `memberNodeDef` (instead of `members`) is *open*: an envelope with a body slot whose group is selected by the value model, not by the schema. The nodeDef is the contract.
 
 Rules:
-- `memberNodeDef` names a nodeDef of kind `group` (same document, or qualified `document.name`). The compiler rejects a missing nodeDef or one of another kind.
+- `memberNodeDef` names a nodeDef of kind `group`: the contract. The envelope only uses its name; the bodies that declare it depend on it. So:
+  - A local name (see [Name resolution](#name-resolution)) is checked at compile: the compiler rejects a missing nodeDef or one of another kind. This is the usual setup: the contract lives in the envelope's document and the body documents refer to it.
+  - A name qualified with another document is not resolved at compile and does not make that document a dependency, so a generic envelope compiles without it. A body that declares the contract does depend on its document. When no loaded root conforms (e.g. a typo), entering the open choice fails with "no group in the plan conforms".
 - `selectedIndex` is optional and not used by an open choice.
 - `pipeline` (open choice only) is `integrate` (default) or `isolate`. With `integrate` the selected body is built under the pipeline of the choice, so it inherits the processors of the choice and its ancestors like a nested group (layout scopes of the ancestors stay open around the body, and the body's fields read through the inherited layout chain). With `isolate` the body has its own pipeline: nothing of the envelope applies. Setting `pipeline="isolate"` on a choice that is not open is a compile error. The JSON/XML property is omitted when it is `integrate`.
 - A body is a schema root (a plain group) that declares `"nodeDef": "<name>"`. Repeat and choice roots are rejected.
@@ -154,7 +178,7 @@ Address map (e.g. Roland SysEx, where an address and size point into a memory ma
 |--------|---------|-----------|
 | `name` | The node name; part of the path used by references and by the model. | Address a node (`Png.Chunk.Body.Type`). |
 | `properties` | Free-form named values for the processors that apply to the node (e.g. `byteorder` on a group is read by the layout processors). | Configure inherited processors without repeating them. |
-| `nodeDef` | A reference to a reusable type (data type plus processors). | Share a configuration between nodes. |
+| `nodeDef` | A reference to a reusable node of the same kind (see [Reusable nodes](#reusable-nodes) and [Name resolution](#name-resolution)). | Share a configuration between nodes. |
 
 ### On a processor entry
 
@@ -178,11 +202,7 @@ A reference to a value that is not available yet is an error at runtime. Plan bu
 
 ## Processors in a schema
 
-- A processor is used by name, looked up like a data type name:
-  - `name` (no namespace): a definition in the `processorDefs` of the same document. It must exist.
-  - `document.name`: a definition in that (included) document; the own document name is allowed too.
-  - any other `namespace.id`: a processor key (`sys.varint`: namespace `sys`, id `varint`).
-  - A definition wins over a processor key with the same name, so do not give a document the name of a processor namespace (e.g. `sys`) and a definition the id of one of its processors. Names are case-insensitive.
+- A processor is used by name: a definition in `processorDefs`, or otherwise a processor key (`sys.varint`: namespace `sys`, id `varint`). See [Name resolution](#name-resolution).
 - Properties given on the use override the properties of the definition.
 - Properties of a processor use or definition can be given explicitly (`"properties": [ { "name": "byteorder", "value": "big" } ]`) or inline: any key that is not mapped to the model is a property. `{ "name": "sys.bytepacker", "byteorder": "big" }` is the same as the explicit form; in XML use attributes or child elements (`<processor name="sys.bytepacker" byteorder="big" />`).
 - JSON documents may contain `//` and `/* */` comments and trailing commas.
@@ -247,11 +267,11 @@ A `dataTypeDef` derives a new logical data type from an existing one (built-in o
 
 Facets just work: a field whose data type has facets and no semantic processor (on the field, its data type chain or inherited from its group) gets `sys.datatype`, which applies all facets (see the [Processors readme](../../Jacobi.BinarySerializer.Processors/readme.md)). Declaring a semantic processor replaces it; a representation processor (e.g. `sys.varint`) does not. Without the `sys` processors registered, facets are a plan-build error.
 
-Facets are fallbacks for processors that use them: a processor's own property wins. Resolution rules:
+Facets are fallbacks for processors that use them: a processor's own property wins.
 
-- A field that uses a def gets its datatype rewritten to `Document.Name`; use `Document.Name` to refer to a def in another (included) document.
-- Data type names are always full names (`sys.int32`, `Document.Celsius`); there is no `sys` shorthand. Names are case-insensitive.
-- A name without a namespace refers to a def in the document it is used in. Built-in types always need the `sys.` prefix.
+Data type names follow [Name resolution](#name-resolution). In addition:
+
+- A field that uses a def gets its datatype rewritten to the full name `Document.Name`.
 - Circular `basedOn` chains and unknown bases are errors.
 
 See the [Processor readme](../Processor/readme.md) for the available properties of processors and how they are interpreted.
