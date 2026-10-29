@@ -1,14 +1,10 @@
 ﻿# TODOs
 
-- [ ] **Processor validation follow-ups.** Validate field-level processor property ranges at plan time instead of at runtime; let `Serializer` surface a processor failure result instead of returning silently.
+- [ ] **Processor validation follow-ups.** Validate field-level processor property ranges at plan time instead of at runtime.
 
 - [ ] **Docs for local-only name resolution.** An unqualified data type or nodeDef name resolves only to a def in the current document (no `sys` fallback, no included documents, no registry fallback; matching is case-insensitive). Reflect this in `Schema/readme.md` (Resolution rules) and the nodeDef section.
 
-- [x] **Report unresolved references with a clear error.** An unresolved nodeDef/dataTypeDef reference currently surfaces as a generic compile exception; report the node path and the name that was not found. Add tests for the message.
-
 - [ ] **`MemberNodeDef` is missing from the dependency graph.** `SchemaSetBuilder.CollectNodeDependencies` adds `node.NodeDef` but not `SchemaChoice.MemberNodeDef`. Lookups still work (`FindNodeDef` searches all loaded documents and resolves lazily), but a missing document surfaces as "schema not known" during resolution instead of the up-front "Missing schema dependencies" error, and the compile order does not reflect the dependency.
-
-- [ ] **`dataTypeDef` follow-ups.** Validate facet combinations (`options` with `scale`/`shift`, `scale` 0) at plan/compile time instead of at runtime in `sys.datatype`.
 
 - [ ] **Plan-time check of the `valueType` conversion.** The engine converts the output of the semantic processors to the field's `valueType` (and back) at runtime; a type that can never convert (e.g. `sys.bytes` to `sys.int32`) only fails on the first value. Let value processors report their output type at plan build (an optional member on `IValueProcessor`; `sys.datatype`: the value type, `sys.map`: its `to` type, `sys.scale`: `sys.decimal`) and check that it converts to the `valueType`.
 
@@ -41,8 +37,6 @@
 
 - [ ] **Bare JSON `value` literals.** `SchemaField.Value` is a string union, so a bare JSON number or boolean (`"value": 42`) is not supported; only strings (e.g. `"0x2A"`).
 
-- [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage?
-
 - [ ] A `byteLength` given as a reference on a fixed-size field without a field processor is not checked against the type size at plan build (only fails when read/written).
 
 - [ ] **MIDI schema gaps** (see `IntegrationTests/Midi/Midi.xml`):
@@ -54,6 +48,9 @@
 
 ---
 
+- [x] **`Serializer` surfaces processor failures.** A `Failure` result from the sessions throws an `InvalidOperationException` naming the node path (the session's `CurrentPath`) instead of returning the byte count.
+- [x] **`dataTypeDef` facet combinations.** `options` with `scale`/`shift` (also inherited) and `scale` 0 are rejected when the data type is registered (`DataTypeDescriptor.Derive`, `DataTypeRegistry.Register`), i.e. at plan build, instead of at runtime in `sys.datatype`.
+- [x] **Report unresolved references with a clear error.** An unresolved nodeDef/dataTypeDef reference currently surfaces as a generic compile exception; report the node path and the name that was not found. Add tests for the message.
 - [x] **Unused `type` on XML properties.** `schema.xsd` (`property`) and `XmlSchemaProperty` have a `type` attribute, but `XmlSchemaMapper.ToSchemaProperty` drops it and `SchemaProperty` has no type. Remove it from the XSD and the XML model, or carry it into the schema model (e.g. to select the data type that parses the value, see complex schema property values).
 - [x] **Map processor follow-ups.** `sys:map` maps only scalar types (the `to` property selects the result type)
   - [x] reparses its properties on every call. Use state in context to cache the parsed map.
@@ -165,3 +162,4 @@
 - [-] **(De)Serialize overloads for all variations** Plan|Range, `IValueSource`|`IFieldSource`, `Stream`|`byte[]`|`IBinaryWriter` and `IValueSink`|`IFieldSink`, `Stream`|`byte[]`|`SequenceReader<byte>`.
 - [-] **Bytes follow-ups.** Length value processors; a length field that comes after its bytes field is not derived; `Bytes` is not supported by bit/byte-level layouts or field processors that assume fixed widths; no streaming/chunked access for large blobs (the model gets one `byte[]` per field); a flat model needs an explicit `byte[]` value.
 - [ ] **Expected-value stage.** A field `Value` (constant/ref) is compared against the logical value (after the semantic stage). Make the stage explicitly selectable (default logical).
+- [ ] **Allow processor Read/Write to optionally skip.** Add a result option for a processor to skip processing and let the engine perform a pass-through. TBD: skip-self and/or skip-stage? No API change required, a processor can skip-self in its impl.

@@ -67,6 +67,49 @@ public class DataTypeDefRegistryTests
     }
 
     [Test]
+    public void Register_OptionsWithScale_Throws()
+    {
+        var registry = DataTypeRegistry.CreateDefault();
+        var a = new SchemaDataTypeDef { Name = "A", BasedOn = "sys.uint8", Scale = 2m, Options = new Dictionary<string, string> { ["1"] = "One" } };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => registry.RegisterDataTypeDefs([Document("Doc", a)]));
+
+        Assert.That(ex!.Message, Does.Contain("'Doc.A'").And.Contain("cannot combine options"));
+    }
+
+    [Test]
+    public void Register_OptionsOnScaledBase_Throws()
+    {
+        var registry = DataTypeRegistry.CreateDefault();
+        var a = new SchemaDataTypeDef { Name = "A", BasedOn = "sys.uint8", Shift = 1m };
+        var b = new SchemaDataTypeDef { Name = "B", BasedOn = "Doc.A", Options = new Dictionary<string, string> { ["1"] = "One" } };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => registry.RegisterDataTypeDefs([Document("Doc", a, b)]));
+
+        Assert.That(ex!.Message, Does.Contain("'Doc.B'").And.Contain("cannot combine options"));
+    }
+
+    [Test]
+    public void Register_ScaleZero_Throws()
+    {
+        var registry = DataTypeRegistry.CreateDefault();
+        var a = new SchemaDataTypeDef { Name = "A", BasedOn = "sys.int32", Scale = 0m };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => registry.RegisterDataTypeDefs([Document("Doc", a)]));
+
+        Assert.That(ex!.Message, Does.Contain("'Doc.A'").And.Contain("cannot be 0"));
+    }
+
+    [Test]
+    public void Register_DescriptorWithScaleZero_Throws()
+    {
+        var registry = DataTypeRegistry.CreateDefault();
+        var descriptor = new DataTypeDescriptor(new SchemaName("my.zero"), typeof(int), (string? text, out object? value) => { value = null; return false; }) { Scale = 0m };
+
+        Assert.Throws<InvalidOperationException>(() => registry.Register(descriptor));
+    }
+
+    [Test]
     public void Register_CalledTwice_DoesNotThrow()
     {
         var registry = DataTypeRegistry.CreateDefault();

@@ -16,7 +16,7 @@ internal sealed class DataTypeProcessor : ProcessorBase, IValueProcessor
     // - scale/shift: logical value = physical value * scale + shift (a decimal).
     // - min/max: the logical value (converted to the value type) must be in range, also an option value or the options default;
     //   strings compare ordinal, other types with IComparable.
-    // options and scale/shift cannot be combined.
+    // options and scale/shift cannot be combined and the scale is not 0 (checked when the data type is registered).
     // write direction: the result is a value of the physical (CLR) type of the data type.
     // the engine converts the logical value to and from the value type of the data type at the boundary with the value model.
 
@@ -42,7 +42,7 @@ internal sealed class DataTypeProcessor : ProcessorBase, IValueProcessor
         }
 
         var logical = ToDecimal(logicalValue.Value, dataType, context);
-        var (scale, shift) = GetScaleAndShift(dataType, context);
+        var (scale, shift) = GetScaleAndShift(dataType);
         var raw = Math.Round((logical - shift) / scale, MidpointRounding.AwayFromZero);
         context.Logger.Scaled(context.Field?.Path ?? String.Empty, scale, shift, logical, raw);
 
@@ -84,7 +84,7 @@ internal sealed class DataTypeProcessor : ProcessorBase, IValueProcessor
         }
 
         var physical = ToDecimal(logicalValue.Value, dataType, context);
-        var (scale, shift) = GetScaleAndShift(dataType, context);
+        var (scale, shift) = GetScaleAndShift(dataType);
         var logical = (physical * scale) + shift;
         context.Logger.Scaled(context.Field?.Path ?? String.Empty, scale, shift, physical, logical);
         CheckRange(logical, dataType, context);
@@ -93,26 +93,11 @@ internal sealed class DataTypeProcessor : ProcessorBase, IValueProcessor
     }
 
     private static DataTypeDescriptor GetDataType(ValueProcessorContext context)
-    {
-        var dataType = context.DataType
+        => context.DataType
             ?? throw context.Logger.Fail("The data type processor requires a field (or a repeat/choice value type).");
 
-        if (dataType.Options is not null && (dataType.Scale is not null || dataType.Shift is not null))
-        {
-            throw context.Logger.Fail($"The data type {dataType} cannot combine options with a scale or shift.");
-        }
-        return dataType;
-    }
-
-    private static (decimal scale, decimal shift) GetScaleAndShift(DataTypeDescriptor dataType, ValueProcessorContext context)
-    {
-        var scale = dataType.Scale ?? 1;
-        if (scale == 0)
-        {
-            throw context.Logger.Fail($"Invalid scale value '{scale}' of {dataType}.");
-        }
-        return (scale, dataType.Shift ?? 0);
-    }
+    private static (decimal scale, decimal shift) GetScaleAndShift(DataTypeDescriptor dataType)
+        => (dataType.Scale ?? 1, dataType.Shift ?? 0);
 
     // a logical value selects its option.
     // the options default has no physical value, so it cannot be written (unless it is also an option value).

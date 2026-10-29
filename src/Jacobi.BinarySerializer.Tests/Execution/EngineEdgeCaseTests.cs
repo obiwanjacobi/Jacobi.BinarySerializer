@@ -10,7 +10,7 @@ public class EngineEdgeCaseTests
 {
     private const string Ns = "edge";
 
-    private enum Mode { Ok, WriteFailure, ConsumeBits }
+    private enum Mode { Ok, WriteFailure, ReadFailure, ConsumeBits }
 
     private static ExecutionPlan BuildEdge(Mode mode, int bits = 0)
     {
@@ -100,6 +100,34 @@ public class EngineEdgeCaseTests
         Assert.That(result, Is.EqualTo(WriteResult.Failure));
     }
 
+    [Test]
+    public void Serialize_FieldProcessorFailure_ThrowsWithPath()
+    {
+        var plan = BuildEdge(Mode.WriteFailure);
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            CreateSerializer().Serialize(plan, new DictSource(new() { ["Root.A"] = 1 }), new ArrayBufferWriter<byte>()));
+
+        Assert.That(ex!.Message, Does.Contain("'Root.A'").And.Contain("write was aborted"));
+    }
+
+    [Test]
+    public void Deserialize_FieldProcessorFailure_ThrowsWithPath()
+    {
+        var plan = BuildEdge(Mode.ReadFailure);
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            CreateSerializer().Deserialize(plan, new ReadOnlySequence<byte>(new byte[] { 1, 2, 3, 4 }), new DictSink()));
+
+        Assert.That(ex!.Message, Does.Contain("'Root.A'").And.Contain("read was aborted"));
+    }
+
+    private static Serializer CreateSerializer()
+        => new SerializerBuilder()
+            .AddSchemas(new SchemaSetBuilder().Compile())
+            .AddProcessors(new ProcessorManager())
+            .Build();
+
     private sealed class Factory(Mode mode, int bits) : IProcessorFactory
     {
         public string Namespace => Ns;
@@ -129,6 +157,8 @@ public class EngineEdgeCaseTests
         }
 
         public FieldReadResult<LogicalField> Read(EncodedField field, FieldProcessorContext context)
-            => FieldReadResult<LogicalField>.Consumed(new LogicalField(field.Name, typeof(int), 0), bits);
+            => mode == Mode.ReadFailure
+                ? FieldReadResult<LogicalField>.Failure()
+                : FieldReadResult<LogicalField>.Consumed(new LogicalField(field.Name, typeof(int), 0), bits);
     }
 }

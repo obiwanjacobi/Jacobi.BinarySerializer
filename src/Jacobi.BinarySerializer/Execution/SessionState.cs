@@ -28,6 +28,11 @@ public closed class SessionState
     protected internal ILogger EngineLogger { get; private set; } = NullLogger.Instance;
 
     /// <summary>
+    /// The path of the node the session processes (the root for the stream stage); names the node when a read or write stops.
+    /// </summary>
+    internal SchemaPath? CurrentPath { get; private protected set; }
+
+    /// <summary>
     /// Resolves the optional <see cref="ILoggerFactory"/> from the host's services (no-op logging when absent).
     /// </summary>
     internal void InitializeLogging(IServiceProvider services, string direction)

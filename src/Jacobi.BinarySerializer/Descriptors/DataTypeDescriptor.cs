@@ -154,6 +154,10 @@ public sealed class DataTypeDescriptor
             throw new InvalidOperationException($"The min '{min}' of data type '{name}' is larger than its max '{max}'.");
         }
 
+        var scale = definition.Scale ?? Scale;
+        var shift = definition.Shift ?? Shift;
+        ValidateFacets(name, options, scale, shift);
+
         return new(name, ClrType, Parse)
         {
             Encode = Encode,
@@ -163,12 +167,30 @@ public sealed class DataTypeDescriptor
             TakesRestOfWindow = TakesRestOfWindow,
             Min = min,
             Max = max,
-            Scale = definition.Scale ?? Scale,
-            Shift = definition.Shift ?? Shift,
+            Scale = scale,
+            Shift = shift,
             Options = options,
             ValueType = valueType,
             OptionsDefault = defaultValue,
         };
+    }
+
+    /// <summary>
+    /// Throws when the facets cannot be applied together: options with a scale or shift, or a scale of 0.
+    /// The facets may be inherited, so a combination can come from a base type.
+    /// </summary>
+    internal void ValidateFacets() => ValidateFacets(Name, Options, Scale, Shift);
+
+    private static void ValidateFacets(SchemaName name, IReadOnlyDictionary<object, object>? options, decimal? scale, decimal? shift)
+    {
+        if (options is not null && (scale is not null || shift is not null))
+        {
+            throw new InvalidOperationException($"The data type '{name}' cannot combine options with a scale or shift.");
+        }
+        if (scale == 0)
+        {
+            throw new InvalidOperationException($"The scale of data type '{name}' cannot be 0.");
+        }
     }
 
     // physical values are parsed with this (base) type, logical values with the options type.

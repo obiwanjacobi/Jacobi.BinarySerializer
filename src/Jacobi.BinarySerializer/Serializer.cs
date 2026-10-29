@@ -74,63 +74,68 @@ public sealed class Serializer
     {
         var plan = GetPlan(schemaName);
         var session = new WriterSession(plan, writer, _serviceProvider, _valueFieldsUseModel);
-        return Complete(session.Write(valueSource), session.BytesWritten);
+        return Complete(session.Write(valueSource), session);
     }
 
     public long Serialize(ExecutionPlan plan, IValueSource valueSource, IBufferWriter<byte> writer)
     {
         var session = new WriterSession(plan, writer, _serviceProvider, _valueFieldsUseModel);
-        return Complete(session.Write(valueSource), session.BytesWritten);
+        return Complete(session.Write(valueSource), session);
     }
 
     public long Serialize(PlanRange planRange, IValueSource valueSource, IBufferWriter<byte> writer)
     {
         var session = new WriterSession(planRange.ExecutionPlan, writer, _serviceProvider, _valueFieldsUseModel);
-        return Complete(session.Write(valueSource, planRange), session.BytesWritten);
+        return Complete(session.Write(valueSource, planRange), session);
     }
 
     public long Serialize(PlanRange planRange, IFieldSource valueSource, IBufferWriter<byte> writer)
     {
         var session = new WriterSession(planRange.ExecutionPlan, writer, _serviceProvider, _valueFieldsUseModel);
-        return Complete(session.Write(valueSource, planRange), session.BytesWritten);
+        return Complete(session.Write(valueSource, planRange), session);
     }
 
     public long Deserialize(SchemaName schemaName, ReadOnlySequence<byte> reader, IValueSink valueSink)
     {
         var plan = GetPlan(schemaName);
         var session = new ReaderSession(plan, _serviceProvider, _valueFieldsUseModel);
-        return Complete(session.Read(reader, valueSink), session.BytesRead);
+        return Complete(session.Read(reader, valueSink), session);
     }
 
     public long Deserialize(ExecutionPlan plan, ReadOnlySequence<byte> reader, IValueSink valueSink)
     {
         var session = new ReaderSession(plan, _serviceProvider, _valueFieldsUseModel);
-        return Complete(session.Read(reader, valueSink), session.BytesRead);
+        return Complete(session.Read(reader, valueSink), session);
     }
 
     public long Deserialize(PlanRange planRange, ReadOnlySequence<byte> reader, IValueSink valueSink)
     {
         var session = new ReaderSession(planRange.ExecutionPlan, _serviceProvider, _valueFieldsUseModel);
-        return Complete(session.Read(reader, valueSink, planRange), session.BytesRead);
+        return Complete(session.Read(reader, valueSink, planRange), session);
     }
 
     public long Deserialize(PlanRange planRange, ReadOnlySequence<byte> reader, IFieldSink fieldSink)
     {
         var session = new ReaderSession(planRange.ExecutionPlan, _serviceProvider, _valueFieldsUseModel);
-        return Complete(session.Read(reader, fieldSink, planRange), session.BytesRead);
+        return Complete(session.Read(reader, fieldSink, planRange), session);
     }
 
     // truncated input (or a full output) is an error: callers must supply a complete message.
-    private static long Complete(ReadResult result, long bytes)
-        => result == ReadResult.NeedMoreData
-            ? throw new InvalidOperationException("The input is incomplete: more data is needed to complete the read.")
-            : bytes;
+    // a processor failure aborts the operation; the output (or the sink) may hold a partial message.
+    private static long Complete(ReadResult result, ReaderSession session)
+        => result switch
+        {
+            ReadResult.NeedMoreData => throw new InvalidOperationException("The input is incomplete: more data is needed to complete the read."),
+            ReadResult.Failure => throw new InvalidOperationException($"'{session.CurrentPath}': a processor failed; the read was aborted."),
+            _ => session.BytesRead,
+        };
 
-    private static long Complete(WriteResult result, long bytes)
+    private static long Complete(WriteResult result, WriterSession session)
         => result switch
         {
             WriteResult.NeedMoreData => throw new InvalidOperationException("More data is needed to complete the write."),
             WriteResult.NeedMoreSpace => throw new InvalidOperationException("More space is needed in the output to complete the write."),
-            _ => bytes,
+            WriteResult.Failure => throw new InvalidOperationException($"'{session.CurrentPath}': a processor failed; the write was aborted."),
+            _ => session.BytesWritten,
         };
 }

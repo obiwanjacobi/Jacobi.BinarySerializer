@@ -380,11 +380,10 @@ public class DataTypeProcessorTests
     }
 
     [Test]
-    public void OptionsWithScale_Throws()
+    public void OptionsWithScale_ThrowsAtPlanBuild()
     {
-        var plan = Build(new SchemaDataTypeDef { Name = "Color", BasedOn = "sys.uint8", Scale = 2m, Options = Colors });
-
-        Assert.That(() => Write(plan, "Red"), Throws.InstanceOf<InvalidOperationException>().With.Message.Contain("options"));
+        Assert.That(() => Build(new SchemaDataTypeDef { Name = "Color", BasedOn = "sys.uint8", Scale = 2m, Options = Colors }),
+            Throws.InstanceOf<InvalidOperationException>().With.Message.Contain("cannot combine options"));
     }
 
     [Test]

@@ -105,6 +105,7 @@ internal sealed class ReaderSession : SessionState
         _plan.ValidateOpenChoices(range, EngineLogger);
         BytesRead = 0;
         _transportConsumed = 0;
+        CurrentPath = root.Path;
         if (root.Pipeline.StreamProcessors.Count > 0)
         {
             var result = ReadStream(root, input, out var buffer);
@@ -139,6 +140,7 @@ internal sealed class ReaderSession : SessionState
             SetInstance(step.Kind == CursorStepKind.ExitItem ? cursor.Instance.Append(step.Index) : cursor.Instance);
             if (step.Node is not null)
             {
+                CurrentPath = step.Node.Path;
                 EngineLogger.Navigating(step.Kind, step.Node.Path.ToString(), StepInstance(step.Kind, step.Index).ToLogString());
             }
             switch (step.Kind)

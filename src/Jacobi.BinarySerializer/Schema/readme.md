@@ -237,8 +237,8 @@ A `dataTypeDef` derives a new logical data type from an existing one (built-in o
 | `name` | Name of the new data type; registered as `Document.Name`. |
 | `basedOn` | The data type it derives from. |
 | `min`, `max` | Allowed range of the logical value (facet), inclusive: literals of the value type, which must be comparable (numbers, strings, date/time, enums). Strings compare ordinal (`"10"` < `"9"`). With `options` the option value (and `optionsDefault`) is checked. `min` may not be larger than `max`. |
-| `scale`, `shift` | Logical = physical * scale (+ shift) (facet). Also used by `sys.scale` when it has no `scale`/`shift` property. |
-| `options` | Allowed physical values (parsed with the data type) mapped to logical values (parsed with the value type) (facet); cannot be combined with `scale`/`shift`. |
+| `scale`, `shift` | Logical = physical * scale (+ shift) (facet). Also used by `sys.scale` when it has no `scale`/`shift` property. `scale` may not be 0. |
+| `options` | Allowed physical values (parsed with the data type) mapped to logical values (parsed with the value type) (facet); cannot be combined with `scale`/`shift`, also not with inherited ones. Invalid combinations are a plan-build error. |
 | `optionsDefault` | The logical value read for a physical value that is not one of the options (without it that is an error). Cannot be written. |
 | `valueType` | The data type of the value the value model sees and provides (the logical value). Default: `sys.string` with `options`, `sys.decimal` with `scale`/`shift`, otherwise the value type of `basedOn`. |
 | `processors`, `properties` | Merged into every field that uses the data type (base chain first, then the field's own). |

@@ -91,6 +91,7 @@ internal sealed class WriterSession : SessionState
         _layoutContext.BlockSizes.Clear();
         _sizeStarts.Clear();
         _deferred.Clear();
+        CurrentPath = root.Path;
         EngineLogger.WriteStarted(root.Path.ToString());
 
         var cursor = new PlanCursor<IValueSource>(root, range, EngineLogger);
@@ -104,6 +105,7 @@ internal sealed class WriterSession : SessionState
             SetInstance(step.Kind == CursorStepKind.ExitItem ? cursor.Instance.Append(step.Index) : cursor.Instance);
             if (step.Node is not null)
             {
+                CurrentPath = step.Node.Path;
                 EngineLogger.Navigating(step.Kind, step.Node.Path.ToString(), StepInstance(step.Kind, step.Index).ToLogString());
             }
             switch (step.Kind)

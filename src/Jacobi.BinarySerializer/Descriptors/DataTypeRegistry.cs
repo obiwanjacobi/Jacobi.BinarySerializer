@@ -16,10 +16,11 @@ public sealed class DataTypeRegistry : IDataTypeRegistry
 
     public IEnumerable<DataTypeDescriptor> Types => _types.Values;
 
-    /// <summary>Registers a descriptor. Throws when the name is already registered.</summary>
+    /// <summary>Registers a descriptor. Throws when the name is already registered or its facets cannot be combined.</summary>
     public void Register(DataTypeDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
+        descriptor.ValidateFacets();
         if (!_types.TryAdd(descriptor.Name.FullName, descriptor))
         {
             throw new InvalidOperationException($"The data type '{descriptor.Name}' is already registered.");
