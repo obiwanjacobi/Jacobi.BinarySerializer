@@ -52,6 +52,8 @@ internal sealed class ReaderSession : SessionState
         public int ParentCalls { get; set; }
     }
     private readonly Stack<int> _choiceIndexes = new();
+    // per open choice being read: whether its body (a separate plan) ends at the input end, i.e. nothing follows the open choice.
+    private readonly Stack<bool> _bodyEndsAtInputEnd = new();
     private readonly Stack<(GroupInfo Group, long End, int AncestorTail)> _windows = new();
     private readonly Dictionary<ProcessorBinding, Stack<int>> _layoutTails = [];
     private readonly Dictionary<GroupInfo, int> _minItemBytes = new();
@@ -126,6 +128,7 @@ internal sealed class ReaderSession : SessionState
         _layoutContext.InputByteLength = null;
         _layoutContext.IsReadContinuation = false;
         _windows.Clear();
+        _bodyEndsAtInputEnd.Clear();
         _layoutTails.Clear();
         _tailTotal = 0;
         EngineLogger.ReadStarted(root.Path.ToString());
@@ -196,6 +199,7 @@ internal sealed class ReaderSession : SessionState
                             var selected = openSink.EnterOpenChoice(new OpenChoiceContext { Node = openChoice, Services = _services, Instance = _instance });
                             var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Group, selected.FromTarget);
                             _openBody = (body, selected.Scope);
+                            _bodyEndsAtInputEnd.Push(RepeatInfo.IsLast(openChoice, BodyEndsAtInputEnd));
                             cursor.EnterOpenChoice(step.Scope, body, _plan.CreateOpenChoiceRange(openChoice, body, selected.FromTarget, selected.FromInstance, selected.ToTarget, selected.ToInstance));
                         }
                         else if (group is ChoiceInfo choice)
@@ -297,6 +301,10 @@ internal sealed class ReaderSession : SessionState
                     {
                         _choiceIndexes.Pop();
                     }
+                    else if (step.Node is ChoiceInfo { IsOpen: true })
+                    {
+                        _bodyEndsAtInputEnd.Pop();
+                    }
                     if (step.Node is GroupInfo { HasByteSize: true } sized && _windows.Count > 0 && ReferenceEquals(_windows.Peek().Group, sized))
                     {
                         var end = _windows.Pop().End;
@@ -316,14 +324,18 @@ internal sealed class ReaderSession : SessionState
         }
     }
 
+    // whether the plan being read (the envelope, or the body of the innermost open choice) ends at the input end.
+    private bool BodyEndsAtInputEnd => _bodyEndsAtInputEnd.Count == 0 || _bodyEndsAtInputEnd.Peek();
+
     // asks the scope that holds the repeat (IOpenRepeatSink) or falls back to the engine's own rule.
     private bool EndsOpenRepeat(ref SequenceReader<byte> reader, PlanCursor<IValueSink> cursor)
     {
         var repeat = (RepeatInfo)cursor.CurrentGroup!;
         var atEnd = AtOpenRepeatEnd(ref reader, repeat);
+        var endsAtInputEnd = repeat.EndsAtInputEndIn(BodyEndsAtInputEnd);
         if (cursor.CurrentScope is not IOpenRepeatSink openSink)
         {
-            if (!repeat.EndsAtInputEnd)
+            if (!endsAtInputEnd)
             {
                 throw EngineLogger.Fail($"'{repeat.Path}': a repeat without a count that is followed by other nodes requires a value model that implements {nameof(IOpenRepeatSink)}.");
             }
@@ -345,7 +357,7 @@ internal sealed class ReaderSession : SessionState
         {
             OpenRepeatAction.Next => false,
             OpenRepeatAction.End => true,
-            _ when !repeat.EndsAtInputEnd => throw EngineLogger.Fail(
+            _ when !endsAtInputEnd => throw EngineLogger.Fail(
                 $"'{repeat.Path}': the value model answered {nameof(OpenRepeatAction.Default)} for a repeat without a count that is followed by other nodes; it must answer {nameof(OpenRepeatAction.Next)} or {nameof(OpenRepeatAction.End)}."),
             _ => atEnd,
         };

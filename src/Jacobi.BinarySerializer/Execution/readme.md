@@ -72,7 +72,7 @@ Without these interfaces the rules below apply; a repeat that the engine cannot 
 ### Plan building
 
 - **Anywhere in the schema.** An open repeat may be followed by other nodes. Plan building accepts it; the reader checks at runtime who ends it (see `RepeatInfo.EndsAtInputEnd`).
-- **Engine can end it** when the repeat has a `byteSize`, or nothing follows it up to the end of the input or of an enclosing size window: it is the last member of its group (or a choice alternative), and so is every enclosing group up to the root or a group with a `byteSize`.
+- **Engine can end it** when the repeat has a `byteSize`, or nothing follows it up to the end of the input or of an enclosing size window: it is the last member of its group (or a choice alternative), and so is every enclosing group up to the root or a group with a `byteSize`. The body of an open choice is a separate plan: its root counts as last only when the open choice itself is last (checked the same way, through nested open choices).
 - **Model must end it** in every other case: the scope that holds it must implement `IOpenRepeatSink` and answer `Next` or `End`. Without the interface, or on a `Default` answer, the read fails naming the repeat path. Writing has no such restriction.
 - **Bytes without a length** still must be last: a bytes field without a `byteLength` (or a group or choice that ends in one) takes the rest of the size window, so plan building reports an error when it is followed by other members. This does not apply to the members of a choice (they are alternatives, not a sequence).
 

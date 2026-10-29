@@ -125,11 +125,22 @@ public sealed class RepeatInfo : GroupInfo
     /// True when the engine can end a repeat without a count by itself: it has a size, or nothing follows it up to the end of the input or of an enclosing size window.
     /// Otherwise (an open repeat followed by other nodes) the value model must end it on read (<see cref="IOpenRepeatSink"/>).
     /// </summary>
-    public bool EndsAtInputEnd => UntilEnd && (HasByteSize || IsLast(this));
+    public bool EndsAtInputEnd => EndsAtInputEndIn(rootEndsAtInputEnd: true);
 
-    private static bool IsLast(NodeInfo node)
+    /// <summary>
+    /// <see cref="EndsAtInputEnd"/> for a plan whose root may be followed by other nodes: the body of an open choice is a separate plan
+    /// that ends at the input end only when the open choice does.
+    /// </summary>
+    internal bool EndsAtInputEndIn(bool rootEndsAtInputEnd) => UntilEnd && (HasByteSize || IsLast(this, rootEndsAtInputEnd));
+
+    /// <summary>
+    /// True when nothing follows the node up to the end of the input or of an enclosing size window.
+    /// <paramref name="rootEndsAtInputEnd"/> says whether the root of the node's plan is last itself.
+    /// </summary>
+    internal static bool IsLast(NodeInfo node, bool rootEndsAtInputEnd)
         => node.Parent is not { } parent
-            || (parent is ChoiceInfo || node.Index == parent.Members.Count - 1) && (parent.HasByteSize || IsLast(parent));
+            ? rootEndsAtInputEnd
+            : (parent is ChoiceInfo || node.Index == parent.Members.Count - 1) && (parent.HasByteSize || IsLast(parent, rootEndsAtInputEnd));
 }
 
 public sealed class ChoiceInfo : GroupInfo

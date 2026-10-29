@@ -208,6 +208,65 @@ public class OpenChoiceTests
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("Body").And.Contain("conforms"));
     }
 
+    // the body ends with a repeat without a count; the envelope continues after the open choice
+    private const string TrailingSchema = """
+        { "name": "TrailTest", "nodeDefs": [ { "name": "Body", "kind": "group" } ], "members": [
+            { "name": "Root", "kind": "group", "members": [
+                { "name": "Msg", "kind": "choice", "memberNodeDef": "Body" },
+                { "name": "Tail", "kind": "field", "datatype": "sys.uint8" }
+            ] },
+            { "name": "BodyA", "kind": "group", "nodeDef": "Body", "members": [
+                { "name": "Items", "kind": "repeat", "members": [ { "name": "V", "kind": "field", "datatype": "sys.uint8" } ] }
+            ] }
+        ] }
+        """;
+
+    [Test]
+    public void Read_OpenRepeatAtEndOfBodyFollowedByEnvelopeNodes_RequiresOpenRepeatSink()
+    {
+        var serializer = CreateSerializer(TrailingSchema);
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => serializer.Deserialize(new SchemaName("TrailTest.Root"), new ReadOnlySequence<byte>([1, 2, 9]), new OpenSink()));
+
+        Assert.That(ex.Message, Does.Contain("BodyA.Items").And.Contain(nameof(IOpenRepeatSink)));
+    }
+
+    [Test]
+    public void Read_OpenRepeatAtEndOfBodyFollowedByEnvelopeNodes_DefaultThrows()
+    {
+        var serializer = CreateSerializer(TrailingSchema);
+        var sink = new OpenRepeatOpenSink(_ => OpenRepeatAction.Default);
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => serializer.Deserialize(new SchemaName("TrailTest.Root"), new ReadOnlySequence<byte>([1, 2, 9]), sink));
+
+        Assert.That(ex.Message, Does.Contain("BodyA.Items").And.Contain(nameof(OpenRepeatAction.Default)));
+    }
+
+    [Test]
+    public void Read_OpenRepeatAtEndOfBodyFollowedByEnvelopeNodes_SinkEndsIt()
+    {
+        var serializer = CreateSerializer(TrailingSchema);
+        var sink = new OpenRepeatOpenSink(context => context.Index < 2 ? OpenRepeatAction.Next : OpenRepeatAction.End);
+
+        serializer.Deserialize(new SchemaName("TrailTest.Root"), new ReadOnlySequence<byte>([1, 2, 9]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "BodyA.Items.V=1", "BodyA.Items.V=2", "Root.Tail=9" }));
+    }
+
+    [Test]
+    public void Read_OpenRepeatAtEndOfBodyOfLastOpenChoice_EndsAtInputEnd()
+    {
+        var serializer = CreateSerializer(TrailingSchema.Replace("{ \"name\": \"Tail\", \"kind\": \"field\", \"datatype\": \"sys.uint8\" }", String.Empty)
+            .Replace("\"memberNodeDef\": \"Body\" },", "\"memberNodeDef\": \"Body\" }"));
+        var sink = new OpenSink();
+
+        serializer.Deserialize(new SchemaName("TrailTest.Root"), new ReadOnlySequence<byte>([1, 2, 9]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "BodyA.Items.V=1", "BodyA.Items.V=2", "BodyA.Items.V=9" }));
+    }
+
     // the envelope names a contract of another document; only the body depends on that document
     private const string EnvelopeSchema = """
         { "name": "Envelope", "members": [
@@ -762,6 +821,14 @@ public class OpenChoiceTests
         public void ExitGroup(GroupContext context) { }
         public void ExitItem(RepeatContext context, int index, int count) { }
         public void ExitChoice(ChoiceContext context, int selectedIndex) { }
+    }
+
+    private sealed class OpenRepeatOpenSink(Func<OpenRepeatReadContext, OpenRepeatAction> next) : PlainSink, IOpenChoiceSink, IOpenRepeatSink
+    {
+        public OpenChoiceSinkResult EnterOpenChoice(OpenChoiceContext context)
+            => new(this, new SchemaName("BodyA"), default, default, default, default);
+
+        public OpenRepeatAction NextItem(OpenRepeatReadContext context) => next(context);
     }
 
     private sealed class OpenSink : PlainSink, IOpenChoiceSink
