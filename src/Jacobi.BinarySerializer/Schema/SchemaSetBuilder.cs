@@ -47,16 +47,17 @@ public sealed class SchemaSetBuilder
         return document;
     }
 
-    public IEnumerable<SchemaDocument> LoadFromAssembly(string path, string resourcePath)
-        => LoadFromAssembly(Assembly.LoadFile(path), resourcePath);
+    public IEnumerable<SchemaDocument> LoadFromAssembly(string path, string? resourcePath = null, string? fileExtension = null)
+        => LoadFromAssembly(Assembly.LoadFile(path), resourcePath, fileExtension);
 
-    public IEnumerable<SchemaDocument> LoadFromAssembly(Assembly assembly, string resourcePath)
+    public IEnumerable<SchemaDocument> LoadFromAssembly(Assembly assembly, string? resourcePath = null, string? fileExtension = null)
     {
         ArgumentNullException.ThrowIfNull(assembly);
         var documents = new List<SchemaDocument>();
 
         assembly.GetManifestResourceNames()
-            .Where(name => name.StartsWith(resourcePath, StringComparison.OrdinalIgnoreCase))
+            .Where(name => String.IsNullOrEmpty(resourcePath) ||  name.StartsWith(resourcePath, StringComparison.OrdinalIgnoreCase))
+            .Where(name => String.IsNullOrEmpty(fileExtension) ||  name.EndsWith(fileExtension, StringComparison.OrdinalIgnoreCase))
             .ToList()
             .ForEach(name =>
             {
