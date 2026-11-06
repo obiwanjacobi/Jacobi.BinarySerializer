@@ -182,6 +182,98 @@ public sealed class SchemaSet
         where T : SchemaNode
         => FindByProperties<T>([new KeyValuePair<string, string?>(propertyName, value)]);
 
+    /// <summary>
+    /// Finds the schema roots that conform to the contract <paramref name="memberNodeDef"/> of an open choice:
+    /// the plain groups (not a repeat or choice) that declare it as their nodeDef, in all documents.
+    /// </summary>
+    /// <param name="memberNodeDef">The full name of the contract ('document.nodeDef').</param>
+    /// <exception cref="ArgumentException">The name is not qualified with a document.</exception>
+    public IReadOnlyList<SchemaGroup> FindConformingGroups(SchemaName memberNodeDef)
+    {
+        RequireQualified(memberNodeDef, nameof(memberNodeDef));
+        return [.. EnumerateConformingRoots(memberNodeDef).Select(r => r.Root).Where(IsPlainGroup)];
+    }
+
+    /// <summary>
+    /// Finds the schema roots that conform to the contract of <paramref name="openChoice"/> (see <see cref="FindConformingGroups(SchemaName)"/>);
+    /// empty for a choice that is not open.
+    /// </summary>
+    /// <exception cref="ArgumentException">The choice is not part of this set.</exception>
+    public IReadOnlyList<SchemaGroup> FindConformingGroups(SchemaChoice openChoice)
+    {
+        ArgumentNullException.ThrowIfNull(openChoice);
+        var document = FindDocument(openChoice)
+            ?? throw new ArgumentException($"The choice '{openChoice.Name}' is not part of the schemas.", nameof(openChoice));
+        return openChoice.MemberNodeDef is { } contract
+            ? FindConformingGroups(contract.Qualify(document.Name))
+            : [];
+    }
+
+    /// <summary>
+    /// Finds the open choices (at any depth in the roots of all documents) whose contract is <paramref name="memberNodeDef"/>.
+    /// </summary>
+    /// <param name="memberNodeDef">The full name of the contract ('document.nodeDef').</param>
+    /// <exception cref="ArgumentException">The name is not qualified with a document.</exception>
+    public IReadOnlyList<SchemaChoice> FindOpenChoices(SchemaName memberNodeDef)
+    {
+        RequireQualified(memberNodeDef, nameof(memberNodeDef));
+        var result = new List<SchemaChoice>();
+        foreach (var document in _documents.Values)
+        {
+            CollectOpenChoices(document.Roots, document.Name, memberNodeDef, result);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Finds the open choices that can select <paramref name="body"/>: those whose contract is the nodeDef of the body.
+    /// Empty when the body is not a plain group with a nodeDef.
+    /// </summary>
+    /// <exception cref="ArgumentException">The body is not part of this set.</exception>
+    public IReadOnlyList<SchemaChoice> FindOpenChoices(SchemaGroup body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var document = FindDocument(body)
+            ?? throw new ArgumentException($"The group '{body.Name}' is not part of the schemas.", nameof(body));
+        return IsPlainGroup(body) && body.NodeDef is { } nodeDef
+            ? FindOpenChoices(nodeDef.Qualify(document.Name))
+            : [];
+    }
+
+    /// <summary>
+    /// The roots (of any kind) that declare <paramref name="contract"/> (qualified) as their nodeDef, with the name of their document.
+    /// </summary>
+    internal IEnumerable<(SchemaDocument Document, SchemaGroup Root)> EnumerateConformingRoots(SchemaName contract)
+        => _documents.Values.SelectMany(document => document.Roots
+            .Where(root => root.NodeDef is { } nodeDef && nodeDef.Qualify(document.Name) == contract)
+            .Select(root => (document, root)));
+
+    private static void CollectOpenChoices(IEnumerable<SchemaNode> nodes, string documentName, SchemaName contract, List<SchemaChoice> result)
+    {
+        foreach (var node in nodes)
+        {
+            if (node is SchemaChoice { MemberNodeDef: { } memberNodeDef } choice && memberNodeDef.Qualify(documentName) == contract)
+            {
+                result.Add(choice);
+            }
+            if (node is SchemaGroup group)
+            {
+                CollectOpenChoices(group.Members, documentName, contract, result);
+            }
+        }
+    }
+
+    private static bool IsPlainGroup(SchemaGroup group)
+        => group is not SchemaRepeat and not SchemaChoice;
+
+    private static void RequireQualified(SchemaName name, string paramName)
+    {
+        if (String.IsNullOrEmpty(name.Namespace))
+        {
+            throw new ArgumentException($"The nodeDef '{name}' must be qualified with its document ('document{SchemaName.Separator}nodeDef').", paramName);
+        }
+    }
+
     private static void CollectByProperties(
         IEnumerable<SchemaNode> nodes, KeyValuePair<string, string?>[] criteria, List<SchemaNode> result)
     {

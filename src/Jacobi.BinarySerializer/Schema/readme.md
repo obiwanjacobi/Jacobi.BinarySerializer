@@ -157,6 +157,10 @@ Rules:
 - A target inside repeats is narrowed to items with `FromInstance` and `ToInstance`: the item indices of the repeats around the target inside the body (outermost first, e.g. `[5]` for `BodyA.Items.Part`). Missing indices mean the first item (from) or the last item (to); without `ToTarget`, `FromInstance` applies to both ends. A range may run from a later field of an earlier item to an earlier field of a later item (e.g. `BodyA.Items.Part.P2[0]` to `BodyA.Items.Part.P1[1]`).
 - A target that is not a node inside the selected body, a `ToTarget` before `FromTarget`, or a `ToTarget` without a `FromTarget` throws, naming the choice path and the target.
 
+Querying the relation between open choices and their bodies:
+- `SchemaSet` (what the schemas declare): `FindConformingGroups(memberNodeDef | openChoice)` returns the plain root groups that declare the contract; `FindOpenChoices(memberNodeDef | body)` returns the open choices (at any depth in the roots) whose contract it is. A contract name must be qualified (`document.nodeDef`); a local, unqualified `memberNodeDef` is qualified with its own document before matching.
+- `ExecutionPlan` (what the plan resolves, nested open choices included): `OpenChoices` lists all open choices, `GetOpenChoiceBodies(choice)` returns the built bodies by full name, `FindOpenChoices(bodyName)` returns the open choices that can select a body (full name, or a unique short name, matched like the engine does). A body selected with `integrate` and `isolate` is built twice, so its nested open choices appear once per build. Plans not created from a `SchemaSet` return empty results.
+
 Limitations:
 - Body paths are relative to the body root (e.g. `BodyA.Id`).
 - Referenced groups cannot (yet) influence the pipeline mode; only the open choice decides.

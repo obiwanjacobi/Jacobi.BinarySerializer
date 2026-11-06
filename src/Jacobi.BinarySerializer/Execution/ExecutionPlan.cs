@@ -25,11 +25,82 @@ public sealed class ExecutionPlan
     /// </summary>
     public DataTypeRegistry DataTypes { get; init; } = DataTypeRegistry.CreateDefault();
 
+    private static readonly IReadOnlyDictionary<SchemaName, GroupInfo> NoBodies = new Dictionary<SchemaName, GroupInfo>();
+
     private IReadOnlyDictionary<ChoiceInfo, IReadOnlyDictionary<SchemaName, GroupInfo>> _openChoiceBodies
         = new Dictionary<ChoiceInfo, IReadOnlyDictionary<SchemaName, GroupInfo>>();
+    private IReadOnlyList<ChoiceInfo> _openChoices = [];
+    private IReadOnlyDictionary<SchemaName, List<ChoiceInfo>> _openChoicesByBody = new Dictionary<SchemaName, List<ChoiceInfo>>();
 
     internal void SetOpenChoiceBodies(IReadOnlyDictionary<ChoiceInfo, IReadOnlyDictionary<SchemaName, GroupInfo>> bodies)
-        => _openChoiceBodies = bodies;
+    {
+        _openChoiceBodies = bodies;
+        _openChoices = [.. bodies.Keys];
+
+        var byBody = new Dictionary<SchemaName, List<ChoiceInfo>>();
+        foreach (var (choice, choiceBodies) in bodies)
+        {
+            foreach (var name in choiceBodies.Keys)
+            {
+                if (!byBody.TryGetValue(name, out var choices))
+                {
+                    byBody[name] = choices = [];
+                }
+                choices.Add(choice);
+            }
+        }
+        _openChoicesByBody = byBody;
+    }
+
+    /// <summary>
+    /// All open choices of the plan: those of the root (in schema order) and those nested in their bodies.
+    /// Empty for a plan that was not created from a <see cref="SchemaSet"/>.
+    /// </summary>
+    public IReadOnlyList<ChoiceInfo> OpenChoices => _openChoices;
+
+    /// <summary>
+    /// The plans of the groups <paramref name="openChoice"/> can select, by full name ('document.group'):
+    /// the schema roots that conform to its nodeDef. Empty for a choice that is not open or not part of this plan.
+    /// </summary>
+    public IReadOnlyDictionary<SchemaName, GroupInfo> GetOpenChoiceBodies(ChoiceInfo openChoice)
+    {
+        ArgumentNullException.ThrowIfNull(openChoice);
+        return _openChoiceBodies.TryGetValue(openChoice, out var bodies) ? bodies : NoBodies;
+    }
+
+    /// <summary>
+    /// Finds the open choices of the plan that can select the group <paramref name="body"/>:
+    /// matched by full name ('document.group'), or by short name when exactly one body of the plan has that name.
+    /// Empty when no open choice can select it.
+    /// </summary>
+    public IReadOnlyList<ChoiceInfo> FindOpenChoices(SchemaName body)
+        => TryMatchBody(_openChoicesByBody.Keys, body, out var match)
+            ? [.. _openChoicesByBody[match]]
+            : [];
+
+    /// <summary>
+    /// Matches <paramref name="selected"/> with one of <paramref name="names"/>: by full name, or by short name when
+    /// <paramref name="selected"/> has no namespace and exactly one name has that short name.
+    /// </summary>
+    private static bool TryMatchBody(IEnumerable<SchemaName> names, SchemaName selected, out SchemaName match)
+    {
+        match = selected;
+        var candidates = names as IReadOnlyCollection<SchemaName> ?? [.. names];
+        if (candidates.Contains(selected))
+        {
+            return true;
+        }
+        if (String.IsNullOrEmpty(selected.Namespace))
+        {
+            var matches = candidates.Where(n => String.Equals(n.Name, selected.Name, StringComparison.OrdinalIgnoreCase)).Take(2).ToList();
+            if (matches.Count == 1)
+            {
+                match = matches[0];
+                return true;
+            }
+        }
+        return false;
+    }
 
     /// <summary>
     /// Finds the plan of the group a value model selected for an open choice.
@@ -43,17 +114,9 @@ public sealed class ExecutionPlan
             {
                 selected = new SchemaName(target.Segments.First());
             }
-            if (bodies.TryGetValue(selected, out var exact))
+            if (TryMatchBody(bodies.Keys, selected, out var match))
             {
-                return exact;
-            }
-            if (String.IsNullOrEmpty(selected.Namespace))
-            {
-                var matches = bodies.Where(b => String.Equals(b.Key.Name, selected.Name, StringComparison.OrdinalIgnoreCase)).ToList();
-                if (matches.Count == 1)
-                {
-                    return matches[0].Value;
-                }
+                return bodies[match];
             }
         }
 
@@ -274,31 +337,23 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             {
                 var contract = ((SchemaChoice)choice.Group).MemberNodeDef!.Value.Qualify(ns);
                 var bodies = new Dictionary<SchemaName, GroupInfo>();
-                foreach (var document in schemas.Documents)
+                foreach (var (document, candidate) in schemas.EnumerateConformingRoots(contract))
                 {
-                    foreach (var candidate in document.Roots)
+                    var name = new SchemaName($"{document.Name}{SchemaName.Separator}{candidate.Name}");
+                    var pipeline = ((SchemaChoice)choice.Group).Pipeline == SchemaPipelineMode.Integrate ? choice.Pipeline : null;
+                    var key = (name, pipeline?.ValueProcessors, pipeline?.FieldProcessors, pipeline?.LayoutProcessors, pipeline?.StreamProcessors);
+                    if (!built.TryGetValue(key, out var body))
                     {
-                        if (candidate.NodeDef is not { } nodeDef || nodeDef.Qualify(document.Name) != contract)
+                        body = Build(candidate, pipeline is null ? null : new ProcessorPipeline(pipeline, [])).Root;
+                        if (body is RepeatInfo or ChoiceInfo)
                         {
-                            continue;
+                            throw new InvalidOperationException(
+                                $"'{choice.Path}': the group '{name}' must be a plain group to be used in an open choice.");
                         }
-
-                        var name = new SchemaName($"{document.Name}{SchemaName.Separator}{candidate.Name}");
-                        var pipeline = ((SchemaChoice)choice.Group).Pipeline == SchemaPipelineMode.Integrate ? choice.Pipeline : null;
-                        var key = (name, pipeline?.ValueProcessors, pipeline?.FieldProcessors, pipeline?.LayoutProcessors, pipeline?.StreamProcessors);
-                        if (!built.TryGetValue(key, out var body))
-                        {
-                            body = Build(candidate, pipeline is null ? null : new ProcessorPipeline(pipeline, [])).Root;
-                            if (body is RepeatInfo or ChoiceInfo)
-                            {
-                                throw new InvalidOperationException(
-                                    $"'{choice.Path}': the group '{name}' must be a plain group to be used in an open choice.");
-                            }
-                            built[key] = body;
-                            work.Enqueue((body, document.Name));
-                        }
-                        bodies[name] = body;
+                        built[key] = body;
+                        work.Enqueue((body, document.Name));
                     }
+                    bodies[name] = body;
                 }
                 result[choice] = bodies;
             }

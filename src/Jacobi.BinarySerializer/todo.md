@@ -39,6 +39,7 @@
 
 ## Done
 
+- [x] **Query the open choice / body relation.** `SchemaSet.FindConformingGroups(memberNodeDef | openChoice)` and `SchemaSet.FindOpenChoices(memberNodeDef | body)` for the declared relation; `ExecutionPlan.OpenChoices`, `GetOpenChoiceBodies(choice)` and `FindOpenChoices(bodyName)` for the built one. The plan builder and the engine's body name matching use the same helpers. Tests in `OpenChoiceQueryTests`.
 - [x] **Open repeat at the end of an open choice body.** The reader keeps a stack of "the body ends at the input end" flags (pushed when it enters an open choice, from `RepeatInfo.IsLast(openChoice, outer flag)`); `EndsOpenRepeat` uses `RepeatInfo.EndsAtInputEndIn(flag)`. A count-less repeat at the end of a body followed by envelope nodes now requires `IOpenRepeatSink` (and rejects `Default`). Tests in `OpenChoiceTests`.
 - [x] **`MemberNodeDef` and the dependency graph.** Decided the other way round: an envelope only names its contract, the bodies that declare it depend on it. A `memberNodeDef` is not a schema dependency; a local one is checked at compile (exists, is a group), a qualified one is not resolved, so generic envelopes compile without the contract's document. No conforming body is reported at plan build ("no group in the plan conforms").
 - [x] **Docs for local-only name resolution.** `Schema/readme.md` has one "Name resolution" section for data types, nodeDefs and processors; the nodeDef, open choice, processor and data type sections link to it.
