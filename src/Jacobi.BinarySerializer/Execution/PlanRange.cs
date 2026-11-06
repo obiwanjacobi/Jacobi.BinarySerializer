@@ -5,13 +5,18 @@ namespace Jacobi.BinarySerializer.Execution;
 /// The groups that lead to the range are still entered and exited, so all group logic (layout Begin/End, repeats, ...) applies.
 /// Create one with <see cref="ExecutionPlan.CreateRange"/>.
 /// </summary>
-public sealed class PlanRange
+public sealed class PlanRange : IEquatable<PlanRange>
 {
     private readonly ExecutionPlan _executionPlan;
 
     // document-order position keys: per ancestor its index and, for a repeat above the node, the item index.
     private readonly int[] _from;
     private readonly int[] _to;
+
+    // the same bounds normalized to the keys of the First and Last fields (with an item index for every repeat),
+    // so two ranges compare independent of how their bounds were specified (group or field).
+    private readonly int[] _firstKey;
+    private readonly int[] _lastKey;
 
     internal PlanRange(ExecutionPlan executionPlan, NodeInfo from, NodeInfo to)
         : this(executionPlan, from, InstancePath.Empty, to, InstancePath.Empty)
@@ -35,6 +40,8 @@ public sealed class PlanRange
         {
             throw new ArgumentException($"The range start '{from.Path}{fromInstance}' comes after the range end '{to.Path}{toInstance}'.");
         }
+        _firstKey = Key(First, fromInstance, 0);
+        _lastKey = Key(Last, toInstance, int.MaxValue);
     }
 
     public ExecutionPlan ExecutionPlan => _executionPlan;
@@ -70,6 +77,71 @@ public sealed class PlanRange
         var last = Key(node, InstancePath.Empty, int.MaxValue);
         return (Compare(first, _from) >= 0 && Compare(first, _to) <= 0)
             || (Compare(last, _from) >= 0 && Compare(last, _to) <= 0);
+    }
+
+    /// <summary>
+    /// True when both ranges are of the same plan and cover the same fields (and repeat items),
+    /// regardless of whether the bounds were given as groups or as fields.
+    /// A missing item index (first or last item) is not equal to an explicit index.
+    /// </summary>
+    public bool Equals(PlanRange? other)
+    {
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
+        return other is not null
+            && ReferenceEquals(_executionPlan, other._executionPlan)
+            && _firstKey.AsSpan().SequenceEqual(other._firstKey)
+            && _lastKey.AsSpan().SequenceEqual(other._lastKey);
+    }
+
+    public override bool Equals(object? obj)
+        => obj is PlanRange other && Equals(other);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(_executionPlan);
+        foreach (var k in _firstKey)
+        {
+            hash.Add(k);
+        }
+        foreach (var k in _lastKey)
+        {
+            hash.Add(k);
+        }
+        return hash.ToHashCode();
+    }
+
+    public static bool operator ==(PlanRange? left, PlanRange? right)
+        => left is null ? right is null : left.Equals(right);
+
+    public static bool operator !=(PlanRange? left, PlanRange? right)
+        => !(left == right);
+
+    /// <summary>
+    /// True when the ranges are of the same plan and share at least one field (at the same repeat item).
+    /// Bounds without an item index count as the first (start) or last (end) item, which comes after any explicit index.
+    /// </summary>
+    public bool Overlaps(PlanRange other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return ReferenceEquals(_executionPlan, other._executionPlan)
+            && Compare(_firstKey, other._lastKey) <= 0
+            && Compare(other._firstKey, _lastKey) <= 0;
+    }
+
+    /// <summary>
+    /// True when the ranges are of the same plan and every field (and repeat item) of <paramref name="other"/> is also in this range.
+    /// A range contains itself.
+    /// </summary>
+    public bool Contains(PlanRange other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return ReferenceEquals(_executionPlan, other._executionPlan)
+            && Compare(_firstKey, other._firstKey) <= 0
+            && Compare(other._lastKey, _lastKey) <= 0;
     }
 
     private static void CheckInstance(FieldInfo field, InstancePath instance)

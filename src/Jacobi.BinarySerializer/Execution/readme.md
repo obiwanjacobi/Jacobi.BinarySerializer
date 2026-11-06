@@ -101,6 +101,7 @@ A value that depends on later output (e.g. a size or length written before its c
 ## Ranges
 
 A `PlanRange` (from path/instance to path/instance) limits a read or write to part of the plan; the cursor skips everything outside it.
+Ranges of the same plan can be compared: `Equals`/`==` (same fields and items, whether bounds were given as groups or fields), `Overlaps` and `Contains`.
 
 ## Logging
 
