@@ -4,10 +4,6 @@
 
 - [ ] **Open choice pipeline follow-ups.** A referenced group (body root) may get a say in the `pipeline` mode. The `isolate`/`integrate` property is on the open choice only. The engine does not yet restrict `memberNodeDef` to groups beyond the compile check; a dynamic repeat count (from a size field) is not supported.
 
-- [x] **Open Choice byteSize is ignored** That is implicit and not very clear. It should at least generate a warning or otherwise an error. Are there any other modes where hard node-properties are ignored in a certain situation? These should probably also become errors.
-  - Correction: `byteSize` was not ignored, the readme was wrong. It works as on any group: the reader limits the body to the window (the body must fill it), the writer checks the encoded body against it. `processors` under `integrate` were not ignored either: they apply to the body's fields. Both are kept, documented and covered by tests.
-  - Fix: properties an open choice really ignored are now compile errors (`ValidateOpenChoice` in `SchemaSetBuilder`), also when set on a choice nodeDef: `members` next to `memberNodeDef`, `selectedIndex` (previously failed late, at plan build), `valueProcessors`, and `processors` with `pipeline: isolate`.
-
 - [ ] **Open choice (integrate) layout scope.** Processors on an open choice apply to the body's fields under `integrate`, but the choice opens no layout scope of its own (`BeginLayout`/`EndLayout` are skipped for open choices), so e.g. `sys.align` does not pad the end of the body. Decide whether the open choice should get its own scope.
 
 - [ ] **Layout chain follow-ups.** A per-group opt-out of the inherited layout chain (e.g. `layoutReplace`) is not available; stream processors are root-only. Add an end-to-end test of a nested layout chain with a stateful follower (checksum-like).
@@ -28,8 +24,6 @@
 
 - [ ] **Bare JSON `value` literals.** `SchemaField.Value` is a string union, so a bare JSON number or boolean (`"value": 42`) is not supported; only strings (e.g. `"0x2A"`).
 
-- [ ] A `byteLength` given as a reference on a fixed-size field without a field processor is not checked against the type size at plan build (only fails when read/written).
-
 - [ ] **MIDI schema gaps** (see `IntegrationTests/Midi/Midi.xml`):
   - [ ] running status (a first byte below 0x80 reuses the previous status);
   - [ ] the status peek must be supplied by the model on write (not derived from the chosen alternative);
@@ -41,6 +35,11 @@
 
 ## Done
 
+- [x] **A referenced `byteLength` on a fixed-size field without a field processor.** A constant length is checked against the type size at plan build; a reference (`ref:`/`pub:`) is allowed and checked at runtime: the writer already failed when the encoded bytes differ from the length, and the reader (`BytesLength`) now fails when the resolved length differs from the type's fixed size (previously it read that many bytes and handed them to `Decode`). Tests in `CustomDataTypeTests`.
+
+- [x] **Open Choice byteSize is ignored** That is implicit and not very clear. It should at least generate a warning or otherwise an error. Are there any other modes where hard node-properties are ignored in a certain situation? These should probably also become errors.
+  - Correction: `byteSize` was not ignored, the readme was wrong. It works as on any group: the reader limits the body to the window (the body must fill it), the writer checks the encoded body against it. `processors` under `integrate` were not ignored either: they apply to the body's fields. Both are kept, documented and covered by tests.
+  - Fix: properties an open choice really ignored are now compile errors (`ValidateOpenChoice` in `SchemaSetBuilder`), also when set on a choice nodeDef: `members` next to `memberNodeDef`, `selectedIndex` (previously failed late, at plan build), `valueProcessors`, and `processors` with `pipeline: isolate`.
 - [x] **Value references in processor property values.** Every `ref:`/`pub:` property value is bound at plan build, whatever processor owns the property (`ExecutionPlanBuilder.BindPropertyReferences`, via `BindKey`, so relative paths and instance indices work; `ProcessorBinding.References`). The constant parse check is skipped for a reference. For a declared property, the referenced field's value type is checked against the property's data type (`CheckPropertyReferences`). `ProcessorProperties` resolves the value per instance: the typed getters convert it, and the text accessors (`Find`, `ShortNames`, the list) give its invariant text. `HasReferences` tells processors not to cache what they parse (`sys.map`, `sys.string` character map). An unpublished value is a runtime error naming the property; `TryGet` lets it through. Tests in `ProcessorPropertyReferenceTests`. Not supported: a reference inside a structured value (see complex schema property values).
 - [x] **Query the open choice / body relation.** `SchemaSet.FindConformingGroups(memberNodeDef | openChoice)` and `SchemaSet.FindOpenChoices(memberNodeDef | body)` for the declared relation; `ExecutionPlan.OpenChoices`, `GetOpenChoiceBodies(choice)` and `FindOpenChoices(bodyName)` for the built one. The plan builder and the engine's body name matching use the same helpers. Tests in `OpenChoiceQueryTests`.
 - [x] **Open repeat at the end of an open choice body.** The reader keeps a stack of "the body ends at the input end" flags (pushed when it enters an open choice, from `RepeatInfo.IsLast(openChoice, outer flag)`); `EndsOpenRepeat` uses `RepeatInfo.EndsAtInputEndIn(flag)`. A count-less repeat at the end of a body followed by envelope nodes now requires `IOpenRepeatSink` (and rejects `Default`). Tests in `OpenChoiceTests`.

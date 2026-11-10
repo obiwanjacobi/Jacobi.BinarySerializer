@@ -445,6 +445,11 @@ internal sealed class ReaderSession : SessionState
             {
                 throw EngineLogger.Fail($"'{field.Path}': the length is negative ({length}).");
             }
+            // a constant is checked at plan build; a referenced length is only known here.
+            if (field.DataType.FixedSize is { } fixedSize && length != fixedSize && field.Pipeline.FieldProcessors.Count == 0)
+            {
+                throw EngineLogger.Fail($"'{field.Path}': the length is {length} but a {field.DataType} field has {fixedSize} bytes; a field processor is needed to represent it.");
+            }
             return length;
         }
 
