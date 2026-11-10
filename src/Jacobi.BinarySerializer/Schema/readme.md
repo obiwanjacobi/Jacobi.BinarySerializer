@@ -144,8 +144,9 @@ Rules:
 - `memberNodeDef` names a nodeDef of kind `group`: the contract. The envelope only uses its name; the bodies that declare it depend on it. So:
   - A local name (see [Name resolution](#name-resolution)) is checked at compile: the compiler rejects a missing nodeDef or one of another kind. This is the usual setup: the contract lives in the envelope's document and the body documents refer to it.
   - A name qualified with another document is not resolved at compile and does not make that document a dependency, so a generic envelope compiles without it. A body that declares the contract does depend on its document. When no loaded root conforms (e.g. a typo), entering the open choice fails with "no group in the plan conforms".
-- `selectedIndex` is optional and not used by an open choice.
-- `pipeline` (open choice only) is `integrate` (default) or `isolate`. With `integrate` the selected body is built under the pipeline of the choice, so it inherits the processors of the choice and its ancestors like a nested group (layout scopes of the ancestors stay open around the body, and the body's fields read through the inherited layout chain). With `isolate` the body has its own pipeline: nothing of the envelope applies. Setting `pipeline="isolate"` on a choice that is not open is a compile error. The JSON/XML property is omitted when it is `integrate`.
+- An open choice has no `members`, `selectedIndex` or `valueProcessors`: the value model selects the group. Setting any of them (directly or through a choice nodeDef) is a compile error.
+- `byteSize` on an open choice works as on any group: the reader limits the selected body to that window (the body must fill it), the writer checks the encoded body against it.
+- `pipeline` (open choice only) is `integrate` (default) or `isolate`. With `integrate` the selected body is built under the pipeline of the choice, so it inherits the processors of the choice and its ancestors like a nested group (layout scopes of the ancestors stay open around the body, and the body's fields read through the inherited layout chain). With `integrate` the `processors` of the open choice itself also apply to the body (e.g. a `sys.align` on the choice aligns the body's fields); the choice opens no layout scope of its own, so end-of-group padding is not added after the body. With `isolate` the body has its own pipeline: nothing of the envelope applies, and `processors` on the open choice are a compile error. Setting `pipeline="isolate"` on a choice that is not open is a compile error. The JSON/XML property is omitted when it is `integrate`.
 - A body is a schema root (a plain group) that declares `"nodeDef": "<name>"`. Repeat and choice roots are rejected.
 - The value model must implement `IOpenChoiceSink` (read) / `IOpenChoiceSource` (write) and return the scope plus the name of the selected group. Without the interface the engine fails, naming the choice path.
 - The group name is matched by full name (`document.name`), or by short name when exactly one conforming root has that name. An unknown or non-conforming group throws a `SerializationException` (category `schema`) naming the choice path and the nodeDef.
@@ -164,7 +165,6 @@ Querying the relation between open choices and their bodies:
 Limitations:
 - Body paths are relative to the body root (e.g. `BodyA.Id`).
 - Referenced groups cannot (yet) influence the pipeline mode; only the open choice decides.
-- `byteSize` and `processors` on the open choice itself are ignored.
 - Body roots are not merged with the members of their nodeDef (nested nodes are); a body must list all its own members.
 - Only plans created from a `SchemaSet` have bodies; plans created from a single group or document cannot resolve an open choice.
 - Bodies are built when the envelope plan is created, not at schema compile time.

@@ -4,7 +4,11 @@
 
 - [ ] **Open choice pipeline follow-ups.** A referenced group (body root) may get a say in the `pipeline` mode. The `isolate`/`integrate` property is on the open choice only. The engine does not yet restrict `memberNodeDef` to groups beyond the compile check; a dynamic repeat count (from a size field) is not supported.
 
-- [ ] **Open Choice byteSize is ignored** That is implicit and not very clear. It should at least generate a warning or otherwise an error. Are there any other modes where hard node-properties are ignored in a certain situation? These should probably also become errors.
+- [x] **Open Choice byteSize is ignored** That is implicit and not very clear. It should at least generate a warning or otherwise an error. Are there any other modes where hard node-properties are ignored in a certain situation? These should probably also become errors.
+  - Correction: `byteSize` was not ignored, the readme was wrong. It works as on any group: the reader limits the body to the window (the body must fill it), the writer checks the encoded body against it. `processors` under `integrate` were not ignored either: they apply to the body's fields. Both are kept, documented and covered by tests.
+  - Fix: properties an open choice really ignored are now compile errors (`ValidateOpenChoice` in `SchemaSetBuilder`), also when set on a choice nodeDef: `members` next to `memberNodeDef`, `selectedIndex` (previously failed late, at plan build), `valueProcessors`, and `processors` with `pipeline: isolate`.
+
+- [ ] **Open choice (integrate) layout scope.** Processors on an open choice apply to the body's fields under `integrate`, but the choice opens no layout scope of its own (`BeginLayout`/`EndLayout` are skipped for open choices), so e.g. `sys.align` does not pad the end of the body. Decide whether the open choice should get its own scope.
 
 - [ ] **Layout chain follow-ups.** A per-group opt-out of the inherited layout chain (e.g. `layoutReplace`) is not available; stream processors are root-only. Add an end-to-end test of a nested layout chain with a stateful follower (checksum-like).
   - [ ] A cleaner approach would have the engine hand a follower only the field's bytes. Chained `Read` now gets all unread input (`sys.bytepacker` copies it per field, which is quadratic over long groups). Does this still work on var-sized fields (VarInt/0-terminated strings)?

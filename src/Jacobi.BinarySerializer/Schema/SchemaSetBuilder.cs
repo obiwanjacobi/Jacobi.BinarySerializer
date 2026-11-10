@@ -431,6 +431,32 @@ public sealed class SchemaSetBuilder
         return allResolved;
     }
 
+    // An open choice (with a memberNodeDef) selects its body through the value model: the properties of a closed choice
+    // that it would not use are rejected instead of ignored. byteSize and processors (integrate) do apply to the body.
+    private static void ValidateOpenChoice(SchemaChoice choice, string referrer)
+    {
+        if (choice.Members.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"{referrer} has both members and a memberNodeDef: an open choice has no members, the value model selects a group that conforms to the memberNodeDef.");
+        }
+        if (choice.SelectedIndex is int or SchemaNodeRef or SchemaPubRef)
+        {
+            throw new InvalidOperationException(
+                $"{referrer} sets a selectedIndex, which is not valid for an open choice (with a memberNodeDef): the value model selects the group.");
+        }
+        if (choice.ValueProcessors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"{referrer} sets valueProcessors, which are not valid for an open choice (with a memberNodeDef): there is no selectedIndex to convert.");
+        }
+        if (choice.Pipeline == SchemaPipelineMode.Isolate && choice.Processors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"{referrer} sets processors with pipeline 'isolate': the selected group does not inherit them. Use 'integrate' or put the processors on the groups that conform to the memberNodeDef.");
+        }
+    }
+
     // parentPath is the qualified path of the parent ('document.root.group'); it names the referring node in errors.
     private void ResolveReferences(SchemaDocument document, List<SchemaNode> schemaNodes, string parentPath, bool roots = false)
     {
@@ -472,6 +498,11 @@ public sealed class SchemaSetBuilder
             {
                 throw new InvalidOperationException(
                     $"{referrer} sets a pipeline mode, which is only valid for an open choice (with a memberNodeDef).");
+            }
+
+            if (node is SchemaChoice { MemberNodeDef: not null } openChoice)
+            {
+                ValidateOpenChoice(openChoice, referrer);
             }
 
             // only a local contract is checked here; a contract in another document is a name that the bodies resolve (they depend on it)

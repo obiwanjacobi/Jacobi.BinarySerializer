@@ -787,6 +787,124 @@ public class OpenChoiceTests
         Assert.That(ex.Message, Does.Contain("Pick").And.Contain("open choice"));
     }
 
+    // Msg sits between two fields, so a window or padding around the body shows in where Tail is read.
+    private static string SandwichSchema(string choiceExtra, string nodeDefExtra = "") => $$"""
+        {
+          "name": "EnvTest",
+          "nodeDefs": [
+            { "name": "Body", "kind": "group" },
+            { "name": "OpenMsg", "kind": "choice", "memberNodeDef": "Body"{{nodeDefExtra}} }
+          ],
+          "members": [
+            {
+              "name": "Root",
+              "kind": "group",
+              "members": [
+                { "name": "Head", "kind": "field", "datatype": "sys.uint8" },
+                { "name": "Msg", "kind": "choice", "memberNodeDef": "Body"{{choiceExtra}} },
+                { "name": "Tail", "kind": "field", "datatype": "sys.uint8" }
+              ]
+            },
+            {
+              "name": "BodyA", "kind": "group", "nodeDef": "Body",
+              "members": [
+                { "name": "Id", "kind": "field", "datatype": "sys.uint8" },
+                { "name": "X", "kind": "field", "datatype": "sys.uint8" }
+              ]
+            }
+          ]
+        }
+        """;
+
+    private static readonly string[] SandwichFields = ["Root.Head=5", "BodyA.Id=7", "BodyA.X=8", "Root.Tail=3"];
+
+    [Test]
+    public void Read_OpenChoiceByteSize_LimitsTheBodyToTheWindow()
+    {
+        var serializer = CreateSerializer(SandwichSchema(", \"byteSize\": 2"));
+        var sink = new OpenSink();
+
+        var read = serializer.Deserialize(new SchemaName("EnvTest.Root"), new ReadOnlySequence<byte>([5, 7, 8, 3]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(SandwichFields));
+        Assert.That(read, Is.EqualTo(4));
+    }
+
+    [Test]
+    public void Read_OpenChoiceByteSizeLargerThanTheBody_Throws()
+    {
+        var serializer = CreateSerializer(SandwichSchema(", \"byteSize\": 3"));
+
+        var ex = Assert.Throws<SerializationException>(
+            () => serializer.Deserialize(new SchemaName("EnvTest.Root"), new ReadOnlySequence<byte>([5, 7, 8, 9, 3]), new OpenSink()));
+
+        Assert.That(ex!.Message, Does.Contain("Root.Msg"));
+    }
+
+    [Test]
+    public void Write_OpenChoiceByteSize_ChecksTheEncodedBody()
+    {
+        var output = new ArrayBufferWriter<byte>();
+        CreateSerializer(SandwichSchema(", \"byteSize\": 2")).Serialize(new SchemaName("EnvTest.Root"), new OpenSource(), output);
+        Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 5, 5, 5, 5 }));
+
+        var mismatch = CreateSerializer(SandwichSchema(", \"byteSize\": 3"));
+        var ex = Assert.Throws<SerializationException>(
+            () => mismatch.Serialize(new SchemaName("EnvTest.Root"), new OpenSource(), new ArrayBufferWriter<byte>()));
+        Assert.That(ex!.Message, Does.Contain("Root.Msg").And.Contain("does not match"));
+    }
+
+    [Test]
+    public void Read_OpenChoiceProcessorsIntegrate_ApplyToTheBody()
+    {
+        var serializer = CreateSerializer(SandwichSchema(", \"processors\": [ { \"name\": \"sys.align\", \"bytes\": 2 } ]"));
+        var sink = new OpenSink();
+
+        // X is aligned within the body (padding byte at 2); no padding at the end of the body
+        var read = serializer.Deserialize(new SchemaName("EnvTest.Root"), new ReadOnlySequence<byte>([5, 7, 0, 8, 3]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(SandwichFields));
+        Assert.That(read, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void Write_OpenChoiceProcessorsIntegrate_ApplyToTheBody()
+    {
+        var output = new ArrayBufferWriter<byte>();
+
+        CreateSerializer(SandwichSchema(", \"processors\": [ { \"name\": \"sys.align\", \"bytes\": 2 } ]"))
+            .Serialize(new SchemaName("EnvTest.Root"), new OpenSource(), output);
+
+        Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 5, 5, 0, 5, 5 }));
+    }
+
+    [TestCase(", \"pipeline\": \"isolate\", \"processors\": [ { \"name\": \"sys.align\", \"bytes\": 2 } ]", "isolate")]
+    [TestCase(", \"selectedIndex\": 0", "selectedIndex")]
+    [TestCase(", \"valueProcessors\": [ { \"name\": \"sys.map\", \"properties\": [ { \"name\": \"a\", \"value\": \"1\" } ] } ]", "valueProcessors")]
+    [TestCase(", \"members\": [ { \"name\": \"A\", \"kind\": \"field\", \"datatype\": \"sys.uint8\" } ]", "members")]
+    public void Compile_OpenChoiceWithUnusedProperty_Throws(string choiceExtra, string expected)
+    {
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.LoadFromJson(SandwichSchema(choiceExtra));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
+
+        Assert.That(ex!.Message, Does.Contain("EnvTest.Root.Msg").And.Contain(expected));
+    }
+
+    [Test]
+    public void Compile_OpenChoiceNodeDefWithUnusedProperty_Throws()
+    {
+        var json = SandwichSchema("", ", \"selectedIndex\": 0")
+            .Replace("{ \"name\": \"Msg\", \"kind\": \"choice\", \"memberNodeDef\": \"Body\" }", "{ \"name\": \"Msg\", \"kind\": \"choice\", \"nodeDef\": \"OpenMsg\" }");
+        var schemaBuilder = new SchemaSetBuilder();
+        schemaBuilder.LoadFromJson(json);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => schemaBuilder.Compile());
+
+        Assert.That(ex!.Message, Does.Contain("EnvTest.OpenMsg").And.Contain("selectedIndex"));
+    }
+
     private static Serializer CreateSerializer(params string[] jsons)
     {
         var schemaBuilder = new SchemaSetBuilder();
