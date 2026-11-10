@@ -16,6 +16,9 @@ namespace Jacobi.BinarySerializer.Processors;
 internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
     ILayoutWriter<ReadOnlySpan<byte>>, ILayoutReader<ReadOnlyMemory<byte>>
 {
+    /// <summary>The category of a failure of a stored CRC that does not match the data (<see cref="SerializationException.Category"/>).</summary>
+    public const string ChecksumCategory = "checksum";
+
     public static readonly SchemaName AlgorithmDataType = "sys.crcalgorithm";
 
     /// <summary>The name under which the calculated CRC value (ulong) is published, in the namespace 'sys.crc' by default.</summary>
@@ -147,7 +150,8 @@ internal sealed class CrcProcessor : ProcessorBase, ILayoutProcessor,
         var expected = EndianCodec.Read(stored, GetEndianness(context));
         if (expected != actual)
         {
-            throw context.Logger.Fail($"CRC mismatch: stored 0x{expected:X}, calculated 0x{actual:X}.");
+            // the calculated value is what the data requires, the stored one what was found
+            throw context.Fail($"CRC mismatch: stored 0x{expected:X}, calculated 0x{actual:X}.", ChecksumCategory, expected: actual, actual: expected);
         }
         reader.Advance(size);
         context.Publish(PublishedCrc, actual);

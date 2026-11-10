@@ -67,7 +67,7 @@ public class ByteOffsetTests
     {
         var root = Group("Root", [], Virtual("Peek", -1), Plain("A"));
 
-        Assert.Throws<InvalidOperationException>(() => Read(root, 1, 2));
+        Assert.Throws<SerializationException>(() => Read(root, 1, 2));
     }
 
     [Test]
@@ -103,7 +103,7 @@ public class ByteOffsetTests
     {
         var root = Group("Root", [], Virtual("Peek", 1), Plain("A"));
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<SerializationException>(() =>
             new WriterSession(Build(root), new ArrayBufferWriter<byte>()).Write(new Source(new() { ["Root.A"] = (byte)5 })));
     }
 

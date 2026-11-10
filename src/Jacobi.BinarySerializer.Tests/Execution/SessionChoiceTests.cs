@@ -51,7 +51,7 @@ public class SessionChoiceTests
     {
         var source = new Source(new() { ["Root.Kind"] = 2 }, []);
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => new WriterSession(PlanByKind(), new ArrayBufferWriter<byte>()).Write(source));
 
         Assert.That(ex!.Message, Does.Contain("Root.Pick").And.Contain("out of range"));
@@ -63,7 +63,7 @@ public class SessionChoiceTests
         var source = new Source(new() { ["Root.Kind"] = 1 }, []);
         var plan = Plan(new SchemaPubRef { Namespace = "hdr", Name = "kind" });
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(source));
 
         Assert.That(ex!.Message, Does.Contain("Root.Pick").And.Contain("hdr/kind"));
@@ -88,7 +88,7 @@ public class SessionChoiceTests
     {
         var input = new ReadOnlySequence<byte>(new byte[] { 5, 0, 0, 0, 7, 0 });
 
-        Assert.Throws<InvalidOperationException>(() => new ReaderSession(PlanByKind()).Read(input, new Sink()));
+        Assert.Throws<SerializationException>(() => new ReaderSession(PlanByKind()).Read(input, new Sink()));
     }
 
     private sealed class Source(Dictionary<string, object?> values, List<string> asked) : IFieldSource

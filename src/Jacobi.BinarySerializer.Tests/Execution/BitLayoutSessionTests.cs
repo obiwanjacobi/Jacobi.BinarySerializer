@@ -64,7 +64,7 @@ public class BitLayoutSessionTests
         Assert.That(bytes.Take(2), Is.EqualTo(new byte[] { 0xC3, 0 }));
         Assert.That(Read(plan, bytes).Data, Is.EqualTo(values.Data));
         bytes[0] ^= 1;
-        Assert.That(() => Read(plan, bytes), Throws.InvalidOperationException.With.Message.Contains("CRC mismatch"));
+        Assert.That(() => Read(plan, bytes), Throws.TypeOf<SerializationException>().With.Message.Contains("CRC mismatch"));
     }
 
     [TestCase(false)]
@@ -249,7 +249,7 @@ public class BitLayoutSessionTests
         var sink = new Values();
 
         Assert.That(() => new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 0xC3, 0x99 }), sink),
-            Throws.InvalidOperationException.With.Message.Contains("byte-size window"));
+            Throws.TypeOf<SerializationException>().With.Message.Contains("byte-size window"));
         Assert.That(sink.Data, Is.Empty);
     }
 

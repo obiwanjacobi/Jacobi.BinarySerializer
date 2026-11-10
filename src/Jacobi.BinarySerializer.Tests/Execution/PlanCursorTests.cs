@@ -87,7 +87,7 @@ public class PlanCursorTests
         var cursor = new PlanCursor<string>(Build(Group("Root")));
         cursor.Next();   // EnterGroup root
 
-        var ex = Assert.Throws<InvalidOperationException>(() => cursor.Next());
+        var ex = Assert.Throws<SerializationException>(() => cursor.Next());
 
         Assert.That(ex!.Message, Does.Contain("Root"));
     }
@@ -97,7 +97,7 @@ public class PlanCursorTests
     {
         var cursor = new PlanCursor<string>(Build(Group("Root")));
 
-        Assert.Throws<InvalidOperationException>(() => cursor.Enter("x"));
+        Assert.Throws<SerializationException>(() => cursor.Enter("x"));
     }
 
     [Test]
@@ -107,7 +107,7 @@ public class PlanCursorTests
         cursor.Next();
         cursor.Enter("Root");
 
-        Assert.Throws<InvalidOperationException>(() => cursor.Enter("again"));
+        Assert.Throws<SerializationException>(() => cursor.Enter("again"));
     }
 
     [Test]
@@ -169,8 +169,8 @@ public class PlanCursorTests
         cursor.Enter("Root");
         cursor.Next();
 
-        Assert.Throws<InvalidOperationException>(() => cursor.Enter("R"));
-        Assert.Throws<InvalidOperationException>(() => cursor.EnterRepeat("Root", -1));
+        Assert.Throws<SerializationException>(() => cursor.Enter("R"));
+        Assert.Throws<SerializationException>(() => cursor.EnterRepeat("Root", -1));
     }
 
     [Test]
@@ -209,8 +209,8 @@ public class PlanCursorTests
         cursor.Enter("Root");
         cursor.Next();
 
-        Assert.Throws<InvalidOperationException>(() => cursor.Enter("C"));
-        Assert.Throws<InvalidOperationException>(() => cursor.Enter("C", 1));
+        Assert.Throws<SerializationException>(() => cursor.Enter("C"));
+        Assert.Throws<SerializationException>(() => cursor.Enter("C", 1));
     }
     [Test]
     public void Cursor_CanBeSuspendedBetweenSteps()

@@ -125,17 +125,17 @@ public sealed class Serializer
     private static long Complete(ReadResult result, ReaderSession session)
         => result switch
         {
-            ReadResult.NeedMoreData => throw new InvalidOperationException("The input is incomplete: more data is needed to complete the read."),
-            ReadResult.Failure => throw new InvalidOperationException($"'{session.CurrentPath}': a processor failed; the read was aborted."),
+            ReadResult.NeedMoreData => throw session.Stopped("The input is incomplete: more data is needed to complete the read.", SerializationCategories.EndOfData, byProcessor: false),
+            ReadResult.Failure => throw session.Stopped($"'{session.CurrentPath}': a processor failed; the read was aborted.", null, byProcessor: true),
             _ => session.BytesRead,
         };
 
     private static long Complete(WriteResult result, WriterSession session)
         => result switch
         {
-            WriteResult.NeedMoreData => throw new InvalidOperationException("More data is needed to complete the write."),
-            WriteResult.NeedMoreSpace => throw new InvalidOperationException("More space is needed in the output to complete the write."),
-            WriteResult.Failure => throw new InvalidOperationException($"'{session.CurrentPath}': a processor failed; the write was aborted."),
+            WriteResult.NeedMoreData => throw session.Stopped("More data is needed to complete the write.", null, byProcessor: false),
+            WriteResult.NeedMoreSpace => throw session.Stopped("More space is needed in the output to complete the write.", null, byProcessor: false),
+            WriteResult.Failure => throw session.Stopped($"'{session.CurrentPath}': a processor failed; the write was aborted.", null, byProcessor: true),
             _ => session.BytesWritten,
         };
 }

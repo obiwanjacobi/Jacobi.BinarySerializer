@@ -76,7 +76,7 @@ public class EngineEdgeCaseTests
     {
         var plan = BuildEdge(Mode.ConsumeBits, bits);
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<SerializationException>(() =>
             new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 1, 2, 3, 4 }), new DictSink()));
     }
 
@@ -85,7 +85,7 @@ public class EngineEdgeCaseTests
     {
         var plan = BuildEdge(Mode.ConsumeBits, 4096);
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<SerializationException>(() =>
             new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 1, 2, 3, 4 }), new DictSink()));
     }
 
@@ -105,7 +105,7 @@ public class EngineEdgeCaseTests
     {
         var plan = BuildEdge(Mode.WriteFailure);
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.Throws<SerializationException>(() =>
             CreateSerializer().Serialize(plan, new DictSource(new() { ["Root.A"] = 1 }), new ArrayBufferWriter<byte>()));
 
         Assert.That(ex!.Message, Does.Contain("'Root.A'").And.Contain("write was aborted"));
@@ -116,7 +116,7 @@ public class EngineEdgeCaseTests
     {
         var plan = BuildEdge(Mode.ReadFailure);
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.Throws<SerializationException>(() =>
             CreateSerializer().Deserialize(plan, new ReadOnlySequence<byte>(new byte[] { 1, 2, 3, 4 }), new DictSink()));
 
         Assert.That(ex!.Message, Does.Contain("'Root.A'").And.Contain("read was aborted"));

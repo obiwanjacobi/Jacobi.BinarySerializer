@@ -147,7 +147,7 @@ public class LoggingTests
             Field("A", "sys.uint32", [Ref("align", ("bytes", "0"))]));
 
         // 'bytes' must be positive: the processor throws.
-        Assert.Throws<InvalidOperationException>(() => new ReaderSession(Build(root), new Services(factory))
+        Assert.Throws<SerializationException>(() => new ReaderSession(Build(root), new Services(factory))
             .Read(new ReadOnlySequence<byte>(new byte[] { 1, 2, 3, 4 }), new DictSink()));
 
         Assert.That(capture.Entries, Has.Count.EqualTo(1));

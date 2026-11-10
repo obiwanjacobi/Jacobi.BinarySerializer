@@ -48,12 +48,17 @@ internal static partial class EngineLog
     private static partial void Failed(this ILogger logger, Exception? exception, string message);
 
     /// <summary>
-    /// Logs the message as an error and returns the exception to throw (<c>throw logger.Fail(...)</c>).
+    /// Logs the message as an error and returns the exception to throw (<c>throw logger.Fail(...)</c>). The origin is
+    /// the processor when the logger is a processor's (<see cref="ContextLogger"/>), else the engine; the session that
+    /// runs the read or write adds the location.
     /// </summary>
-    public static InvalidOperationException Fail(this ILogger logger, string message, Exception? inner = null)
+    /// <param name="category">One of <see cref="SerializationCategories"/>; null: the default of the direction.</param>
+    public static SerializationException Fail(this ILogger logger, string message, Exception? inner = null,
+        string? category = null, object? expected = null, object? actual = null)
     {
         logger.Failed(inner, message);
-        return new InvalidOperationException(message, inner);
+        var origin = logger is ContextLogger processor ? processor.Binding.Processor.Key.ToString() : SerializationException.EngineOrigin;
+        return new SerializationException(message, category, origin, expected, actual, inner);
     }
 
     /// <summary>

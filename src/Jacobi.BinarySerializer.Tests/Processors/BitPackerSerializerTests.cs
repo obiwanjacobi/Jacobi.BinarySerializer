@@ -205,7 +205,7 @@ public class BitPackerSerializerTests
         Assert.That(bytes, Has.Length.EqualTo(8));
         Assert.That(read.Values, Is.EqualTo(input.Values));
         bytes[1] ^= 1;
-        Assert.That(() => serializer.Deserialize(MsgName, new ReadOnlySequence<byte>(bytes), new Model()), Throws.InvalidOperationException);
+        Assert.That(() => serializer.Deserialize(MsgName, new ReadOnlySequence<byte>(bytes), new Model()), Throws.TypeOf<SerializationException>());
     }
 
     [TestCase(false)]
@@ -305,7 +305,7 @@ public class BitPackerSerializerTests
         var serializer = CreateSerializer(Json(ThreeFields, 3));
 
         Assert.That(() => serializer.Deserialize(MsgName, new ReadOnlySequence<byte>(new byte[] { 0xAA, 0x8D }), new Model()),
-            Throws.InvalidOperationException);
+            Throws.TypeOf<SerializationException>());
     }
 
     [Test]
@@ -522,8 +522,8 @@ public class BitPackerSerializerTests
         var serializer = CreateSerializer(Json(fields));
         var input = Values(("Msg.Header", (byte)0), ("Msg.Flags.A", (byte)1), ("Msg.Trailer", (byte)0));
 
-        Assert.That(() => serializer.Serialize(MsgName, input, new ArrayBufferWriter<byte>()), Throws.InvalidOperationException);
-        Assert.That(() => serializer.Deserialize(MsgName, new ReadOnlySequence<byte>(new byte[] { 0, 0, 0 }), new Model()), Throws.InvalidOperationException);
+        Assert.That(() => serializer.Serialize(MsgName, input, new ArrayBufferWriter<byte>()), Throws.TypeOf<SerializationException>());
+        Assert.That(() => serializer.Deserialize(MsgName, new ReadOnlySequence<byte>(new byte[] { 0, 0, 0 }), new Model()), Throws.TypeOf<SerializationException>());
     }
 
     [Test]
@@ -538,7 +538,7 @@ public class BitPackerSerializerTests
         var serializer = CreateSerializer(schema);
 
         Assert.That(() => serializer.Deserialize(MsgName, new ReadOnlySequence<byte>(new byte[] { 1, 0 }), new Model()),
-            Throws.InvalidOperationException);
+            Throws.TypeOf<SerializationException>());
     }
 
     // Flat model: one instance serves as source and sink, values are keyed by schema path and repeat instance.

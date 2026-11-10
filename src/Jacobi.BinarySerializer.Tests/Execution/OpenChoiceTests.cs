@@ -56,7 +56,7 @@ public class OpenChoiceTests
         var serializer = CreateSerializer(OpenChoiceSchema);
         var sink = new OpenSink { Selected = new SchemaName("Nope") };
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => serializer.Deserialize(new SchemaName("OpenTest.Root"), new ReadOnlySequence<byte>([0x01, 0x07]), sink));
 
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("Nope"));
@@ -78,7 +78,7 @@ public class OpenChoiceTests
     {
         var serializer = CreateSerializer(OpenChoiceSchema);
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => serializer.Deserialize(new SchemaName("OpenTest.Root"), new ReadOnlySequence<byte>([0x01]), new PlainSink()));
 
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain(nameof(IOpenChoiceSink)));
@@ -103,7 +103,7 @@ public class OpenChoiceTests
     {
         var serializer = CreateSerializer(OpenChoiceSchema);
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => serializer.Serialize(new SchemaName("OpenTest.Root"), new PlainSource(), new ArrayBufferWriter<byte>()));
 
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain(nameof(IOpenChoiceSource)));
@@ -202,7 +202,7 @@ public class OpenChoiceTests
             .Replace("\"name\": \"BodyB\", \"kind\": \"group\", \"nodeDef\": \"Body\"", "\"name\": \"BodyB\", \"kind\": \"group\"");
         var serializer = CreateSerializer(json);
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => serializer.Deserialize(new SchemaName("OpenTest.Root"), new ReadOnlySequence<byte>([0x07]), new OpenSink()));
 
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("Body").And.Contain("conforms"));
@@ -226,7 +226,7 @@ public class OpenChoiceTests
     {
         var serializer = CreateSerializer(TrailingSchema);
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => serializer.Deserialize(new SchemaName("TrailTest.Root"), new ReadOnlySequence<byte>([1, 2, 9]), new OpenSink()));
 
         Assert.That(ex.Message, Does.Contain("BodyA.Items").And.Contain(nameof(IOpenRepeatSink)));
@@ -238,7 +238,7 @@ public class OpenChoiceTests
         var serializer = CreateSerializer(TrailingSchema);
         var sink = new OpenRepeatOpenSink(_ => OpenRepeatAction.Default);
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => serializer.Deserialize(new SchemaName("TrailTest.Root"), new ReadOnlySequence<byte>([1, 2, 9]), sink));
 
         Assert.That(ex.Message, Does.Contain("BodyA.Items").And.Contain(nameof(OpenRepeatAction.Default)));
@@ -300,7 +300,7 @@ public class OpenChoiceTests
     {
         var serializer = CreateSerializer(EnvelopeSchema);
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => serializer.Deserialize(new SchemaName("Envelope.Root"), new ReadOnlySequence<byte>([0x07]), new OpenSink()));
 
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("Contracts.Body").And.Contain("conforms"));

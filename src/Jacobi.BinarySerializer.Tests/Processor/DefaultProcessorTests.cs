@@ -122,7 +122,7 @@ public class DefaultProcessorTests
         var context = new FieldProcessorContext(NewWriter()) { ProcessorProperties = [], Services = null! };
         context.Field = CreateField("sys.uint8");
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => new DefaultFieldProcessor().Write(new LogicalField("F", typeof(int), 999), context));
 
         Assert.That(ex!.Message, Does.Contain("Root.F").And.Contain("sys.uint8"));

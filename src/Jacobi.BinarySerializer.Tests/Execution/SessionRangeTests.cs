@@ -187,7 +187,7 @@ public class SessionRangeTests
     {
         var plan = Build(Schema());
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => Write(plan, new DictSource([]), plan.CreateRange("Root.G.B", "Root.G.B")));
 
         Assert.That(ex!.Message, Does.Contain("Root.G.B"));

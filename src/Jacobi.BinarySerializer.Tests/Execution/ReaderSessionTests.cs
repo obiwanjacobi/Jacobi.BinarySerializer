@@ -45,7 +45,7 @@ public class ReaderSessionTests
     {
         var root = Group("Root", [], Field("A", "sys.datetime"));
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => Run(root, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F]));
 
         Assert.That(ex!.Message, Does.Contain("Root.A"));

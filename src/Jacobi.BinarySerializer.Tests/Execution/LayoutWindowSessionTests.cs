@@ -51,7 +51,7 @@ public class LayoutWindowSessionTests
         var reader = new ReaderSession(plan);
 
         Assert.That(() => reader.Read(ReadOnlySequence<byte>.Empty, sink),
-            Throws.InvalidOperationException.With.Message.Contains("Root.Value").And.Message.Contains("without an encoded field"));
+            Throws.TypeOf<SerializationException>().With.Message.Contains("Root.Value").And.Message.Contains("without an encoded field"));
         Assert.That(sink.Values, Is.Empty);
     }
 
@@ -196,7 +196,7 @@ public class LayoutWindowSessionTests
         var corrupted = output.WrittenSpan.ToArray();
         corrupted[0] ^= 1;
         Assert.That(() => reader.Read(new ReadOnlySequence<byte>(corrupted), new DictSink()),
-            Throws.InvalidOperationException.With.Message.Contains("CRC mismatch"));
+            Throws.TypeOf<SerializationException>().With.Message.Contains("CRC mismatch"));
     }
 
     private sealed class Factory(IProcessor[] processors) : IProcessorFactory

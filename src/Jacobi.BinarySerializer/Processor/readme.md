@@ -60,7 +60,7 @@ Rules:
 - **Stateless.** One instance serves all sessions and nodes. Never keep fields that change per message or per node.
 - **No processor-to-processor references.** Share data through published values or by putting an algorithm in a static codec (`Codecs/`).
 - **Do not add interfaces to a processor** to satisfy an engine need; the engine/contexts are extended instead.
-- Report problems through `context.Logger.Fail(...)` (throws with the node path) rather than your own exceptions.
+- Report problems with `throw context.Fail(message, category, expected, actual)`: a `SerializationException` with the processor key as its origin, logged under the processor's category; the engine adds the location (see [Failures](../Execution/readme.md#failures)). Give a category when the caller may need to tell this failure apart (e.g. `checksum`); without one it is `invalidData` (read) or `invalidValue` (write). Any other exception a processor throws is wrapped the same way, with the default category.
 
 ## The context
 

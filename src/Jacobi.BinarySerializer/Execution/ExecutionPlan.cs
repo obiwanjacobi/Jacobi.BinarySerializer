@@ -121,8 +121,9 @@ public sealed class ExecutionPlan
         }
 
         var contract = ((SchemaChoice)choice.Group).MemberNodeDef;
-        throw new InvalidOperationException(
-            $"'{choice.Path}': the group '{selected}' provided by the client-model, is not a known group that conforms to the nodeDef '{contract}' of the open choice.");
+        throw new SerializationException(
+            $"'{choice.Path}': the group '{selected}' provided by the client-model, is not a known group that conforms to the nodeDef '{contract}' of the open choice.",
+            SerializationCategories.Schema, SerializationException.EngineOrigin, null, null, null);
     }
 
     /// <summary>
@@ -190,7 +191,7 @@ public sealed class ExecutionPlan
                 if (!_openChoiceBodies.TryGetValue(open, out var bodies) || bodies.Count == 0)
                 {
                     throw logger.Fail(
-                        $"'{open.Path}': no group in the plan conforms to the nodeDef '{contract}' of the open choice.");
+                        $"'{open.Path}': no group in the plan conforms to the nodeDef '{contract}' of the open choice.", category: SerializationCategories.Schema);
                 }
             }
             else if (member is GroupInfo child)

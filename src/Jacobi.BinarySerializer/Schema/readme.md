@@ -148,7 +148,7 @@ Rules:
 - `pipeline` (open choice only) is `integrate` (default) or `isolate`. With `integrate` the selected body is built under the pipeline of the choice, so it inherits the processors of the choice and its ancestors like a nested group (layout scopes of the ancestors stay open around the body, and the body's fields read through the inherited layout chain). With `isolate` the body has its own pipeline: nothing of the envelope applies. Setting `pipeline="isolate"` on a choice that is not open is a compile error. The JSON/XML property is omitted when it is `integrate`.
 - A body is a schema root (a plain group) that declares `"nodeDef": "<name>"`. Repeat and choice roots are rejected.
 - The value model must implement `IOpenChoiceSink` (read) / `IOpenChoiceSource` (write) and return the scope plus the name of the selected group. Without the interface the engine fails, naming the choice path.
-- The group name is matched by full name (`document.name`), or by short name when exactly one conforming root has that name. An unknown or non-conforming group throws an `InvalidOperationException` naming the choice path and the nodeDef.
+- The group name is matched by full name (`document.name`), or by short name when exactly one conforming root has that name. An unknown or non-conforming group throws a `SerializationException` (category `schema`) naming the choice path and the nodeDef.
 - The engine builds the plans of all conforming roots when the envelope plan is created (also for nested open choices).
 - An open choice cannot be the root of a schema.
 - Open choice nodes can be nested.

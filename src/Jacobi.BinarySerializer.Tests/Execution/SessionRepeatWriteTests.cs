@@ -63,7 +63,7 @@ public class SessionRepeatWriteTests
         var plan = Plan(new SchemaNodeRef { Path = "Root.Length" });
         var source = new ItemSource(new() { ["Root.Length"] = 3 }, [1, 2]);
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(source));
 
         Assert.That(ex!.Message, Does.Contain("Root.Items").And.Contain("3").And.Contain("2"));
@@ -88,7 +88,7 @@ public class SessionRepeatWriteTests
         var plan = Plan(new SchemaPubRef { Namespace = "hdr", Name = "count" });
         var source = new ItemSource(new() { ["Root.Length"] = 1 }, [1]);
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(source));
 
         Assert.That(ex!.Message, Does.Contain("Root.Items").And.Contain("hdr/count"));

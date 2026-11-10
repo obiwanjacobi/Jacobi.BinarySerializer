@@ -76,11 +76,24 @@ internal sealed class WriterSession : SessionState
     /// <summary>Writes the values from <paramref name="source"/> to the output.</summary>
     /// <param name="range">Optional: only write these fields. The default is the whole plan.</param>
     /// <returns>Success, or the failing result of a processor.</returns>
+    /// <exception cref="SerializationException">The write failed; it holds the location.</exception>
     public WriteResult Write(IValueSource source, PlanRange? range = null)
     {
         ArgumentNullException.ThrowIfNull(source);
+        try
+        {
+            return WriteCore(source, range);
+        }
+        catch (Exception exception) when (MustWrap(exception))
+        {
+            throw Wrap(exception);
+        }
+    }
 
+    private WriteResult WriteCore(IValueSource source, PlanRange? range)
+    {
         var root = _plan.Root;
+        SetCurrent(root.Path, default, null);
         _plan.ValidateOpenChoices(range, EngineLogger);
         var payload = root.Pipeline.StreamProcessors.Count > 0 ? new ArrayBufferWriter<byte>() : null;
         _counter = new CountingBufferWriter((IBufferWriter<byte>?)payload ?? _output);
@@ -91,7 +104,6 @@ internal sealed class WriterSession : SessionState
         _layoutContext.BlockSizes.Clear();
         _sizeStarts.Clear();
         _deferred.Clear();
-        CurrentPath = root.Path;
         EngineLogger.WriteStarted(root.Path.ToString());
 
         var cursor = new PlanCursor<IValueSource>(root, range, EngineLogger);
@@ -105,7 +117,7 @@ internal sealed class WriterSession : SessionState
             SetInstance(step.Kind == CursorStepKind.ExitItem ? cursor.Instance.Append(step.Index) : cursor.Instance);
             if (step.Node is not null)
             {
-                CurrentPath = step.Node.Path;
+                SetCurrent(step.Node.Path, StepInstance(step.Kind, step.Index), _counter.Written);
                 EngineLogger.Navigating(step.Kind, step.Node.Path.ToString(), StepInstance(step.Kind, step.Index).ToLogString());
             }
             switch (step.Kind)
@@ -140,7 +152,7 @@ internal sealed class WriterSession : SessionState
                             }
                             else if (group is ChoiceInfo { IsOpen: true } openRootChoice)
                             {
-                                throw EngineLogger.Fail($"'{openRootChoice.Path}': an open choice cannot be the root.");
+                                throw EngineLogger.Fail($"'{openRootChoice.Path}': an open choice cannot be the root.", category: SerializationCategories.Schema);
                             }
                             else if (group is ChoiceInfo rootChoice)
                             {
@@ -186,7 +198,7 @@ internal sealed class WriterSession : SessionState
                         else if (group is ChoiceInfo { IsOpen: true } openChoice)
                         {
                             var openSource = step.Scope as IOpenChoiceSource
-                                ?? throw EngineLogger.Fail($"'{openChoice.Path}': the value model does not implement {nameof(IOpenChoiceSource)}, which an open choice requires.");
+                                ?? throw EngineLogger.Fail($"'{openChoice.Path}': the value model does not implement {nameof(IOpenChoiceSource)}, which an open choice requires.", category: SerializationCategories.Schema);
                             var selected = openSource.EnterOpenChoice(new OpenChoiceContext { Node = openChoice, Services = _services, Instance = _instance });
                             var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Group, selected.FromTarget);
                             _openBody = (body, selected.Scope);
@@ -282,7 +294,7 @@ internal sealed class WriterSession : SessionState
                 case CursorStepKind.Done:
                     if (_deferred.Count > 0)
                     {
-                        throw EngineLogger.Fail($"'{_deferred.Peek().Field.Path}': the size field was deferred but its group was never completed.");
+                        throw EngineLogger.Fail($"'{_deferred.Peek().Field.Path}': the size field was deferred but its group was never completed.", category: SerializationCategories.Schema);
                     }
                     EngineLogger.WriteFinished(root.Path.ToString());
                     return WriteResult.Success;
@@ -357,7 +369,7 @@ internal sealed class WriterSession : SessionState
         {
             throw EngineLogger.Fail(
                 $"'{deferred.Field.Path}': the derived size field is {sizeBuffer.WrittenCount} bytes but {deferred.Width} were assumed, " +
-                "and the group contains layout processors whose result depends on that width.");
+                "and the group contains layout processors whose result depends on that width.", category: SerializationCategories.Schema);
         }
 
         _target.Write(sizeBuffer.WrittenSpan);
@@ -463,7 +475,7 @@ internal sealed class WriterSession : SessionState
         {
             if (sourced.Status == SourceStatus.EndOfData)
             {
-                throw EngineLogger.Fail($"'{field.Path}': the value source reported the end of data, which is only allowed on the first field of an item of a repeat without a count.");
+                throw EngineLogger.Fail($"'{field.Path}': the value source reported the end of data, which is only allowed on the first field of an item of a repeat without a count.", category: SerializationCategories.Schema);
             }
             if (field.CountOf is { } countOf)
             {
@@ -516,6 +528,7 @@ internal sealed class WriterSession : SessionState
         {
             Prepare(_valueContext, binding);
             logical = ((IValueProcessor)binding.Processor).Write(logical, _valueContext);
+            Returned();
         }
 
         // Representation: logical -> encoded
@@ -554,6 +567,7 @@ internal sealed class WriterSession : SessionState
                 _fieldContext.Field = field;
                 Prepare(_fieldContext, fieldBinding);
                 var single = ((IFieldProcessor)fieldBinding.Processor).Write(logical, _fieldContext);
+                Returned();
                 if (single.Status != WriteResult.Success)
                 {
                     return single.Status;
@@ -599,6 +613,7 @@ internal sealed class WriterSession : SessionState
                 SetPosition(layoutBinding);
                 var start = _counter.Written;
                 var singleResult = ((ILayoutProcessor)layoutBinding.Processor).Write(_target, encoded, _layoutContext);
+                Returned();
                 AdvanceLayoutPosition(layoutBinding, _counter.Written - start);
                 return singleResult;
             default:
@@ -612,10 +627,12 @@ internal sealed class WriterSession : SessionState
         _fieldContext.Field = field;
         Prepare(_fieldContext, chain[0]);
         var result = ((IFieldProcessor)chain[0].Processor).Write(logical, _fieldContext);
+        Returned();
         for (var i = 1; i < chain.Count && result.Status == WriteResult.Success; i++)
         {
             Prepare(_fieldContext, chain[i]);
             result = ((IFieldWriter<EncodedField, EncodedField>)chain[i].Processor).Write(result.Value with { BitWidth = result.BitsWritten }, _fieldContext);
+            Returned();
         }
         return result;
     }
@@ -682,6 +699,7 @@ internal sealed class WriterSession : SessionState
         SetPosition(chain[inner]);
         var innerStart = innerOutput.WrittenCount;
         var result = ((ILayoutProcessor)chain[inner].Processor).Write(innerOutput, encoded, _layoutContext);
+        Returned();
         AdvanceLayoutPosition(chain[inner], innerOutput.WrittenCount - innerStart);
         return result != WriteResult.Success ? result : ForwardWriteBlocks(chain, inner - 1, buffers,
             _layoutContext.BlockSizes.GetValueOrDefault(chain[inner]));
@@ -741,6 +759,7 @@ internal sealed class WriterSession : SessionState
             var output = i == 0 ? _target : buffers[i - 1];
             var outputStart = i == 0 ? _counter.Written : buffers[i - 1].WrittenCount;
             var result = ((ILayoutWriter<ReadOnlySpan<byte>>)chain[i].Processor).Write(output, input.WrittenSpan, _layoutContext);
+            Returned();
             var outputEnd = i == 0 ? _counter.Written : buffers[i - 1].WrittenCount;
             AdvanceLayoutPosition(chain[i], outputEnd - outputStart);
             input.Clear();
@@ -812,6 +831,7 @@ internal sealed class WriterSession : SessionState
         {
             ((ILayoutProcessor)activeBinding.Processor).EndWrite(output, _layoutContext);
         }
+        Returned();
         var outputEnd = index == 0 ? _counter.Written : buffers[index - 1].WrittenCount;
         AdvanceLayoutPosition(activeBinding, outputEnd - outputStart);
         if (index > 0)
@@ -892,6 +912,7 @@ internal sealed class WriterSession : SessionState
             var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(input.WrittenMemory));
             Prepare(_streamContext, binding);
             var result = ((IStreamProcessor)binding.Processor).Write(ref reader, (IBufferWriter<byte>?)next ?? _output, _streamContext);
+            Returned();
             if (result != WriteResult.Success)
             {
                 if (result == WriteResult.NeedMoreSpace)
@@ -926,6 +947,7 @@ internal sealed class WriterSession : SessionState
     private void Prepare(ProcessorContext context, ProcessorBinding? binding, string direction = "write")
     {
         // a null binding is an empty stage that was short-circuited: there is no processor-private state.
+        Calling(binding);
         context.Current = binding!;
         context.ProcessorProperties = binding?.Properties ?? [];
         if (binding is not null)

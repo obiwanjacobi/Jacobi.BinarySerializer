@@ -129,7 +129,7 @@ internal sealed class PlanCursor<TScope>
             if (_pendingAnnounced)
             {
                 throw _logger.Fail(
-                    $"Enter(scope) must be called for group '{_pendingEnter.Path}' before advancing the cursor.");
+                    $"Enter(scope) must be called for group '{_pendingEnter.Path}' before advancing the cursor.", category: SerializationCategories.Schema);
             }
 
             // announced the root
@@ -210,12 +210,12 @@ internal sealed class PlanCursor<TScope>
     {
         if (_pendingEnter is null || !_pendingAnnounced)
         {
-            throw _logger.Fail("Enter(scope) can only be called after an EnterGroup step.");
+            throw _logger.Fail("Enter(scope) can only be called after an EnterGroup step.", category: SerializationCategories.Schema);
         }
 
         if (_pendingEnter is RepeatInfo && _pendingItemIndex < 0)
         {
-            throw _logger.Fail($"'{_pendingEnter.Path}': use EnterRepeat(scope, count) to enter a repeat.");
+            throw _logger.Fail($"'{_pendingEnter.Path}': use EnterRepeat(scope, count) to enter a repeat.", category: SerializationCategories.Schema);
         }
 
         var first = 0;
@@ -251,7 +251,7 @@ internal sealed class PlanCursor<TScope>
     {
         if (_pendingEnter is not RepeatInfo repeat || !_pendingAnnounced || _pendingItemIndex >= 0)
         {
-            throw _logger.Fail("EnterRepeat can only be called after an EnterGroup step for a repeat.");
+            throw _logger.Fail("EnterRepeat can only be called after an EnterGroup step for a repeat.", category: SerializationCategories.Schema);
         }
 
         if (count < 0)
@@ -271,7 +271,7 @@ internal sealed class PlanCursor<TScope>
     {
         if (_pendingEnter is not RepeatInfo repeat || !_pendingAnnounced || _pendingItemIndex >= 0)
         {
-            throw _logger.Fail("EnterOpenRepeat can only be called after an EnterGroup step for a repeat.");
+            throw _logger.Fail("EnterOpenRepeat can only be called after an EnterGroup step for a repeat.", category: SerializationCategories.Schema);
         }
 
         _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = Int32.MaxValue, Open = true, Range = CurrentRange });
@@ -287,7 +287,7 @@ internal sealed class PlanCursor<TScope>
     {
         if (_pendingEnter is not ChoiceInfo { IsOpen: true } choice || !_pendingAnnounced || _pendingItemIndex >= 0)
         {
-            throw _logger.Fail("EnterOpenChoice can only be called after an EnterGroup step for an open choice.");
+            throw _logger.Fail("EnterOpenChoice can only be called after an EnterGroup step for an open choice.", category: SerializationCategories.Schema);
         }
 
         _frames.Push(new Frame(choice, scope, 0, 1) { Members = [body], Range = range, RangeRoot = true });
@@ -309,7 +309,7 @@ internal sealed class PlanCursor<TScope>
     {
         if (!AtOpenRepeat)
         {
-            throw _logger.Fail("CloseRepeat can only be called at a repeat without a count.");
+            throw _logger.Fail("CloseRepeat can only be called at a repeat without a count.", category: SerializationCategories.Schema);
         }
         var frame = _frames.Peek();
         frame.Count = frame.Iteration + 1;

@@ -96,7 +96,7 @@ public class BitSlicerProcessorTests
     [Test]
     public void Write_ValueTooLarge_Throws()
     {
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<SerializationException>(() =>
             Write(Root("sys.uint16", 2, 7), new() { ["Root.A"] = (ushort)0x4000 }, out _));
     }
 
@@ -129,7 +129,7 @@ public class BitSlicerProcessorTests
     [TestCase("sys.string", 2, 7)]
     public void Options_OutsideDataType_Throws(string type, int byteLength, int bits)
     {
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<SerializationException>(() =>
             Write(Root(type, byteLength, bits), new() { ["Root.A"] = (ushort)1 }, out _));
     }
 }

@@ -13,6 +13,9 @@ namespace Jacobi.BinarySerializer.Execution;
 /// </remarks>
 internal sealed class ContextLogger(ILogger inner, ProcessorContext context, ProcessorBinding binding, string direction) : ILogger
 {
+    /// <summary>The processor binding the logger is for (the origin of the failures it reports).</summary>
+    public ProcessorBinding Binding => binding;
+
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         => inner.BeginScope(state);
 

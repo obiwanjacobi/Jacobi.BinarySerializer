@@ -57,6 +57,19 @@ public closed class ProcessorContext
     /// <summary>The logger of the engine itself (usable when no processor binding is current).</summary>
     internal ILogger EngineLogger => _state.EngineLogger;
 
+    /// <summary>
+    /// Logs the failure of the current processor as an error and returns the exception to throw
+    /// (<c>throw context.Fail(...)</c>): its origin is the processor key, the engine adds the location.
+    /// </summary>
+    /// <param name="category">
+    /// One of <see cref="SerializationCategories"/> or the processor's own category (e.g. <c>checksum</c>); null: the
+    /// default of the direction.
+    /// </param>
+    /// <param name="expected">The value that was expected, where it applies (e.g. a stored checksum).</param>
+    /// <param name="actual">The value that was found, where it applies.</param>
+    public SerializationException Fail(string message, string? category = null, object? expected = null, object? actual = null, Exception? inner = null)
+        => (Current is null ? EngineLogger : Logger).Fail(message, inner, category, expected, actual);
+
     /// <summary>The schema path of the node being processed (for the log scope).</summary>
     internal virtual string NodePath => String.Empty;
 

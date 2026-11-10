@@ -70,7 +70,7 @@ public class BitsProcessorTests
     [Test]
     public void Write_ValueDoesNotFit_Throws()
     {
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<SerializationException>(() =>
             Write(Root("sys.uint8", 0, 3), new() { ["Root.A"] = (byte)8 }, out _));
     }
 
@@ -81,13 +81,13 @@ public class BitsProcessorTests
     [TestCase(0, 0)]
     public void Range_OutsideDataType_Throws(int offset, int length)
     {
-        Assert.Throws<InvalidOperationException>(() => Read(Root("sys.uint8", offset, length), 0xFF));
+        Assert.Throws<SerializationException>(() => Read(Root("sys.uint8", offset, length), 0xFF));
     }
 
     [Test]
     public void Read_NonIntegerType_Throws()
     {
-        Assert.Throws<InvalidOperationException>(() => Read(Root("sys.string", 0, 1), 0xFF));
+        Assert.Throws<SerializationException>(() => Read(Root("sys.string", 0, 1), 0xFF));
     }
 
     [Test]

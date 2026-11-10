@@ -35,7 +35,7 @@ public class WriterSessionTests
     {
         var root = Group("Root", [], Field("A"));
 
-        var ex = Assert.Throws<InvalidOperationException>(() => Run(root, []));
+        var ex = Assert.Throws<SerializationException>(() => Run(root, []));
 
         Assert.That(ex!.Message, Does.Contain("Root.A"));
     }
@@ -45,7 +45,7 @@ public class WriterSessionTests
     {
         var root = Group("Root", [], Field("A", "sys.uint8"));
 
-        var ex = Assert.Throws<InvalidOperationException>(() => Run(root, new() { ["Root.A"] = 300 }));
+        var ex = Assert.Throws<SerializationException>(() => Run(root, new() { ["Root.A"] = 300 }));
 
         Assert.That(ex!.Message, Does.Contain("Root.A"));
     }

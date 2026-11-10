@@ -30,7 +30,73 @@ public closed class SessionState
     /// <summary>
     /// The path of the node the session processes (the root for the stream stage); names the node when a read or write stops.
     /// </summary>
-    internal SchemaPath? CurrentPath { get; private protected set; }
+    internal SchemaPath? CurrentPath { get; private set; }
+
+    /// <summary>The instance of <see cref="CurrentPath"/>.</summary>
+    internal InstancePath CurrentInstance { get; private set; }
+
+    /// <summary>The byte position where <see cref="CurrentPath"/> starts (input or output); null when not known.</summary>
+    internal long? CurrentPosition { get; private set; }
+
+    /// <summary>Reading or writing.</summary>
+    internal SerializationDirection Direction { get; private set; }
+
+    // the processor that runs now (null between processor calls), and the last one that ran
+    private ProcessorBinding? _activeBinding;
+    private ProcessorBinding? _lastBinding;
+
+    /// <summary>The node the session processes now: the location of a failure.</summary>
+    private protected void SetCurrent(SchemaPath path, InstancePath instance, long? position)
+    {
+        CurrentPath = path;
+        CurrentInstance = instance;
+        CurrentPosition = position;
+    }
+
+    /// <summary>A processor is about to be called: an exception it throws is reported with it as the origin.</summary>
+    private protected void Calling(ProcessorBinding? binding)
+    {
+        _activeBinding = binding;
+        _lastBinding = binding ?? _lastBinding;
+    }
+
+    /// <summary>The processor returned: an exception after this is not its own.</summary>
+    private protected void Returned() => _activeBinding = null;
+
+    /// <summary>
+    /// The exception filter of a read or write: adds the location to a <see cref="SerializationException"/> and lets it
+    /// pass (false), or asks to wrap an exception that a processor threw (true, see <see cref="Wrap"/>). Any other
+    /// exception (of the value model, a cancellation) passes as it is.
+    /// </summary>
+    private protected bool MustWrap(Exception exception)
+    {
+        if (exception is SerializationException failure)
+        {
+            failure.Locate(Direction, CurrentPath, CurrentInstance, CurrentPosition);
+            return false;
+        }
+        return _activeBinding is not null && exception is not OperationCanceledException;
+    }
+
+    /// <summary>An exception a processor threw, as a failure with the processor as the origin and the location.</summary>
+    private protected SerializationException Wrap(Exception exception)
+    {
+        var failure = new SerializationException(exception.Message, null, _activeBinding!.Processor.Key.ToString(), null, null, exception);
+        failure.Locate(Direction, CurrentPath, CurrentInstance, CurrentPosition);
+        return failure;
+    }
+
+    /// <summary>
+    /// A read or write that stopped with a result other than success, as a failure at the current node.
+    /// <paramref name="byProcessor"/>: a processor returned the result (the last one that ran is the origin).
+    /// </summary>
+    internal SerializationException Stopped(string reason, string? category, bool byProcessor)
+    {
+        var origin = byProcessor && _lastBinding is not null ? _lastBinding.Processor.Key.ToString() : SerializationException.EngineOrigin;
+        var failure = new SerializationException(reason, category, origin, null, null, null);
+        failure.Locate(Direction, CurrentPath, CurrentInstance, CurrentPosition);
+        return failure;
+    }
 
     /// <summary>
     /// Resolves the optional <see cref="ILoggerFactory"/> from the host's services (no-op logging when absent).
@@ -38,6 +104,7 @@ public closed class SessionState
     internal void InitializeLogging(IServiceProvider services, string direction)
     {
         _direction = direction;
+        Direction = direction == "Read" ? SerializationDirection.Read : SerializationDirection.Write;
         _loggerFactory = (ILoggerFactory?)services.GetService(typeof(ILoggerFactory)) ?? NullLoggerFactory.Instance;
         EngineLogger = _loggerFactory.CreateLogger("Jacobi.BinarySerializer.Engine");
     }
@@ -120,7 +187,7 @@ public closed class SessionState
         }
         else
         {
-            throw EngineLogger.Fail($"'{node.Path}': the value source is unresolved.");
+            throw EngineLogger.Fail($"'{node.Path}': the value source is unresolved.", category: SerializationCategories.Schema);
         }
 
         context.Field = null!;
@@ -132,7 +199,9 @@ public closed class SessionState
             {
                 context.Current = binding;
                 context.ProcessorProperties = binding.Properties;
+                Calling(binding);
                 logical = ((IValueProcessor)binding.Processor).Read(logical, context);
+                Returned();
             }
             value = logical.Value;
         }
@@ -173,7 +242,7 @@ public closed class SessionState
             }
         }
 
-        throw EngineLogger.Fail($"'{referrer}': the value source is unresolved.");
+        throw EngineLogger.Fail($"'{referrer}': the value source is unresolved.", category: SerializationCategories.Schema);
     }
 
     /// <summary>Gets a published value. An unpublished value is a runtime error.</summary>
@@ -182,7 +251,7 @@ public closed class SessionState
         var key = declared with { Instance = declared.Instance.ResolveRelative(current) };
         if (!_published.TryGetValue(key, out var value))
         {
-            throw EngineLogger.Fail($"'{referrer}': the value '{key}' was not published (yet).");
+            throw EngineLogger.Fail($"'{referrer}': the value '{key}' was not published (yet).", category: SerializationCategories.Schema);
         }
         return value;
     }
@@ -217,7 +286,8 @@ public closed class SessionState
         var expected = ResolveExpected(field, current);
         if (!(expected is byte[] expectedBytes && actual is byte[] actualBytes ? expectedBytes.AsSpan().SequenceEqual(actualBytes) : Equals(expected, actual)))
         {
-            throw EngineLogger.Fail($"'{field.Path}': the value is '{actual ?? "null"}' but the schema requires '{expected ?? "null"}'.");
+            throw EngineLogger.Fail($"'{field.Path}': the value is '{actual ?? "null"}' but the schema requires '{expected ?? "null"}'.",
+                category: SerializationCategories.ExpectedValue, expected: expected, actual: actual);
         }
     }
 }

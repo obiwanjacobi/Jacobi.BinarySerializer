@@ -38,7 +38,27 @@ read:   bytes -> (Stream, root only) -> Layout -> Representation -> Semantic -> 
 - **Processors are stateless.** They get a context per call; private state lives in `SessionState` (per binding, optionally per repeat instance). Processors never reference each other.
 - **Processors communicate through published values.** A processor publishes a value (`pubns`/name, or a field's value by path); other nodes read it with `pub:`/`ref:`. A reference to a value that is not yet known is a runtime error.
 - **Truncated input is an error condition, not a mode.** The reader returns `NeedMoreData`; the caller supplies the complete message and reads again from the start. The writer returns `NeedMoreSpace`/failure results the same way. Nothing is streamed/resumed across calls.
-- **Results vs. exceptions.** Expected outcomes (`Success`, `NeedMoreData`, `EndOfData`, `Failure`) are result values. Schema/model/property mistakes found at runtime throw (via the engine logger's `Fail`).
+- **Results vs. exceptions.** Expected outcomes (`Success`, `NeedMoreData`, `EndOfData`, `Failure`) are result values inside the engine; the `Serializer` turns any other result than success into an exception. Mistakes and invalid data found at runtime throw (via the engine logger's `Fail`). See [Failures](#failures).
+
+## Failures
+
+A read or write that fails throws a `SerializationException` (an `InvalidOperationException`) with the facts, so a caller does not have to parse the message:
+
+| Member | Content |
+|--------|---------|
+| `Direction` | Read or write. |
+| `Category` | What went wrong. The engine's categories are the constants of `SerializationCategories`: `expectedValue` (a `value` constant or reference does not match), `invalidData` (read: the bytes do not satisfy the schema), `invalidValue` (write: a value cannot be written), `endOfData` (the input ended before the node was complete) and `schema` (the schema, plan or value model cannot be used as it is). A processor may report its own category (any string, e.g. `checksum` of `sys.crc`). Without one, a failure gets the default of its direction: `invalidData` or `invalidValue`. |
+| `Origin` | Who reported it: `engine` (`SerializationException.EngineOrigin`) or the key of the processor (`sys.crc`). |
+| `Path`, `Instance` | The node of the step that failed and its repeat items. |
+| `Position` | The byte position of that step in the input (read) or output (write), after the stream stage: where a field starts, or where a group starts or ends. |
+| `Expected`, `Actual` | Where they apply: the required and the found value (a constant, a checksum). |
+| `Reason`, `Message` | The text without and with the location. `InnerException` is the original exception of a wrapped failure. |
+
+How the facts are filled, in one place:
+
+- The engine creates its failures with `Fail` (category, expected, actual); a processor with `context.Fail(message, category, expected, actual)`. Both log the failure.
+- The session keeps the current node (path, instance, position) and the processor that is being called. Its exception filter adds the location to a `SerializationException` (the first location stays: a nested read keeps its own) and wraps any other exception a processor throws, with the processor as the origin. The filter runs before the stack unwinds, so the original stack trace is kept.
+- Exceptions of the value model (a sink or source that rejects a value) and cancellations pass as they are: they are the caller's own.
 - **Fixed vs. open width.** A fixed-width field consumes exactly its width. An open-width field (e.g. varint) receives a growing encoded window within one field operation; the engine does not rewind physical input through layout stages.
 - **Count-less repeats** run until the end of the data; see [Open repeats](#open-repeats).
 - **Stream processors run on the root only** (whole message: framing, compression, encryption).

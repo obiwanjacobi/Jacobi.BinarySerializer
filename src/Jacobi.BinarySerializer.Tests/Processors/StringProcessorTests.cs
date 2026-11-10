@@ -75,7 +75,7 @@ public class StringProcessorTests
     {
         var root = Group("Root", [], Field("A", "sys.string", [Ref("string", ("byteLength", "2"))]));
 
-        Assert.Throws<InvalidOperationException>(() => Write(root, new() { ["Root.A"] = "abc" }, out _));
+        Assert.Throws<SerializationException>(() => Write(root, new() { ["Root.A"] = "abc" }, out _));
     }
 
     [Test]
@@ -83,7 +83,7 @@ public class StringProcessorTests
     {
         var root = Group("Root", [], Field("A", "sys.string", [Ref("string")]));
 
-        Assert.Throws<InvalidOperationException>(() => Write(root, new() { ["Root.A"] = "abc" }, out _));
+        Assert.Throws<SerializationException>(() => Write(root, new() { ["Root.A"] = "abc" }, out _));
     }
 
     [Test]
@@ -137,7 +137,7 @@ public class StringProcessorTests
     {
         var root = Group("Root", [], Field("A", "sys.string", [Ref("string", ("byteLength", "2"), ("encoding", "ascii"), ("0x7E", "→"))]));
 
-        Assert.Throws<InvalidOperationException>(() => Write(root, new() { ["Root.A"] = "~" }, out _));
+        Assert.Throws<SerializationException>(() => Write(root, new() { ["Root.A"] = "~" }, out _));
     }
 
     [Test]
@@ -145,7 +145,7 @@ public class StringProcessorTests
     {
         var root = Group("Root", [], Field("A", "sys.string", [Ref("string", ("byteLength", "2"), ("encoding", "ascii"), ("0x7E", "→"))]));
 
-        Assert.Throws<InvalidOperationException>(() => Write(root, new() { ["Root.A"] = "é" }, out _));
+        Assert.Throws<SerializationException>(() => Write(root, new() { ["Root.A"] = "é" }, out _));
     }
 
     [TestCase("utf-8", "0x7E", "→")]     // not a single-byte encoding
@@ -156,7 +156,7 @@ public class StringProcessorTests
     {
         var root = Group("Root", [], Field("A", "sys.string", [Ref("string", ("byteLength", "2"), ("encoding", encoding), (name, value))]));
 
-        Assert.Throws<InvalidOperationException>(() => Write(root, new() { ["Root.A"] = "a" }, out _));
+        Assert.Throws<SerializationException>(() => Write(root, new() { ["Root.A"] = "a" }, out _));
     }
 
     [Test]
@@ -164,7 +164,7 @@ public class StringProcessorTests
     {
         var root = Group("Root", [], Field("A", "sys.string", [Ref("string", ("byteLength", "2"), ("encoding", "ascii"), ("0x7E", "→"), ("0x7F", "→"))]));
 
-        Assert.Throws<InvalidOperationException>(() => Write(root, new() { ["Root.A"] = "a" }, out _));
+        Assert.Throws<SerializationException>(() => Write(root, new() { ["Root.A"] = "a" }, out _));
     }
 
     [Test]
@@ -184,7 +184,7 @@ public class StringProcessorTests
     {
         var root = Group("Root", [], Field("A", "sys.string", [Ref("string", ("byteLength", "4"), ("encoding", "ascii"), ("validBytes", "0x16-0x7F"))]));
 
-        Assert.Throws<InvalidOperationException>(() => Write(root, new() { ["Root.A"] = "ab" }, out _));
+        Assert.Throws<SerializationException>(() => Write(root, new() { ["Root.A"] = "ab" }, out _));
     }
 
     [Test]
@@ -205,7 +205,7 @@ public class StringProcessorTests
     {
         var root = Group("Root", [], Field("A", "sys.string", [Ref("string", ("byteLength", "2"), ("validBytes", validBytes))]));
 
-        Assert.Throws<InvalidOperationException>(() => Write(root, new() { ["Root.A"] = "a" }, out _));
+        Assert.Throws<SerializationException>(() => Write(root, new() { ["Root.A"] = "a" }, out _));
     }
 
     [Test]

@@ -170,7 +170,7 @@ public class InstanceReferenceTests
         var plan = Build(Group("Root", [], lens, items));
         var source = new DictSource(new());
 
-        var ex = Assert.Throws<InvalidOperationException>(
+        var ex = Assert.Throws<SerializationException>(
             () => new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(source));
 
         Assert.That(ex!.Message, Does.Contain("Root.Lens.Len[5]").And.Contain("not published"));

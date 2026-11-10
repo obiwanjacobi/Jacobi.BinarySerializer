@@ -191,7 +191,7 @@ public class VarIntProcessorTests
     {
         var root = Group("Root", [], Field("A", "sys.int32", [Ref("varint", ("encoding", encoding))]));
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<SerializationException>(() =>
             Write(root, new Dictionary<string, object?> { ["Root.A"] = 1 }, out _));
     }
 
@@ -200,7 +200,7 @@ public class VarIntProcessorTests
     {
         var root = Group("Root", [], Field("A", "sys.int32", [Ref("varint")]));
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<SerializationException>(() =>
             Write(root, new Dictionary<string, object?> { ["Root.A"] = 1 }, out _));
     }
 

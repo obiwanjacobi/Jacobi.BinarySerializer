@@ -98,16 +98,28 @@ internal sealed class ReaderSession : SessionState
 
     /// <summary>Reads the values from <paramref name="input"/> into <paramref name="sink"/>.</summary>
     /// <param name="range">Optional: only read these fields. The default is the whole plan.</param>
+    /// <exception cref="SerializationException">The read failed; it holds the location.</exception>
     public ReadResult Read(ReadOnlySequence<byte> input, IValueSink sink, PlanRange? range = null)
     {
         ArgumentNullException.ThrowIfNull(sink);
+        try
+        {
+            return ReadCore(input, sink, range);
+        }
+        catch (Exception exception) when (MustWrap(exception))
+        {
+            throw Wrap(exception);
+        }
+    }
 
+    private ReadResult ReadCore(ReadOnlySequence<byte> input, IValueSink sink, PlanRange? range)
+    {
         var root = _plan.Root;
         var payload = input;
-        _plan.ValidateOpenChoices(range, EngineLogger);
         BytesRead = 0;
         _transportConsumed = 0;
-        CurrentPath = root.Path;
+        SetCurrent(root.Path, default, null);
+        _plan.ValidateOpenChoices(range, EngineLogger);
         if (root.Pipeline.StreamProcessors.Count > 0)
         {
             var result = ReadStream(root, input, out var buffer);
@@ -143,7 +155,7 @@ internal sealed class ReaderSession : SessionState
             SetInstance(step.Kind == CursorStepKind.ExitItem ? cursor.Instance.Append(step.Index) : cursor.Instance);
             if (step.Node is not null)
             {
-                CurrentPath = step.Node.Path;
+                SetCurrent(step.Node.Path, StepInstance(step.Kind, step.Index), reader.Consumed);
                 EngineLogger.Navigating(step.Kind, step.Node.Path.ToString(), StepInstance(step.Kind, step.Index).ToLogString());
             }
             switch (step.Kind)
@@ -163,7 +175,7 @@ internal sealed class ReaderSession : SessionState
                             }
                             else if (group is ChoiceInfo { IsOpen: true } openRoot)
                             {
-                                throw EngineLogger.Fail($"'{openRoot.Path}': an open choice cannot be the root.");
+                                throw EngineLogger.Fail($"'{openRoot.Path}': an open choice cannot be the root.", category: SerializationCategories.Schema);
                             }
                             else if (group is ChoiceInfo rootChoice)
                             {
@@ -195,7 +207,7 @@ internal sealed class ReaderSession : SessionState
                         else if (group is ChoiceInfo { IsOpen: true } openChoice)
                         {
                             var openSink = step.Scope as IOpenChoiceSink
-                                ?? throw EngineLogger.Fail($"'{openChoice.Path}': the value model does not implement {nameof(IOpenChoiceSink)}, which an open choice requires.");
+                                ?? throw EngineLogger.Fail($"'{openChoice.Path}': the value model does not implement {nameof(IOpenChoiceSink)}, which an open choice requires.", category: SerializationCategories.Schema);
                             var selected = openSink.EnterOpenChoice(new OpenChoiceContext { Node = openChoice, Services = _services, Instance = _instance });
                             var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Group, selected.FromTarget);
                             _openBody = (body, selected.Scope);
@@ -337,7 +349,7 @@ internal sealed class ReaderSession : SessionState
         {
             if (!endsAtInputEnd)
             {
-                throw EngineLogger.Fail($"'{repeat.Path}': a repeat without a count that is followed by other nodes requires a value model that implements {nameof(IOpenRepeatSink)}.");
+                throw EngineLogger.Fail($"'{repeat.Path}': a repeat without a count that is followed by other nodes requires a value model that implements {nameof(IOpenRepeatSink)}.", category: SerializationCategories.Schema);
             }
             return atEnd;
         }
@@ -358,7 +370,7 @@ internal sealed class ReaderSession : SessionState
             OpenRepeatAction.Next => false,
             OpenRepeatAction.End => true,
             _ when !endsAtInputEnd => throw EngineLogger.Fail(
-                $"'{repeat.Path}': the value model answered {nameof(OpenRepeatAction.Default)} for a repeat without a count that is followed by other nodes; it must answer {nameof(OpenRepeatAction.Next)} or {nameof(OpenRepeatAction.End)}."),
+                $"'{repeat.Path}': the value model answered {nameof(OpenRepeatAction.Default)} for a repeat without a count that is followed by other nodes; it must answer {nameof(OpenRepeatAction.Next)} or {nameof(OpenRepeatAction.End)}.", category: SerializationCategories.Schema),
             _ => atEnd,
         };
     }
@@ -451,7 +463,7 @@ internal sealed class ReaderSession : SessionState
         var target = start + byteOffset;
         if (target < 0)
         {
-            throw EngineLogger.Fail($"'{field.Path}': the byte offset {byteOffset} lies before the start of the input.");
+            throw EngineLogger.Fail($"'{field.Path}': the byte offset {byteOffset} lies before the start of the input.", category: SerializationCategories.Schema);
         }
         if (target > reader.Consumed + reader.Remaining)
         {
@@ -519,7 +531,7 @@ internal sealed class ReaderSession : SessionState
                 return layoutRead.Status;
             }
             var encoded = layoutRead.Value
-                ?? throw EngineLogger.Fail($"'{field.Path}': the layout succeeded without an encoded field.");
+                ?? throw EngineLogger.Fail($"'{field.Path}': the layout succeeded without an encoded field.", category: SerializationCategories.Schema);
             if (pipeline.FieldProcessors.Count == 0)
             {
                 if (encoded.Value is not byte[] bytes || field.DataType.Decode is not { } decode || !decode(bytes, out var value))
@@ -533,7 +545,7 @@ internal sealed class ReaderSession : SessionState
             {
                 if (chunk.Length == 0)
                 {
-                    throw EngineLogger.Fail($"'{field.Path}': the layout produced no encoded bytes for an incomplete field.");
+                    throw EngineLogger.Fail($"'{field.Path}': the layout produced no encoded bytes for an incomplete field.", category: SerializationCategories.Schema);
                 }
                 encodedBytes.Write(chunk);
                 encoded = new EncodedField(encoded.Name, typeof(byte[]), encodedBytes.WrittenSpan.ToArray(), encodedBytes.WrittenCount * 8);
@@ -551,11 +563,11 @@ internal sealed class ReaderSession : SessionState
             }
             if (fieldResult.BitsConsumed < 0 || fieldResult.BitsConsumed > encoded.BitWidth || fieldResult.BitsConsumed % 8 != 0)
             {
-                throw EngineLogger.Fail($"'{field.Path}': the field processor consumed {fieldResult.BitsConsumed} bits of the {encoded.BitWidth} bits provided.");
+                throw EngineLogger.Fail($"'{field.Path}': the field processor consumed {fieldResult.BitsConsumed} bits of the {encoded.BitWidth} bits provided.", category: SerializationCategories.Schema);
             }
             if (fieldResult.BitsConsumed != encoded.BitWidth)
             {
-                throw EngineLogger.Fail($"'{field.Path}': the field processor left encoded bytes outside its field boundary.");
+                throw EngineLogger.Fail($"'{field.Path}': the field processor left encoded bytes outside its field boundary.", category: SerializationCategories.Schema);
             }
             CompleteLogicalField(field, fieldResult.Value, scope);
             return ReadResult.Success;
@@ -571,6 +583,7 @@ internal sealed class ReaderSession : SessionState
         {
             Prepare(_valueContext, valueProcessors[i]);
             logical = ((IValueProcessor)valueProcessors[i].Processor).Read(logical, _valueContext);
+            Returned();
         }
         logical = ToValueType(field, logical);
 
@@ -602,7 +615,7 @@ internal sealed class ReaderSession : SessionState
                 : LayoutReadResult<EncodedField>.WithStatus(result.Status);
         }
         return LayoutReadResult<EncodedField>.Success(value
-            ?? throw EngineLogger.Fail($"'{_layoutContext.Field?.Path}': the layout succeeded without an encoded field."));
+            ?? throw EngineLogger.Fail($"'{_layoutContext.Field?.Path}': the layout succeeded without an encoded field.", category: SerializationCategories.Schema));
     }
 
     private void SetGroupData(GroupInfo group, int? itemIndex, int? itemCount)
@@ -675,7 +688,9 @@ internal sealed class ReaderSession : SessionState
     private FieldReadResult<LogicalField> ReadSingle(ProcessorBinding binding, EncodedField encoded)
     {
         Prepare(_fieldContext, binding);
-        return ((IFieldProcessor)binding.Processor).Read(encoded, _fieldContext);
+        var result = ((IFieldProcessor)binding.Processor).Read(encoded, _fieldContext);
+        Returned();
+        return result;
     }
 
     /// <summary>Reverse order of writing: the last stage first (encoded to encoded), the head last (encoded to logical). The head decides the consumed width.</summary>
@@ -686,6 +701,7 @@ internal sealed class ReaderSession : SessionState
         {
             Prepare(_fieldContext, chain[i]);
             var step = ((IFieldReader<EncodedField, EncodedField>)chain[i].Processor).Read(encoded, _fieldContext);
+            Returned();
             if (step.Status != ReadResult.Success)
             {
                 return new(step.Status, default!, 0);
@@ -824,6 +840,7 @@ internal sealed class ReaderSession : SessionState
                         result = new(field.Status, field.RequestedByteCount);
                         break;
                 }
+                Returned();
                 _layoutContext.CanReserveTail = false;
                 if (result.Status == ReadResult.NeedMoreData)
                 {
@@ -882,7 +899,7 @@ internal sealed class ReaderSession : SessionState
                 }
                 if (output.IsEmpty && consumed == 0)
                 {
-                    throw EngineLogger.Fail("A layout wrapper succeeded without consuming input or producing output.");
+                    throw EngineLogger.Fail("A layout wrapper succeeded without consuming input or producing output.", category: SerializationCategories.Schema);
                 }
                 var child = frames.Peek();
                 var childInput = InputFor(chain[child.Index]);
@@ -918,6 +935,7 @@ internal sealed class ReaderSession : SessionState
             var reader = new SequenceReader<byte>(current);
             Prepare(_streamContext, binding);
             var result = ((IStreamProcessor)binding.Processor).Read(ref reader, next, _streamContext);
+            Returned();
             if (i == processors.Count - 1)
             {
                 _transportConsumed = reader.Consumed;
@@ -927,7 +945,7 @@ internal sealed class ReaderSession : SessionState
                 if (result == ReadResult.NeedMoreData)
                 {
                     throw EngineLogger.Fail(
-                        $"'{root.Path}': the stream processor '{binding.Processor.Name}' ({binding.Processor.Key}) needs more data in the input.");
+                        $"'{root.Path}': the stream processor '{binding.Processor.Name}' ({binding.Processor.Key}) needs more data in the input.", category: SerializationCategories.EndOfData);
                 }
                 return result;
             }
@@ -950,8 +968,10 @@ internal sealed class ReaderSession : SessionState
         _streamContext.Instance = instance;
     }
 
+    // before a processor call (the call is followed by Returned)
     private void Prepare(ProcessorContext context, ProcessorBinding? binding, string direction = "read")
     {
+        Calling(binding);
         context.Current = binding!;
         context.ProcessorProperties = binding?.Properties ?? [];
         if (binding is not null)
