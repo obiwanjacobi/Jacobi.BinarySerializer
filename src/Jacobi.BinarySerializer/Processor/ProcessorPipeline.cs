@@ -1,4 +1,5 @@
-﻿using Jacobi.BinarySerializer.Schema;
+﻿using Jacobi.BinarySerializer.Execution;
+using Jacobi.BinarySerializer.Schema;
 
 namespace Jacobi.BinarySerializer.Processor;
 
@@ -83,10 +84,19 @@ public sealed class ProcessorPipeline
     public static bool IsInheritOnly(IReadOnlyCollection<ProcessorBinding> processors) => processors.Count == 0;
 }
 
-public sealed class ProcessorBinding(IProcessor processor, IReadOnlyList<SchemaProperty> properties, string? publishNamespace = null)
+public sealed class ProcessorBinding(IProcessor processor, IReadOnlyList<SchemaProperty> properties, string? publishNamespace = null,
+    IReadOnlyDictionary<string, PublishedValueKey>? references = null)
 {
+    private static readonly IReadOnlyDictionary<string, PublishedValueKey> NoReferences = new Dictionary<string, PublishedValueKey>();
+
     public IProcessor Processor { get; } = processor;
     public IReadOnlyList<SchemaProperty> Properties { get; } = properties;
+
+    /// <summary>
+    /// The properties whose value is a reference ('ref:' or 'pub:'), by property name (case-insensitive), bound at plan build:
+    /// their value is the published value, resolved per instance when the processor reads its properties.
+    /// </summary>
+    public IReadOnlyDictionary<string, PublishedValueKey> References { get; } = references ?? NoReferences;
 
     /// <summary>
     /// The namespace ('pubns') from the schema that overrides the namespace the processor publishes under (null: no override).

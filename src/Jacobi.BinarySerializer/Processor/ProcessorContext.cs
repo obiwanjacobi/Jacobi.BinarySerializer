@@ -34,7 +34,25 @@ public closed class ProcessorContext
     /// Scoped lookup (full 'ns:id.name' names, short-name fallback) over the processor's own properties.
     /// </summary>
     public ProcessorProperties Properties
-        => new(ProcessorProperties, Current is null ? null : Current.Processor.Key, _state.DataTypes);
+    {
+        get
+        {
+            var binding = Current;
+            if (binding is null)
+            {
+                return new(ProcessorProperties, null, _state.DataTypes);
+            }
+
+            // references are bound to the binding's own properties ('ref:'/'pub:' values, resolved for the current instance)
+            var references = ReferenceEquals(ProcessorProperties, binding.Properties) ? binding.References : NoReferences;
+            var referrer = NodePath;
+            var instance = Instance;
+            return new(ProcessorProperties, binding.Processor.Key, _state.DataTypes, references,
+                (key, property) => _state.ResolvePublished(key, referrer, instance, property));
+        }
+    }
+
+    private static readonly IReadOnlyDictionary<string, PublishedValueKey> NoReferences = new Dictionary<string, PublishedValueKey>();
 
     /// <summary>
     /// Scoped lookup over other properties (e.g. field or group properties) for the current processor.
@@ -106,8 +124,6 @@ public closed class ProcessorContext
     /// </summary>
     public void Publish(string name, object? value)
         => _state.Publish(Current.PublishNamespace ?? Current.Processor.Key.ToString(), name, value);
-
-    // TODO: consume dynamic values published by other processors.
 }
 
 public sealed class ValueProcessorContext : ProcessorContext

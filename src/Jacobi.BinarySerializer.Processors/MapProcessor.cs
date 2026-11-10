@@ -66,6 +66,13 @@ internal sealed class MapProcessor : ProcessorBase, IValueProcessor
 
     private static MapState GetMap(ValueProcessorContext context)
     {
+        if (context.Properties.HasReferences)
+        {
+            // a referenced value can differ per call: not cached
+            var current = new MapState();
+            ParseMap(current, context);
+            return current;
+        }
         if (!context.GetOrCreateState<MapState>(StateScope.Binding, out var map))
         {
             ParseMap(map, context);

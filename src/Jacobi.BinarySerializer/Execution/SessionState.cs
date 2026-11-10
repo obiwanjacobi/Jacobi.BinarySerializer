@@ -246,12 +246,14 @@ public closed class SessionState
     }
 
     /// <summary>Gets a published value. An unpublished value is a runtime error.</summary>
-    internal object? ResolvePublished(PublishedValueKey declared, SchemaPath referrer, InstancePath current = default)
+    /// <param name="property">The (full) name of the processor property that refers to the value (null: not a property).</param>
+    internal object? ResolvePublished(PublishedValueKey declared, SchemaPath referrer, InstancePath current = default, string? property = null)
     {
         var key = declared with { Instance = declared.Instance.ResolveRelative(current) };
         if (!_published.TryGetValue(key, out var value))
         {
-            throw EngineLogger.Fail($"'{referrer}': the value '{key}' was not published (yet).", category: SerializationCategories.Schema);
+            var subject = property is null ? String.Empty : $" of the '{property}' property";
+            throw EngineLogger.Fail($"'{referrer}': the value '{key}'{subject} was not published (yet).", category: SerializationCategories.Schema);
         }
         return value;
     }

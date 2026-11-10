@@ -310,6 +310,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         var state = new BuildState { Root = root };
         var rootInfo = BuildGroup(root, root.Name, parentPipeline, state);
         ResolvePathReferences(rootInfo, state);
+        CheckPropertyReferences(rootInfo, state);
         ValidateBytesWindow(rootInfo, false, state);
 
         if (state.Errors.Count > 0)
@@ -669,11 +670,52 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
                 $"Processor '{processor.Key}' declares stage {processor.Stage} but does not implement its stage interface.");
         }
 
-        ValidateProperties(processor, processorRef.EffectiveProperties, path, state);
-        return new(processor, processorRef.EffectiveProperties, processorRef.PublishNamespace);
+        var properties = processorRef.EffectiveProperties;
+        var firstReference = state.PropertyReferences.Count;
+        var references = BindPropertyReferences(properties, path, state);
+        ValidateProperties(processor, properties, references, firstReference, path, state);
+        return new(processor, properties, processorRef.PublishNamespace, references);
     }
 
-    private void ValidateProperties(IProcessor processor, IReadOnlyList<SchemaProperty> properties, string path, BuildState state)
+    /// <summary>
+    /// Binds every property value that is a reference ('ref:' or 'pub:'), whatever processor the property is for:
+    /// a node reference like a count or length (relative to the node of the processor, with instance indices).
+    /// </summary>
+    private static Dictionary<string, PublishedValueKey>? BindPropertyReferences(IReadOnlyList<SchemaProperty> properties, SchemaPath path, BuildState state)
+    {
+        Dictionary<string, PublishedValueKey>? references = null;
+        foreach (var property in properties)
+        {
+            PublishedValueKey? key = null;
+            if (SchemaNodeRef.TryParse(property.Value, out var nodeRef))
+            {
+                key = BindKey(nodeRef, path, state);
+                if (key is { } bound)
+                {
+                    state.PropertyReferences.Add(new(path, new SchemaPath(bound.Name), property.Name, null));
+                }
+            }
+            else if (SchemaPubRef.TryParse(property.Value, out var pubRef))
+            {
+                key = new PublishedValueKey(pubRef.Namespace, pubRef.Name);
+            }
+            else if (property.Value is { } text
+                && (text.StartsWith(SchemaNodeRef.Prefix, StringComparison.Ordinal) || text.StartsWith(SchemaPubRef.Prefix, StringComparison.Ordinal)))
+            {
+                state.Error(path, $"The '{property.Name}' value '{text}' is not a valid value reference.");
+            }
+
+            if (key is { } found)
+            {
+                references ??= new(StringComparer.OrdinalIgnoreCase);
+                references[property.Name] = found;
+            }
+        }
+        return references;
+    }
+
+    private void ValidateProperties(IProcessor processor, IReadOnlyList<SchemaProperty> properties,
+        IReadOnlyDictionary<string, PublishedValueKey>? references, int firstReference, SchemaPath path, BuildState state)
     {
         var lookup = new ProcessorProperties(properties, processor.Key, _dataTypes);
         foreach (var descriptor in processor.Properties)
@@ -690,6 +732,16 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
                 if (descriptor.IsRequired)
                 {
                     state.Error(path, $"The '{lookup.FullName(descriptor.Name)}' property is required by the '{processor.Key}' processor.");
+                }
+            }
+            else if (references?.ContainsKey(property.Name) == true)
+            {
+                // the value is published at runtime: check the type of the referenced field (when known) after the plan is built
+                // (the node references this processor recorded; a 'pub:' value is not checked)
+                var index = state.PropertyReferences.FindIndex(firstReference, r => r.Property == property.Name);
+                if (index >= 0)
+                {
+                    state.PropertyReferences[index] = state.PropertyReferences[index] with { Property = lookup.FullName(descriptor.Name), DataType = dataType };
                 }
             }
             else if (!dataType.Parse(property.Value, out _))
@@ -907,6 +959,31 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         return null;
     }
 
+    private readonly record struct PropertyReference(SchemaPath From, SchemaPath Target, string Property, DataTypeDescriptor? DataType);
+
+    /// <summary>
+    /// Checks that the field a property value refers to has a value type that converts to the data type of the property.
+    /// Not checked when either type is unknown (an undeclared property, or a field whose semantic processors decide its type).
+    /// A target that is not a field is reported with the path references.
+    /// </summary>
+    private static void CheckPropertyReferences(GroupInfo root, BuildState state)
+    {
+        foreach (var reference in state.PropertyReferences)
+        {
+            if (reference.DataType is { } expected && Find(root, reference.Target) is FieldInfo { ConvertsToValueType: true, ValueType: var actual }
+                && !CanConvert(actual.ClrType, expected.ClrType))
+            {
+                state.Error(reference.From,
+                    $"The '{reference.Property}' value refers to '{reference.Target}' ({actual}), which does not convert to the {expected} of the property.");
+            }
+        }
+    }
+
+    // the type-level counterpart of DataTypeDescriptor.TryConvert (an instance, an enum or a Convert.ChangeType conversion)
+    private static bool CanConvert(Type from, Type to)
+        => to.IsAssignableFrom(from)
+            || (typeof(IConvertible).IsAssignableFrom(from) && typeof(IConvertible).IsAssignableFrom(to));
+
     private sealed class BuildState
     {
         public SchemaGroup? Root { get; init; }
@@ -950,6 +1027,9 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             return repeats;
         }
         public List<(SchemaPath From, SchemaPath Target)> PathReferences { get; } = [];
+
+        /// <summary>The node references of processor property values (the data type: of the declared property, null when not declared).</summary>
+        public List<PropertyReference> PropertyReferences { get; } = [];
 
         public List<string> Errors { get; } = [];
 

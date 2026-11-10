@@ -263,7 +263,8 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
                 $"The string processor requires exactly one of the field byte length, '{properties.FullName(ByteLengthProperty.Name)}' or '{properties.FullName(TerminatorProperty.Name)}'.");
         }
 
-        var characterSet = context.GetOrCreateState<CharacterSet>();
+        // a referenced value can differ per call: not cached
+        var characterSet = properties.HasReferences ? new CharacterSet() : context.GetOrCreateState<CharacterSet>();
         if (!characterSet.IsParsed)
         {
             characterSet.Parse(properties, encoding);
