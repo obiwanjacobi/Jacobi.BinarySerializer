@@ -67,10 +67,11 @@ internal sealed class PlanCursor<TScope>
     private bool _pendingAnnounced;
     private int _pendingItemIndex = -1;
 
-    private PlanRange? CurrentRange => _frames.Count > 0 ? _frames.Peek().Range : _range;
+    /// <summary>The range that filters the members of the current frame (null: no filtering).</summary>
+    public PlanRange? CurrentRange => _frames.Count > 0 ? _frames.Peek().Range : _range;
 
-    // the item indices of the repeats the range keys know about: those below the nearest open-choice body.
-    private InstancePath RangeInstance()
+    /// <summary>The item indices of the repeats the range keys know about: those below the nearest open-choice body.</summary>
+    public InstancePath RangeInstance()
     {
         var path = InstancePath.Empty;
         foreach (var frame in _frames.Reverse())
@@ -280,17 +281,35 @@ internal sealed class PlanCursor<TScope>
     }
 
     /// <summary>
-    /// Completes an EnterGroup step for an open choice: the selected body group is the only member of the choice.
+    /// Completes an EnterGroup step for an open choice with a memberNodeDef: the selected body group is the only member of the choice.
     /// </summary>
     /// <param name="range">Optional: a range over the body plan; null visits the whole body.</param>
     public void EnterOpenChoice(TScope scope, GroupInfo body, PlanRange? range = null)
     {
-        if (_pendingEnter is not ChoiceInfo { IsOpen: true } choice || !_pendingAnnounced || _pendingItemIndex >= 0)
+        if (_pendingEnter is not ChoiceInfo { IsOpen: true, MemberNodeDef: not null } choice || !_pendingAnnounced || _pendingItemIndex >= 0)
         {
-            throw _logger.Fail("EnterOpenChoice can only be called after an EnterGroup step for an open choice.", category: SerializationCategories.Schema);
+            throw _logger.Fail("EnterOpenChoice can only be called after an EnterGroup step for an open choice with a memberNodeDef.", category: SerializationCategories.Schema);
         }
 
         _frames.Push(new Frame(choice, scope, 0, 1) { Members = [body], Range = range, RangeRoot = true });
+        _pendingEnter = null;
+        _pendingAnnounced = false;
+    }
+
+    /// <summary>
+    /// Completes an EnterGroup step for an open choice with members: the selected member is the only one visited.
+    /// </summary>
+    /// <param name="scope">The scope that holds the values of the member (a field member is processed with it).</param>
+    /// <param name="index">The index of the selected member.</param>
+    /// <param name="range">Optional: a range of this plan inside the member; null keeps the current range.</param>
+    public void EnterOpenChoice(TScope scope, int index, PlanRange? range = null)
+    {
+        if (_pendingEnter is not ChoiceInfo { IsOpen: true, MemberNodeDef: null } choice || !_pendingAnnounced || _pendingItemIndex >= 0)
+        {
+            throw _logger.Fail("EnterOpenChoice can only be called after an EnterGroup step for an open choice with members.", category: SerializationCategories.Schema);
+        }
+
+        _frames.Push(new Frame(choice, scope, index, index + 1) { Range = range ?? CurrentRange });
         _pendingEnter = null;
         _pendingAnnounced = false;
     }

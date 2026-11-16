@@ -127,7 +127,6 @@ public class SessionRepeatWriteTests
             return new ItemSource(values, items, index, Entered);
         }
 
-        public int GetSelectedIndex(ChoiceContext context) => throw new NotSupportedException();
         public IValueSource EnterChoice(ChoiceContext context) => throw new NotSupportedException();
     }
 }

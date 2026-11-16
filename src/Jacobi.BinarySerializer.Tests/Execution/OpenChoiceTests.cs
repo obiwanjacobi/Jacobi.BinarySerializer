@@ -389,7 +389,7 @@ public class OpenChoiceTests
     public void Read_OpenChoiceTarget_ReadsOnlyTheTargetGroup()
     {
         var serializer = CreateSerializer(TargetSchema);
-        var sink = new OpenSink { FromTarget = new SchemaPath("BodyA.Part") };
+        var sink = new OpenSink { Begin = new SchemaPath("BodyA.Part") };
 
         var read = serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x01, 0x02, 0x03]), sink);
 
@@ -398,15 +398,43 @@ public class OpenChoiceTests
     }
 
     [Test]
-    public void Read_OpenChoiceTargetWithoutGroup_ResolvesTheBodyFromTheTarget()
+    public void Result_WithoutMember_Throws()
     {
-        var serializer = CreateSerializer(TargetSchema);
-        var sink = new OpenSink { Selected = default, FromTarget = new SchemaPath("BodyA.Part") };
+        var sink = new PlainSink();
 
-        var read = serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x01, 0x02, 0x03]), sink);
+        Assert.Throws<ArgumentException>(() => OpenChoiceSinkResult.Select(sink, default));
+        Assert.Throws<ArgumentException>(() => OpenChoiceSinkResult.SelectNode(sink, default, new SchemaPath("BodyA.Part")));
+    }
 
-        Assert.That(sink.Fields, Is.EqualTo(new[] { "BodyA.Part.P1=1", "BodyA.Part.P2=2" }));
-        Assert.That(read, Is.EqualTo(2));
+    [Test]
+    public void Result_WithoutTarget_Throws()
+    {
+        var sink = new PlainSink();
+
+        Assert.Throws<ArgumentException>(() => OpenChoiceSinkResult.SelectNode(sink, new SchemaName("BodyA"), default));
+        Assert.Throws<ArgumentException>(() => OpenChoiceSinkResult.SelectRange(sink, new SchemaName("BodyA"), default, default, new SchemaPath("BodyA.Tail"), default));
+        Assert.Throws<ArgumentException>(() => OpenChoiceSinkResult.SelectRange(sink, new SchemaName("BodyA"), new SchemaPath("BodyA.Part"), default, default, default));
+    }
+
+    [Test]
+    public void Result_SelectNode_EndsAtTheEndOfTheNode()
+    {
+        var result = OpenChoiceSinkResult.SelectNode(new PlainSink(), new SchemaName("BodyA"), new SchemaPath("BodyA.Part"), new InstancePath([1]));
+
+        Assert.That((result.Begin.Value, result.BeginInstance, result.End.IsEmpty, result.EndInstance.IsEmpty),
+            Is.EqualTo(("BodyA.Part", new InstancePath([1]), true, true)));
+    }
+
+    [Test]
+    public void Result_WithScope_KeepsTheSelection()
+    {
+        var other = new PlainSink();
+        var result = OpenChoiceSinkResult.SelectRange(new PlainSink(), new SchemaName("BodyA"),
+            new SchemaPath("BodyA.Part"), new InstancePath([1]), new SchemaPath("BodyA.Tail"), default).WithScope(other);
+
+        Assert.That(result.Scope, Is.SameAs(other));
+        Assert.That((result.Member.Name, result.Begin.Value, result.BeginInstance, result.End.Value),
+            Is.EqualTo(("BodyA", "BodyA.Part", new InstancePath([1]), "BodyA.Tail")));
     }
 
     [Test]
@@ -424,7 +452,7 @@ public class OpenChoiceTests
     public void Read_OpenChoiceTargetNotInBody_Throws()
     {
         var serializer = CreateSerializer(TargetSchema);
-        var sink = new OpenSink { FromTarget = new SchemaPath("BodyA.Nope") };
+        var sink = new OpenSink { Begin = new SchemaPath("BodyA.Nope") };
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x01, 0x02, 0x03]), sink));
@@ -472,7 +500,7 @@ public class OpenChoiceTests
     public void Read_OpenChoiceTargetInstance_ReadsOnlyThatItem()
     {
         var serializer = CreateSerializer(TargetInstanceSchema);
-        var sink = new OpenSink { FromTarget = new SchemaPath("BodyA.Items.Part"), FromInstance = new InstancePath([1]) };
+        var sink = new OpenSink { Begin = new SchemaPath("BodyA.Items.Part"), BeginInstance = new InstancePath([1]) };
 
         var read = serializer.Deserialize(new SchemaName("TargetInstanceTest.Root"), new ReadOnlySequence<byte>([0x07, 0x08]), sink);
 
@@ -485,7 +513,7 @@ public class OpenChoiceTests
     public void Read_OpenChoiceTargetWithoutInstance_ReadsAllItems()
     {
         var serializer = CreateSerializer(TargetInstanceSchema);
-        var sink = new OpenSink { FromTarget = new SchemaPath("BodyA.Items.Part") };
+        var sink = new OpenSink { Begin = new SchemaPath("BodyA.Items.Part") };
 
         var read = serializer.Deserialize(new SchemaName("TargetInstanceTest.Root"), new ReadOnlySequence<byte>([1, 2, 3, 4, 5, 6]), sink);
 
@@ -497,7 +525,7 @@ public class OpenChoiceTests
     public void Write_OpenChoiceTargetInstance_WritesOnlyThatItem()
     {
         var serializer = CreateSerializer(TargetInstanceSchema);
-        var source = new OpenSource { FromTarget = new SchemaPath("BodyA.Items.Part"), FromInstance = new InstancePath([2]) };
+        var source = new OpenSource { Begin = new SchemaPath("BodyA.Items.Part"), BeginInstance = new InstancePath([2]) };
         var writer = new ArrayBufferWriter<byte>();
 
         serializer.Serialize(new SchemaName("TargetInstanceTest.Root"), source, writer);
@@ -510,7 +538,7 @@ public class OpenChoiceTests
     public void Read_OpenChoiceFieldTarget_ReadsOnlyThatField()
     {
         var serializer = CreateSerializer(TargetSchema);
-        var sink = new OpenSink { FromTarget = new SchemaPath("BodyA.Part.P2") };
+        var sink = new OpenSink { Begin = new SchemaPath("BodyA.Part.P2") };
 
         var read = serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x02, 0x03]), sink);
 
@@ -522,7 +550,7 @@ public class OpenChoiceTests
     public void Read_OpenChoiceTargetRange_ReadsFromTheStartUpToTheEnd()
     {
         var serializer = CreateSerializer(TargetSchema);
-        var sink = new OpenSink { FromTarget = new SchemaPath("BodyA.Part.P2"), ToTarget = new SchemaPath("BodyA.Tail") };
+        var sink = new OpenSink { Begin = new SchemaPath("BodyA.Part.P2"), End = new SchemaPath("BodyA.Tail") };
 
         var read = serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x02, 0x03]), sink);
 
@@ -536,8 +564,8 @@ public class OpenChoiceTests
         var serializer = CreateSerializer(TargetInstanceSchema);
         var sink = new OpenSink
         {
-            FromTarget = new SchemaPath("BodyA.Items.Part.P2"), FromInstance = new InstancePath([0]),
-            ToTarget = new SchemaPath("BodyA.Items.Part.P1"), ToInstance = new InstancePath([1]),
+            Begin = new SchemaPath("BodyA.Items.Part.P2"), BeginInstance = new InstancePath([0]),
+            End = new SchemaPath("BodyA.Items.Part.P1"), EndInstance = new InstancePath([1]),
         };
 
         var read = serializer.Deserialize(new SchemaName("TargetInstanceTest.Root"), new ReadOnlySequence<byte>([0x08, 0x09]), sink);
@@ -553,8 +581,8 @@ public class OpenChoiceTests
         var serializer = CreateSerializer(TargetInstanceSchema);
         var source = new OpenSource
         {
-            FromTarget = new SchemaPath("BodyA.Items.Part"), FromInstance = new InstancePath([1]),
-            ToTarget = new SchemaPath("BodyA.Items.Part"), ToInstance = new InstancePath([2]),
+            Begin = new SchemaPath("BodyA.Items.Part"), BeginInstance = new InstancePath([1]),
+            End = new SchemaPath("BodyA.Items.Part"), EndInstance = new InstancePath([2]),
         };
         var writer = new ArrayBufferWriter<byte>();
 
@@ -568,7 +596,7 @@ public class OpenChoiceTests
     public void Read_OpenChoiceTargetEndBeforeStart_Throws()
     {
         var serializer = CreateSerializer(TargetSchema);
-        var sink = new OpenSink { FromTarget = new SchemaPath("BodyA.Tail"), ToTarget = new SchemaPath("BodyA.Part") };
+        var sink = new OpenSink { Begin = new SchemaPath("BodyA.Tail"), End = new SchemaPath("BodyA.Part") };
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x01, 0x02, 0x03]), sink));
@@ -580,24 +608,12 @@ public class OpenChoiceTests
     public void Read_OpenChoiceTargetEndNotInBody_Throws()
     {
         var serializer = CreateSerializer(TargetSchema);
-        var sink = new OpenSink { FromTarget = new SchemaPath("BodyA.Part"), ToTarget = new SchemaPath("BodyA.Nope") };
+        var sink = new OpenSink { Begin = new SchemaPath("BodyA.Part"), End = new SchemaPath("BodyA.Nope") };
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x01, 0x02, 0x03]), sink));
 
         Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("BodyA.Nope"));
-    }
-
-    [Test]
-    public void Read_OpenChoiceTargetEndWithoutStart_Throws()
-    {
-        var serializer = CreateSerializer(TargetSchema);
-        var sink = new OpenSink { ToTarget = new SchemaPath("BodyA.Tail") };
-
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => serializer.Deserialize(new SchemaName("TargetTest.Root"), new ReadOnlySequence<byte>([0x01, 0x02, 0x03]), sink));
-
-        Assert.That(ex.Message, Does.Contain("Root.Msg").And.Contain("BodyA.Tail"));
     }
 
     private const string OpenRepeatBodySchema = """
@@ -944,7 +960,7 @@ public class OpenChoiceTests
     private sealed class OpenRepeatOpenSink(Func<OpenRepeatReadContext, OpenRepeatAction> next) : PlainSink, IOpenChoiceSink, IOpenRepeatSink
     {
         public OpenChoiceSinkResult EnterOpenChoice(OpenChoiceContext context)
-            => new(this, new SchemaName("BodyA"), default, default, default, default);
+            => OpenChoiceSinkResult.Select(this, new SchemaName("BodyA"));
 
         public OpenRepeatAction NextItem(OpenRepeatReadContext context) => next(context);
     }
@@ -953,15 +969,17 @@ public class OpenChoiceTests
     {
         public List<OpenChoiceContext> Contexts { get; } = [];
         public SchemaName Selected { get; init; } = new("BodyA");
-        public SchemaPath FromTarget { get; init; }
-        public SchemaPath ToTarget { get; init; }
-        public InstancePath FromInstance { get; init; }
-        public InstancePath ToInstance { get; init; }
+        public SchemaPath Begin { get; init; }
+        public SchemaPath End { get; init; }
+        public InstancePath BeginInstance { get; init; }
+        public InstancePath EndInstance { get; init; }
 
         public OpenChoiceSinkResult EnterOpenChoice(OpenChoiceContext context)
         {
             Contexts.Add(context);
-            return new OpenChoiceSinkResult(this, Selected, FromTarget, FromInstance, ToTarget, ToInstance);
+            return Begin.IsEmpty ? OpenChoiceSinkResult.Select(this, Selected)
+                : End.IsEmpty ? OpenChoiceSinkResult.SelectNode(this, Selected, Begin, BeginInstance)
+                : OpenChoiceSinkResult.SelectRange(this, Selected, Begin, BeginInstance, End, EndInstance);
         }
     }
 
@@ -976,22 +994,24 @@ public class OpenChoiceTests
         public IValueSource EnterGroup(GroupContext context) => this;
         public int GetCount(RepeatContext context) => throw new NotSupportedException();
         public IValueSource EnterItem(RepeatContext context, int index) => this;
-        public int GetSelectedIndex(ChoiceContext context) => throw new NotSupportedException();
         public IValueSource EnterChoice(ChoiceContext context) => this;
     }
 
     private sealed class OpenSource : PlainSource, IOpenChoiceSource
     {
         public List<OpenChoiceContext> Contexts { get; } = [];
-        public SchemaPath FromTarget { get; init; }
-        public SchemaPath ToTarget { get; init; }
-        public InstancePath FromInstance { get; init; }
-        public InstancePath ToInstance { get; init; }
+        public SchemaPath Begin { get; init; }
+        public SchemaPath End { get; init; }
+        public InstancePath BeginInstance { get; init; }
+        public InstancePath EndInstance { get; init; }
 
         public OpenChoiceSourceResult EnterOpenChoice(OpenChoiceContext context)
         {
             Contexts.Add(context);
-            return new OpenChoiceSourceResult(this, new SchemaName("BodyA"), FromTarget, FromInstance, ToTarget, ToInstance);
+            var member = new SchemaName("BodyA");
+            return Begin.IsEmpty ? OpenChoiceSourceResult.Select(this, member)
+                : End.IsEmpty ? OpenChoiceSourceResult.SelectNode(this, member, Begin, BeginInstance)
+                : OpenChoiceSourceResult.SelectRange(this, member, Begin, BeginInstance, End, EndInstance);
         }
     }
 }

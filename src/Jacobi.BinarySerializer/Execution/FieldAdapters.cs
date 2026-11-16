@@ -14,12 +14,9 @@ internal sealed class FieldSourceAdapter(IFieldSource source) : IValueSource
     public IValueSource EnterItem(RepeatContext context, int index) => this;
     public IValueSource EnterChoice(ChoiceContext context) => this;
 
-    // TODO: counts and selected indexes come from published values (or derived by the engine), not from a flat model.
+    // TODO: counts come from published values (or derived by the engine), not from a flat model.
     public int GetCount(RepeatContext context)
         => throw new NotSupportedException($"'{context.Path}': a flat field source cannot provide a repeat count.");
-
-    public int GetSelectedIndex(ChoiceContext context)
-        => throw new NotSupportedException($"'{context.Path}': a flat field source cannot provide a choice index.");
 }
 
 internal sealed class FieldSinkAdapter(IFieldSink sink) : IValueSink

@@ -104,7 +104,6 @@ public class PngSchemaTests
         IValueSource IValueSource.EnterItem(RepeatContext context, int index) => this;
         IValueSource IValueSource.EnterChoice(ChoiceContext context) => this;
         public int GetCount(RepeatContext context) => -1;
-        public int GetSelectedIndex(ChoiceContext context) => throw new NotSupportedException();
 
         private readonly Dictionary<string, LogicalField> _values = [];
 

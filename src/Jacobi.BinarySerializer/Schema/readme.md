@@ -107,7 +107,7 @@ Every node has a `name`, a `kind` and optional `properties`.
 | `field` | A single value. | `type`, `value`, `byteLength`, `byteOffset`, `processors` |
 | `group` | An ordered sequence of members. | `members`, `byteSize` (physical size in bytes of the encoded content), `processors` |
 | `repeat` | A group that repeats. | `count` (constant or reference); no count means until the end of the data. `valueProcessors` convert a referenced count. |
-| `choice` | A group where exactly one member is used. | `selectedIndex` (constant or reference), `valueProcessors` |
+| `choice` | A group where exactly one member is used. | `selectedIndex` (constant or reference; without it the value model selects: an [open choice](#open-choice)), `valueProcessors` |
 
 Nodes are addressed by path (`Png.Chunk.Body.Type`).
 
@@ -132,46 +132,65 @@ The members below are part of the schema model itself (as opposed to the free-fo
 | `members` | group, repeat, choice | The ordered child nodes. | Structure. A repeat repeats all its members as one item; a choice has one alternative per member. |
 | `byteSize` | group, repeat, choice | The physical size in bytes of the encoded content (constant or reference). The reader limits the content to that window; the writer derives the value from the encoded content. | Length-prefixed blocks (PNG chunk data, MIDI track). A repeat with a `byteSize` and no `count` repeats until the window is full. |
 | `count` | repeat | The number of items (constant or reference). No count: repeat until the end of the data (or of the `byteSize` window). A count-less repeat followed by other nodes is ended by the value model (`IOpenRepeatSink`) on read. | Item counts stored in the data, fixed-size arrays, until-the-end lists, or terminated lists. |
-| `selectedIndex` | choice | The zero-based index of the used alternative (constant or reference). | Pick a variant from a discriminator (type byte, tag). |
+| `selectedIndex` | choice | The zero-based index of the used alternative (constant or reference). Without it the choice is [open](#open-choice): the value model selects the alternative. | Pick a variant from a discriminator (type byte, tag). |
 | `valueProcessors` | repeat, choice | Semantic processors that convert the referenced value to the count/index (read direction). | Convert a discriminator that is not a number (`sys.map` of a FourCC string, `sys.bits` of a status byte) to the index. |
 | `processors` | group, repeat, choice | Layout processors; child nodes inherit them unless they specify their own for that stage. | Alignment, byte order, CRC over a whole group. |
 
 #### Open choice
 
-A choice with `memberNodeDef` (instead of `members`) is *open*: an envelope with a body slot whose group is selected by the value model, not by the schema. The nodeDef is the contract.
+A choice without a `selectedIndex` is *open*: the value model selects the alternative, not the schema. Its alternatives are either:
+- its `members`: the value model selects one of them by name (e.g. one entry of several of the same structure, where nothing in the data says which), or
+- the groups that conform to its `memberNodeDef` (instead of `members`): an envelope with a body slot, whose body is a schema root. The nodeDef is the contract.
 
-Rules:
+Rules for both:
+- The value model must implement `IOpenChoiceSink` (read) / `IOpenChoiceSource` (write); read and write work the same. `EnterOpenChoice` gets an `OpenChoiceContext` (its `MemberNodeDef` is null for a choice with members) and returns the selection, made with a factory method of `OpenChoiceSinkResult` / `OpenChoiceSourceResult`:
+  - `Select(scope, member)`: the whole member;
+  - `SelectNode(scope, member, target, instance)`: one node inside a member that is a group (see targets below);
+  - `SelectRange(scope, member, begin, beginInstance, end, endInstance)`: the nodes from `begin` up to `end` inside a member that is a group;
+  - `WithScope(scope)`: the same selection with another scope (e.g. a wrapper).
+- `Member` names the selected member. `Scope` is the scope the engine uses for it: for a group, a choice (with a `selectedIndex`) or a body its own scope, which the engine enters without a further `EnterGroup`/`EnterChoice` (and on read calls `ExitGroup`/`ExitChoice` on it); for a field or a repeat the scope the engine calls `GetField`/`SetField`, or `GetCount`/`EnterItem`, on for that member. It may be a scope dedicated to the member. A member that is an open choice itself selects its own member with `EnterOpenChoice` on that scope.
+- Without the interface the engine fails, naming the choice path. An unknown member throws a `SerializationException` (category `schema`) naming the choice path.
+- `valueProcessors` without a `selectedIndex` is a compile error: there is no index to convert.
+- An open choice cannot be the root of a schema. Open choices can be nested.
+
+Rules for a choice with members:
+- A member is selected by its name (not qualified with the document); the error for an unknown name lists the members.
+- The members are part of the plan of the choice (paths like `Root.Sel.melodic.Items`), so a range of the plan can begin or end inside them like anywhere else.
+- Processors and `byteSize` of the choice apply as for a choice with a `selectedIndex`.
+
+Rules for a choice with a `memberNodeDef`:
 - `memberNodeDef` names a nodeDef of kind `group`: the contract. The envelope only uses its name; the bodies that declare it depend on it. So:
   - A local name (see [Name resolution](#name-resolution)) is checked at compile: the compiler rejects a missing nodeDef or one of another kind. This is the usual setup: the contract lives in the envelope's document and the body documents refer to it.
   - A name qualified with another document is not resolved at compile and does not make that document a dependency, so a generic envelope compiles without it. A body that declares the contract does depend on its document. When no loaded root conforms (e.g. a typo), entering the open choice fails with "no group in the plan conforms".
-- An open choice has no `members`, `selectedIndex` or `valueProcessors`: the value model selects the group. Setting any of them (directly or through a choice nodeDef) is a compile error.
-- `byteSize` on an open choice works as on any group: the reader limits the selected body to that window (the body must fill it), the writer checks the encoded body against it.
-- `pipeline` (open choice only) is `integrate` (default) or `isolate`. With `integrate` the selected body is built under the pipeline of the choice, so it inherits the processors of the choice and its ancestors like a nested group (layout scopes of the ancestors stay open around the body, and the body's fields read through the inherited layout chain). With `integrate` the `processors` of the open choice itself also apply to the body (e.g. a `sys.align` on the choice aligns the body's fields); the choice opens no layout scope of its own, so end-of-group padding is not added after the body. With `isolate` the body has its own pipeline: nothing of the envelope applies, and `processors` on the open choice are a compile error. Setting `pipeline="isolate"` on a choice that is not open is a compile error. The JSON/XML property is omitted when it is `integrate`.
+- It has no `members`, `selectedIndex` or `valueProcessors`. Setting any of them (directly or through a choice nodeDef) is a compile error.
+- `byteSize` works as on any group: the reader limits the selected body to that window (the body must fill it), the writer checks the encoded body against it.
+- `pipeline` (only for a choice with a `memberNodeDef`) is `integrate` (default) or `isolate`. With `integrate` the selected body is built under the pipeline of the choice, so it inherits the processors of the choice and its ancestors like a nested group (layout scopes of the ancestors stay open around the body, and the body's fields read through the inherited layout chain). With `integrate` the `processors` of the open choice itself also apply to the body (e.g. a `sys.align` on the choice aligns the body's fields); the choice opens no layout scope of its own, so end-of-group padding is not added after the body. With `isolate` the body has its own pipeline: nothing of the envelope applies, and `processors` on the open choice are a compile error. Setting `pipeline="isolate"` on any other choice is a compile error. The JSON/XML property is omitted when it is `integrate`.
 - A body is a schema root (a plain group) that declares `"nodeDef": "<name>"`. Repeat and choice roots are rejected.
-- The value model must implement `IOpenChoiceSink` (read) / `IOpenChoiceSource` (write) and return the scope plus the name of the selected group. Without the interface the engine fails, naming the choice path.
-- The group name is matched by full name (`document.name`), or by short name when exactly one conforming root has that name. An unknown or non-conforming group throws a `SerializationException` (category `schema`) naming the choice path and the nodeDef.
+- The member name is matched by full name (`document.name`), or by short name when exactly one conforming root has that name. An unknown or non-conforming group throws a `SerializationException` (category `schema`) naming the choice path and the nodeDef.
 - The engine builds the plans of all conforming roots when the envelope plan is created (also for nested open choices).
-- An open choice cannot be the root of a schema.
-- Open choice nodes can be nested.
 - A read or write with a range that includes the open choice enters it; a range that stops before it (or does not select it) legally skips it. An included open choice must have at least one conforming body in the plan, otherwise the engine throws, naming the choice path and the nodeDef.
-- A range applies to the envelope plan only. A selected body is read or written in full, unless the value model returns a target range inside the body: `FromTarget` and optionally `ToTarget`, each the path of a node (group or field) starting with the body root name (e.g. `BodyA.Part.Sub`). Then only the fields from the first field of `FromTarget` up to the last field of `ToTarget` (and the groups leading to them, so their layout and inherited properties apply) are visited. Without `ToTarget` the range ends at the end of `FromTarget`: only that node is visited.
-- A target inside repeats is narrowed to items with `FromInstance` and `ToInstance`: the item indices of the repeats around the target inside the body (outermost first, e.g. `[5]` for `BodyA.Items.Part`). Missing indices mean the first item (from) or the last item (to); without `ToTarget`, `FromInstance` applies to both ends. A range may run from a later field of an earlier item to an earlier field of a later item (e.g. `BodyA.Items.Part.P2[0]` to `BodyA.Items.Part.P1[1]`).
-- A target that is not a node inside the selected body, a `ToTarget` before `FromTarget`, or a `ToTarget` without a `FromTarget` throws, naming the choice path and the target.
+- A range applies to the envelope plan only: a body is a separate plan. A selected body is read or written in full, unless the value model selects a target inside it.
+
+Targets inside the selected member (a group, or a body):
+- `begin` and optionally `end` are each the path of a node (group or field) starting with the name of the member (e.g. `BodyA.Part.Sub`, `melodic.Items`). Only the fields from the first field of `begin` up to the last field of `end` (and the groups leading to them, so their layout and inherited properties apply) are visited. `SelectNode` has no `end`: only that node is visited.
+- A target inside repeats is narrowed to items with `beginInstance` and `endInstance`: the item indices of the repeats around the target inside the member (outermost first, e.g. `[5]` for `BodyA.Items.Part`). Missing indices mean the first item (begin) or the last item (end); for `SelectNode` the instance applies to both ends. A range may run from a later field of an earlier item to an earlier field of a later item (e.g. `BodyA.Items.Part.P2[0]` to `BodyA.Items.Part.P1[1]`). For a member of a choice inside repeats, the items of those repeats are the current ones.
+- A target in a member that is a field, a target that is not a node inside the selected member, or an `end` before `begin` throws, naming the choice path (and the target).
+- A target in a member of a choice with members is only allowed when the range of the read or write covers the whole choice (it does not begin or end inside it); otherwise it throws, naming the choice path. Without a target, such a range simply applies to the member.
 
 Querying the relation between open choices and their bodies:
 - `SchemaSet` (what the schemas declare): `FindConformingGroups(memberNodeDef | openChoice)` returns the plain root groups that declare the contract; `FindOpenChoices(memberNodeDef | body)` returns the open choices (at any depth in the roots) whose contract it is. A contract name must be qualified (`document.nodeDef`); a local, unqualified `memberNodeDef` is qualified with its own document before matching.
-- `ExecutionPlan` (what the plan resolves, nested open choices included): `OpenChoices` lists all open choices, `GetOpenChoiceBodies(choice)` returns the built bodies by full name, `FindOpenChoices(bodyName)` returns the open choices that can select a body (full name, or a unique short name, matched like the engine does). A body selected with `integrate` and `isolate` is built twice, so its nested open choices appear once per build. Plans not created from a `SchemaSet` return empty results.
+- `ExecutionPlan` (what the plan resolves, nested open choices included): `OpenChoices` lists all open choices with a `memberNodeDef`, `GetOpenChoiceBodies(choice)` returns the built bodies by full name, `FindOpenChoices(bodyName)` returns the open choices that can select a body (full name, or a unique short name, matched like the engine does). A body selected with `integrate` and `isolate` is built twice, so its nested open choices appear once per build. Plans not created from a `SchemaSet` return empty results.
 
-Limitations:
+Limitations (of a choice with a `memberNodeDef`):
 - Body paths are relative to the body root (e.g. `BodyA.Id`).
 - Referenced groups cannot (yet) influence the pipeline mode; only the open choice decides.
 - Body roots are not merged with the members of their nodeDef (nested nodes are); a body must list all its own members.
 - Only plans created from a `SchemaSet` have bodies; plans created from a single group or document cannot resolve an open choice.
 - Bodies are built when the envelope plan is created, not at schema compile time.
-- A range cannot address nodes inside a body (a body is a separate plan whose keys are relative to its own root). Use `FromTarget`/`FromInstance` and `ToTarget`/`ToInstance` to select a range inside the body.
+- A range cannot address nodes inside a body (a body is a separate plan whose keys are relative to its own root). Select a target inside the body instead (`SelectNode`, `SelectRange`).
 
 Address map (e.g. Roland SysEx, where an address and size point into a memory map):
-- The engine does not know the map. The value model that implements `IOpenChoiceSink`/`IOpenChoiceSource` holds it (or a processor it uses): it sees the header values already read or provided (e.g. `Address`, `Size`), looks up the address and returns the selected body group and, when the address and size point to nodes nested inside that body, the target range: `FromTarget` and `ToTarget` (with `FromInstance` and `ToInstance` when the nodes are inside a repeat).
+- The engine does not know the map. The value model that implements `IOpenChoiceSink`/`IOpenChoiceSource` holds it (or a processor it uses): it sees the header values already read or provided (e.g. `Address`, `Size`), looks up the address and returns the selected body group and, when the address and size point to nodes nested inside that body, the target range: `begin` and `end` (with `beginInstance` and `endInstance` when the nodes are inside a repeat).
 - Nested map levels are nested open choices, one decision per level, each made by the value model.
 - A body per map entry (or per address range) is declared in the schema as a root that conforms to the nodeDef.
 - Everything happens in one read or write call, so layout and stream processors see the whole message once. Splitting a message into several client-managed segments is not supported: layout windows and stream state are not resumable between calls.

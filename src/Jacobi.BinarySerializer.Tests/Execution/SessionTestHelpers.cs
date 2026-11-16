@@ -200,7 +200,6 @@ internal sealed class DictSource(Dictionary<string, object?> values, List<string
 
     public int GetCount(RepeatContext context) => throw new NotSupportedException();
     public IValueSource EnterItem(RepeatContext context, int index) => throw new NotSupportedException();
-    public int GetSelectedIndex(ChoiceContext context) => throw new NotSupportedException();
     public IValueSource EnterChoice(ChoiceContext context)
     {
         events?.Add($"Enter:{context.Path}");

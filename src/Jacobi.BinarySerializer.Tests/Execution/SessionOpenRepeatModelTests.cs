@@ -251,7 +251,6 @@ public class SessionOpenRepeatModelTests
             return this;
         }
 
-        public int GetSelectedIndex(ChoiceContext context) => throw new NotSupportedException();
         public IValueSource EnterChoice(ChoiceContext context) => throw new NotSupportedException();
     }
 
@@ -269,7 +268,6 @@ public class SessionOpenRepeatModelTests
         public IValueSource EnterGroup(GroupContext context) => new HierarchicalSource(items, level + 1);
         public int GetCount(RepeatContext context) => -1;
         public IValueSource EnterItem(RepeatContext context, int index) => new HierarchicalSource(items, level + 1, index);
-        public int GetSelectedIndex(ChoiceContext context) => throw new NotSupportedException();
         public IValueSource EnterChoice(ChoiceContext context) => throw new NotSupportedException();
     }
 }

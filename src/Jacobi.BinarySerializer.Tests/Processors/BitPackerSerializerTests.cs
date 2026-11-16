@@ -556,7 +556,6 @@ public class BitPackerSerializerTests
         public void SetField(FieldContext context, LogicalField value) => Values[$"{context.Path}{context.Instance}"] = value.Value;
 
         public int GetCount(RepeatContext context) => -1;
-        public int GetSelectedIndex(ChoiceContext context) => throw new NotSupportedException();
 
         IValueSource IValueSource.EnterGroup(GroupContext context) => this;
         IValueSource IValueSource.EnterItem(RepeatContext context, int index) => this;

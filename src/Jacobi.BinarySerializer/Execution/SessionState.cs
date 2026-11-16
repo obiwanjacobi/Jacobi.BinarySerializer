@@ -166,6 +166,38 @@ public closed class SessionState
     public void Publish(SchemaPath path, InstancePath instance, object? value) => Publish(PublishedValueKey.ForPath(path, instance), value);
 
     /// <summary>
+    /// The member of an open choice with members that the value model selected (read and write alike): its index, the
+    /// member when it is a group (entered with the model's scope) and the range of the target inside it (null: the
+    /// current range applies). A target needs a member that is a group, and a current range that covers the whole
+    /// choice (one that does not begin or end inside it).
+    /// </summary>
+    /// <param name="current">The range of the read or write at the choice (null: no range).</param>
+    /// <param name="above">The item indices of the repeats above the choice that the range keys know about.</param>
+    internal (int Index, GroupInfo? Group, PlanRange? Range) SelectOpenChoiceMember(ExecutionPlan plan, ChoiceInfo choice,
+        SchemaName member, SchemaPath begin, InstancePath beginInstance, SchemaPath end, InstancePath endInstance,
+        PlanRange? current, InstancePath above)
+    {
+        var node = plan.ResolveOpenChoiceMember(choice, member);
+        PlanRange? range = null;
+        if (!begin.IsEmpty || !end.IsEmpty)
+        {
+            if (node is not GroupInfo group)
+            {
+                throw EngineLogger.Fail(
+                    $"'{choice.Path}': the selected member '{node.Name}' is a field: it has no nodes to target.", category: SerializationCategories.Schema);
+            }
+            if (current is not null && current.BeginsOrEndsInside(choice, above))
+            {
+                throw EngineLogger.Fail(
+                    $"'{choice.Path}': the range begins or ends inside the open choice, so its member '{node.Name}' cannot be narrowed to a target as well.", category: SerializationCategories.Schema);
+            }
+            range = plan.CreateOpenChoiceRange(choice, group, begin, beginInstance, end, endInstance, above);
+        }
+        EngineLogger.ChoiceSelected(choice.Path.ToString(), node.Index);
+        return (node.Index, node as GroupInfo, range);
+    }
+
+    /// <summary>
     /// Resolves the count/index of a repeat or choice: the constant or published value, converted by the value processors of the node (if any).
     /// The processors always run in the read direction: the referenced value is the input, the int the output.
     /// </summary>

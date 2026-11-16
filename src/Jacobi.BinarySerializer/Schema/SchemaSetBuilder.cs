@@ -504,6 +504,11 @@ public sealed class SchemaSetBuilder
             {
                 ValidateOpenChoice(openChoice, referrer);
             }
+            else if (node is SchemaChoice { ValueProcessors.Count: > 0 } memberChoice && memberChoice.SelectedIndex is not (int or SchemaNodeRef or SchemaPubRef))
+            {
+                throw new InvalidOperationException(
+                    $"{referrer} sets valueProcessors without a selectedIndex: it is an open choice, whose member the value model selects, so there is no selectedIndex to convert.");
+            }
 
             // only a local contract is checked here; a contract in another document is a name that the bodies resolve (they depend on it)
             if (node is SchemaChoice { MemberNodeDef: { } memberNodeDef } && IsLocal(document, memberNodeDef))

@@ -89,7 +89,6 @@ public class SessionRangeInstanceTests
         public IValueSource EnterGroup(GroupContext context) => this;
         public int GetCount(RepeatContext context) => 4;
         public IValueSource EnterItem(RepeatContext context, int index) => this;
-        public int GetSelectedIndex(ChoiceContext context) => throw new NotSupportedException();
         public IValueSource EnterChoice(ChoiceContext context) => throw new NotSupportedException();
     }
 }

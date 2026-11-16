@@ -323,7 +323,6 @@ public class BitLayoutSessionTests
         public int GetCount(RepeatContext context) => Count;
         public IValueSource EnterItem(RepeatContext context, int index) => this;
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
-        public int GetSelectedIndex(ChoiceContext context) => 0;
         public IValueSource EnterChoice(ChoiceContext context) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
         public void ExitGroup(GroupContext context) { }

@@ -53,8 +53,8 @@ public sealed class ExecutionPlan
     }
 
     /// <summary>
-    /// All open choices of the plan: those of the root (in schema order) and those nested in their bodies.
-    /// Empty for a plan that was not created from a <see cref="SchemaSet"/>.
+    /// All open choices of the plan that select a body (with a memberNodeDef): those of the root (in schema order) and
+    /// those nested in their bodies. Empty for a plan that was not created from a <see cref="SchemaSet"/>.
     /// </summary>
     public IReadOnlyList<ChoiceInfo> OpenChoices => _openChoices;
 
@@ -106,72 +106,98 @@ public sealed class ExecutionPlan
     /// Finds the plan of the group a value model selected for an open choice.
     /// The group must be a schema root that conforms to the nodeDef of the open choice.
     /// </summary>
-    internal GroupInfo ResolveOpenChoiceBody(ChoiceInfo choice, SchemaName selected, SchemaPath target = default)
+    internal GroupInfo ResolveOpenChoiceBody(ChoiceInfo choice, SchemaName selected)
     {
-        if (_openChoiceBodies.TryGetValue(choice, out var bodies))
+        if (_openChoiceBodies.TryGetValue(choice, out var bodies) && TryMatchBody(bodies.Keys, selected, out var match))
         {
-            if (String.IsNullOrEmpty(selected.Name) && !target.IsEmpty)
-            {
-                selected = new SchemaName(target.Segments.First());
-            }
-            if (TryMatchBody(bodies.Keys, selected, out var match))
-            {
-                return bodies[match];
-            }
+            return bodies[match];
         }
 
-        var contract = ((SchemaChoice)choice.Group).MemberNodeDef;
         throw new SerializationException(
-            $"'{choice.Path}': the group '{selected}' provided by the client-model, is not a known group that conforms to the nodeDef '{contract}' of the open choice.",
+            $"'{choice.Path}': the group '{selected}' provided by the client-model, is not a known group that conforms to the nodeDef '{choice.MemberNodeDef}' of the open choice.",
             SerializationCategories.Schema, SerializationException.EngineOrigin, null, null, null);
     }
 
     /// <summary>
-    /// Creates the range of the target nodes inside a body of an open choice (null for an empty from-target: the whole body):
-    /// from the first field of <paramref name="from"/> up to the last field of <paramref name="to"/>
-    /// (an empty to-target: the end of <paramref name="from"/>, at the items of <paramref name="fromInstance"/>).
-    /// The instances select the items of the repeats around the targets inside the body (empty: from the first, up to the last item).
+    /// Finds the member a value model selected for an open choice with members, by its name.
     /// </summary>
-    internal PlanRange? CreateOpenChoiceRange(ChoiceInfo choice, GroupInfo body,
-        SchemaPath from, InstancePath fromInstance = default, SchemaPath to = default, InstancePath toInstance = default)
+    internal NodeInfo ResolveOpenChoiceMember(ChoiceInfo choice, SchemaName selected)
     {
-        if (from.IsEmpty)
+        if (String.IsNullOrEmpty(selected.Namespace)
+            && choice.Members.FirstOrDefault(member => String.Equals(member.Name, selected.Name, StringComparison.Ordinal)) is { } match)
         {
-            if (!to.IsEmpty)
+            return match;
+        }
+
+        throw new SerializationException(
+            $"'{choice.Path}': the member '{selected}' provided by the client-model, is not a member of the open choice ({String.Join(", ", choice.Members.Select(member => member.Name))}).",
+            SerializationCategories.Schema, SerializationException.EngineOrigin, null, null, null);
+    }
+
+    /// <summary>
+    /// Creates the range of the target nodes inside the group selected for an open choice (null for an empty begin
+    /// target: the whole group): from the first field of <paramref name="begin"/> up to the last field of
+    /// <paramref name="end"/> (an empty end target: the end of <paramref name="begin"/>, at the items of
+    /// <paramref name="beginInstance"/>). The targets start with the name of the selected group. The instances select
+    /// the items of the repeats around the targets inside the selected group (empty: from the first, up to the last
+    /// item). For a member of the choice, <paramref name="above"/> holds the items of the repeats above the choice (the
+    /// selected group is part of the plan the range is of); a body is a plan of its own.
+    /// </summary>
+    internal PlanRange? CreateOpenChoiceRange(ChoiceInfo choice, GroupInfo selected,
+        SchemaPath begin, InstancePath beginInstance, SchemaPath end, InstancePath endInstance, InstancePath above = default)
+    {
+        if (begin.IsEmpty)
+        {
+            if (!end.IsEmpty)
             {
                 throw new InvalidOperationException(
-                    $"'{choice.Path}': the target end '{to}' is given without a target start.");
+                    $"'{choice.Path}': the target end '{end}' is given without a target begin.");
             }
             return null;
         }
 
-        if (to.IsEmpty)
+        if (end.IsEmpty)
         {
-            to = from;
-            toInstance = fromInstance;
+            end = begin;
+            endInstance = beginInstance;
         }
 
-        var first = FindTarget(choice, body, from);
-        var last = FindTarget(choice, body, to);
+        var first = FindTarget(choice, selected, begin);
+        var last = FindTarget(choice, selected, end);
         try
         {
-            return new PlanRange(this, first, fromInstance, last, toInstance);
+            return new PlanRange(this, first, Concat(above, beginInstance), last, Concat(above, endInstance));
         }
         catch (ArgumentException exception)
         {
-            throw new InvalidOperationException($"'{choice.Path}': the target '{from}{fromInstance}' to '{to}{toInstance}' is not a range inside the selected group '{body.Path}': {exception.Message}", exception);
+            throw new InvalidOperationException($"'{choice.Path}': the target '{begin}{beginInstance}' to '{end}{endInstance}' is not a range inside the selected group '{selected.Name}': {exception.Message}", exception);
         }
     }
 
-    private static NodeInfo FindTarget(ChoiceInfo choice, GroupInfo body, SchemaPath target)
-        => Find(body, target) is { } node
+    // a target starts with the name of the selected group: the path of a body, relative to the choice for a member
+    private static NodeInfo FindTarget(ChoiceInfo choice, GroupInfo selected, SchemaPath target)
+    {
+        var path = selected.Parent is null ? target : new SchemaPath($"{choice.Path}{SchemaPath.Separator}{target}");
+        return Find(selected, path) is { } node
             ? node
             : throw new InvalidOperationException(
-                $"'{choice.Path}': the target '{target}' is not a node inside the selected group '{body.Path}'.");
+                $"'{choice.Path}': the target '{target}' is not a node inside the selected group '{selected.Name}'.");
+    }
+
+    private static InstancePath Concat(InstancePath first, InstancePath second)
+    {
+        var path = first;
+        foreach (var index in second.AsSpan())
+        {
+            path = path.Append(index);
+        }
+        return path;
+    }
 
     /// <summary>
-    /// Checks the open choices a read or write visits: an open choice outside the range is skipped,
-    /// an open choice inside the range must have at least one group in the plan that conforms to its memberNodeDef.
+    /// Checks the open choices with a memberNodeDef a read or write visits: an open choice outside the range is
+    /// skipped, an open choice inside the range must have at least one group in the plan that conforms to its
+    /// memberNodeDef.
     /// </summary>
     internal void ValidateOpenChoices(PlanRange? range, ILogger logger)
         => ValidateOpenChoices(Root, range, logger);
@@ -180,9 +206,8 @@ public sealed class ExecutionPlan
     {
         foreach (var member in group.Members)
         {
-            if (member is ChoiceInfo { IsOpen: true } open)
+            if (member is ChoiceInfo { MemberNodeDef: { } contract } open)
             {
-                var contract = ((SchemaChoice)open.Group).MemberNodeDef!.Value;
                 if (range is not null && !range.IncludesAny(open))
                 {
                     continue;
@@ -226,14 +251,14 @@ public sealed class ExecutionPlan
     }
 
     /// <summary>
-    /// Creates a range of fields to write or read: from the first field of <paramref name="fromPath"/> to the last field of <paramref name="toPath"/>.
+    /// Creates a range of fields to write or read: from the first field of <paramref name="beginPath"/> to the last field of <paramref name="endPath"/>.
     /// Each path is a field or a group (a group stands for its first or last field).
     /// </summary>
-    public PlanRange CreateRange(SchemaPath fromPath, SchemaPath toPath)
+    public PlanRange CreateRange(SchemaPath beginPath, SchemaPath endPath)
     {
-        var from = Find(fromPath) ?? throw new ArgumentException($"There is no node '{fromPath}' in the plan.", nameof(fromPath));
-        var to = Find(toPath) ?? throw new ArgumentException($"There is no node '{toPath}' in the plan.", nameof(toPath));
-        return new PlanRange(this, from, to);
+        var begin = Find(beginPath) ?? throw new ArgumentException($"There is no node '{beginPath}' in the plan.", nameof(beginPath));
+        var end = Find(endPath) ?? throw new ArgumentException($"There is no node '{endPath}' in the plan.", nameof(endPath));
+        return new PlanRange(this, begin, end);
     }
 
     /// <summary>
@@ -250,14 +275,14 @@ public sealed class ExecutionPlan
     }
 
     /// <summary>
-    /// Creates a range whose bounds are inside repeats: 
-    /// of each repeat on the way (outermost first). Missing indices mean the first (from) or last (to) item.
+    /// Creates a range whose bounds are inside repeats: the instances hold the item index
+    /// of each repeat on the way (outermost first). Missing indices mean the first (begin) or last (end) item.
     /// </summary>
-    public PlanRange CreateRange(SchemaPath fromPath, InstancePath fromInstance, SchemaPath toPath, InstancePath toInstance)
+    public PlanRange CreateRange(SchemaPath beginPath, InstancePath beginInstance, SchemaPath endPath, InstancePath endInstance)
     {
-        var from = Find(fromPath) ?? throw new ArgumentException($"There is no node '{fromPath}' in the plan.", nameof(fromPath));
-        var to = Find(toPath) ?? throw new ArgumentException($"There is no node '{toPath}' in the plan.", nameof(toPath));
-        return new PlanRange(this, from, fromInstance, to, toInstance);
+        var begin = Find(beginPath) ?? throw new ArgumentException($"There is no node '{beginPath}' in the plan.", nameof(beginPath));
+        var end = Find(endPath) ?? throw new ArgumentException($"There is no node '{endPath}' in the plan.", nameof(endPath));
+        return new PlanRange(this, begin, beginInstance, end, endInstance);
     }
 
     public static ExecutionPlan Create(SchemaSet schemas, SchemaName schemaName, IProcessorProvider processorProvider, DataTypeRegistry? dataTypes = null)
@@ -367,7 +392,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
     {
         foreach (var member in group.Members)
         {
-            if (member is ChoiceInfo { IsOpen: true } open)
+            if (member is ChoiceInfo { MemberNodeDef: not null } open)
             {
                 yield return open;
             }

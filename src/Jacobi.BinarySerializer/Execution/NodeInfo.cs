@@ -146,10 +146,19 @@ public sealed class RepeatInfo : GroupInfo
 public sealed class ChoiceInfo : GroupInfo
 {
     /// <summary>
-    /// True for an open choice: it has no alternatives in the schema, the value model selects the group (see <see cref="SchemaChoice.MemberNodeDef"/>).
+    /// True for an open choice: the schema gives no selected index, the value model selects the alternative
+    /// (<see cref="IOpenChoiceSink"/>, <see cref="IOpenChoiceSource"/>): one of its members, or, with a
+    /// <see cref="MemberNodeDef"/>, a group that conforms to it.
     /// </summary>
-    public bool IsOpen => ((SchemaChoice)Group).MemberNodeDef is not null;
+    public bool IsOpen => SelectedIndex is not (int or PublishedValueKey);
 
+    /// <summary>
+    /// The contract of an open choice without members: the nodeDef the selected group (a schema root, the body) must
+    /// conform to. Null for a choice whose alternatives are its members.
+    /// </summary>
+    public SchemaName? MemberNodeDef => ((SchemaChoice)Group).MemberNodeDef;
+
+    /// <summary>The index of the alternative (constant or reference); none for an open choice.</summary>
     public required ValueSource<int> SelectedIndex { get; init; }
 }
 

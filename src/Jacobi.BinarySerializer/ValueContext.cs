@@ -44,16 +44,18 @@ public sealed class ChoiceContext : ValueContext
 }
 
 /// <summary>
-/// Describes an open choice: a choice without alternatives in the schema, only a nodeDef contract the chosen group must conform to.
+/// Describes an open choice: a choice without a selected index in the schema, whose member the value model selects:
+/// one of its members (<see cref="ChoiceInfo.Members"/>), or a group that conforms to its nodeDef contract
+/// (<see cref="MemberNodeDef"/>).
 /// </summary>
 public sealed class OpenChoiceContext : ValueContext
 {
     public ChoiceInfo Choice => (ChoiceInfo)Node;
 
     /// <summary>
-    /// The nodeDef (contract) the selected group must conform to.
+    /// The nodeDef (contract) the selected group must conform to; null when the members of the choice are its alternatives.
     /// </summary>
-    public SchemaName? MemberNodeDef => ((SchemaChoice)Choice.Group).MemberNodeDef;
+    public SchemaName? MemberNodeDef => Choice.MemberNodeDef;
 }
 
 /// <summary>

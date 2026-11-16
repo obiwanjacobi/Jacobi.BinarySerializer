@@ -202,23 +202,39 @@ internal sealed class ReaderSession : SessionState
                         else if (_openBody is { } openBody && ReferenceEquals(openBody.Group, group))
                         {
                             _openBody = null;
-                            cursor.Enter(openBody.Scope);
+                            if (group is ChoiceInfo memberChoice)
+                            {
+                                cursor.Enter(openBody.Scope, SelectChoice(memberChoice));
+                            }
+                            else
+                            {
+                                cursor.Enter(openBody.Scope);
+                            }
                         }
                         else if (group is ChoiceInfo { IsOpen: true } openChoice)
                         {
                             var openSink = step.Scope as IOpenChoiceSink
                                 ?? throw EngineLogger.Fail($"'{openChoice.Path}': the value model does not implement {nameof(IOpenChoiceSink)}, which an open choice requires.", category: SerializationCategories.Schema);
                             var selected = openSink.EnterOpenChoice(new OpenChoiceContext { Node = openChoice, Services = _services, Instance = _instance });
-                            var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Group, selected.FromTarget);
-                            _openBody = (body, selected.Scope);
-                            _bodyEndsAtInputEnd.Push(RepeatInfo.IsLast(openChoice, BodyEndsAtInputEnd));
-                            cursor.EnterOpenChoice(step.Scope, body, _plan.CreateOpenChoiceRange(openChoice, body, selected.FromTarget, selected.FromInstance, selected.ToTarget, selected.ToInstance));
+                            if (openChoice.MemberNodeDef is null)
+                            {
+                                var (index, member, memberRange) = SelectOpenChoiceMember(_plan, openChoice, selected.Member,
+                                    selected.Begin, selected.BeginInstance, selected.End, selected.EndInstance, cursor.CurrentRange, cursor.RangeInstance());
+                                _choiceIndexes.Push(index);
+                                _openBody = member is null or RepeatInfo or ChoiceInfo { IsOpen: true } ? null : (member, selected.Scope);
+                                cursor.EnterOpenChoice(selected.Scope, index, memberRange);
+                            }
+                            else
+                            {
+                                var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Member);
+                                _openBody = (body, selected.Scope);
+                                _bodyEndsAtInputEnd.Push(RepeatInfo.IsLast(openChoice, BodyEndsAtInputEnd));
+                                cursor.EnterOpenChoice(step.Scope, body, _plan.CreateOpenChoiceRange(openChoice, body, selected.Begin, selected.BeginInstance, selected.End, selected.EndInstance));
+                            }
                         }
                         else if (group is ChoiceInfo choice)
                         {
-                            var index = Resolve(choice.SelectedIndex, choice, _valueContext, _instance);
-                            EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
-                            _choiceIndexes.Push(index);
+                            var index = SelectChoice(choice);
                             var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index); cursor.Enter(choiceScope, index);
                         }
                         else
@@ -239,7 +255,7 @@ internal sealed class ReaderSession : SessionState
                             }
                             _windows.Push((group, reader.Consumed + size, _tailTotal));
                         }
-                        if (group is not RepeatInfo and not ChoiceInfo { IsOpen: true })
+                        if (group is not RepeatInfo and not ChoiceInfo { MemberNodeDef: not null })
                         {
                             var status = BeginLayout(group, ref reader);
                             if (status != ReadResult.Success)
@@ -291,17 +307,22 @@ internal sealed class ReaderSession : SessionState
                     break;
 
                 case CursorStepKind.ExitGroup:
-                    if (step.Node is not RepeatInfo and not ChoiceInfo { IsOpen: true })
+                    if (step.Node is not RepeatInfo and not ChoiceInfo { MemberNodeDef: not null })
                     {
                         var status = EndLayout((GroupInfo)step.Node!, ref reader);
                         if (status != ReadResult.Success)
                         {
                             return status;
                         }
-                        if (step.Node is ChoiceInfo exitChoice)
+                        if (step.Node is ChoiceInfo { IsOpen: false } exitChoice)
                         {
                             step.Scope!.ExitChoice(
                                 new ChoiceContext { Node = exitChoice, Services = _services, Instance = _instance }, _choiceIndexes.Peek());
+                        }
+                        else if (step.Node is ChoiceInfo { IsOpen: true })
+                        {
+                            // an open choice with members: the model's scope of the member was entered directly, there is no choice scope to exit
+                            _openBody = null;
                         }
                         else
                         {
@@ -309,11 +330,11 @@ internal sealed class ReaderSession : SessionState
                                 new GroupContext { Node = (GroupInfo)step.Node!, Services = _services, Instance = _instance });
                         }
                     }
-                    if (step.Node is ChoiceInfo { IsOpen: false })
+                    if (step.Node is ChoiceInfo { MemberNodeDef: null })
                     {
                         _choiceIndexes.Pop();
                     }
-                    else if (step.Node is ChoiceInfo { IsOpen: true })
+                    else if (step.Node is ChoiceInfo { MemberNodeDef: not null })
                     {
                         _bodyEndsAtInputEnd.Pop();
                     }
@@ -338,6 +359,15 @@ internal sealed class ReaderSession : SessionState
 
     // whether the plan being read (the envelope, or the body of the innermost open choice) ends at the input end.
     private bool BodyEndsAtInputEnd => _bodyEndsAtInputEnd.Count == 0 || _bodyEndsAtInputEnd.Peek();
+
+    // the index of a choice with a selectedIndex, kept for its layout and its exit
+    private int SelectChoice(ChoiceInfo choice)
+    {
+        var index = Resolve(choice.SelectedIndex, choice, _valueContext, _instance);
+        EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
+        _choiceIndexes.Push(index);
+        return index;
+    }
 
     // asks the scope that holds the repeat (IOpenRepeatSink) or falls back to the engine's own rule.
     private bool EndsOpenRepeat(ref SequenceReader<byte> reader, PlanCursor<IValueSink> cursor)

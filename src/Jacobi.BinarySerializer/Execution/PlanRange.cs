@@ -10,38 +10,38 @@ public sealed class PlanRange : IEquatable<PlanRange>
     private readonly ExecutionPlan _executionPlan;
 
     // document-order position keys: per ancestor its index and, for a repeat above the node, the item index.
-    private readonly int[] _from;
-    private readonly int[] _to;
+    private readonly int[] _begin;
+    private readonly int[] _end;
 
     // the same bounds normalized to the keys of the First and Last fields (with an item index for every repeat),
     // so two ranges compare independent of how their bounds were specified (group or field).
     private readonly int[] _firstKey;
     private readonly int[] _lastKey;
 
-    internal PlanRange(ExecutionPlan executionPlan, NodeInfo from, NodeInfo to)
-        : this(executionPlan, from, InstancePath.Empty, to, InstancePath.Empty)
+    internal PlanRange(ExecutionPlan executionPlan, NodeInfo begin, NodeInfo end)
+        : this(executionPlan, begin, InstancePath.Empty, end, InstancePath.Empty)
     { }
 
-    internal PlanRange(ExecutionPlan executionPlan, NodeInfo from, InstancePath fromInstance, NodeInfo to, InstancePath toInstance)
+    internal PlanRange(ExecutionPlan executionPlan, NodeInfo begin, InstancePath beginInstance, NodeInfo end, InstancePath endInstance)
     {
         _executionPlan = executionPlan;
 
-        First = FirstField(from);
-        Last = LastField(to);
-        FromInstance = fromInstance;
-        ToInstance = toInstance;
+        First = FirstField(begin);
+        Last = LastField(end);
+        BeginInstance = beginInstance;
+        EndInstance = endInstance;
 
         // the order is checked on the keys, with the instances: a later field of an earlier item comes first
-        CheckInstance(First, fromInstance);
-        CheckInstance(Last, toInstance);
-        _from = Key(from, fromInstance, 0);
-        _to = Key(to, toInstance, int.MaxValue);
-        if (Compare(_from, _to) > 0)
+        CheckInstance(First, beginInstance);
+        CheckInstance(Last, endInstance);
+        _begin = Key(begin, beginInstance, 0);
+        _end = Key(end, endInstance, int.MaxValue);
+        if (Compare(_begin, _end) > 0)
         {
-            throw new ArgumentException($"The range start '{from.Path}{fromInstance}' comes after the range end '{to.Path}{toInstance}'.");
+            throw new ArgumentException($"The range begin '{begin.Path}{beginInstance}' comes after the range end '{end.Path}{endInstance}'.");
         }
-        _firstKey = Key(First, fromInstance, 0);
-        _lastKey = Key(Last, toInstance, int.MaxValue);
+        _firstKey = Key(First, beginInstance, 0);
+        _lastKey = Key(Last, endInstance, int.MaxValue);
     }
 
     public ExecutionPlan ExecutionPlan => _executionPlan;
@@ -53,10 +53,10 @@ public sealed class PlanRange : IEquatable<PlanRange>
     public FieldInfo Last { get; }
 
     /// <summary>The item indices of the repeats around <see cref="First"/> (empty: from the first item).</summary>
-    public InstancePath FromInstance { get; }
+    public InstancePath BeginInstance { get; }
 
     /// <summary>The item indices of the repeats around <see cref="Last"/> (empty: up to the last item).</summary>
-    public InstancePath ToInstance { get; }
+    public InstancePath EndInstance { get; }
 
     /// <summary>
     /// True when the node (at the given instance) is a field in the range, or a group, repeat or repeat item that contains one.
@@ -65,7 +65,20 @@ public sealed class PlanRange : IEquatable<PlanRange>
     internal bool Includes(NodeInfo node, InstancePath instance)
     {
         var key = Key(node, instance, 0);
-        return Compare(key, _from) >= 0 && Compare(key, _to) <= 0;
+        return Compare(key, _begin) >= 0 && Compare(key, _end) <= 0;
+    }
+
+    /// <summary>
+    /// True when the range begins or ends inside the node (at the given instance): a bound that is a node below it, so
+    /// the range covers only a part of it.
+    /// </summary>
+    internal bool BeginsOrEndsInside(NodeInfo node, InstancePath instance)
+    {
+        var key = Key(node, instance, 0);
+        return IsBelow(_begin, key) || IsBelow(_end, key);
+
+        static bool IsBelow(int[] bound, int[] key)
+            => bound.Length > key.Length && bound.AsSpan(0, key.Length).SequenceEqual(key);
     }
 
     /// <summary>
@@ -75,8 +88,8 @@ public sealed class PlanRange : IEquatable<PlanRange>
     {
         var first = Key(node, InstancePath.Empty, 0);
         var last = Key(node, InstancePath.Empty, int.MaxValue);
-        return (Compare(first, _from) >= 0 && Compare(first, _to) <= 0)
-            || (Compare(last, _from) >= 0 && Compare(last, _to) <= 0);
+        return (Compare(first, _begin) >= 0 && Compare(first, _end) <= 0)
+            || (Compare(last, _begin) >= 0 && Compare(last, _end) <= 0);
     }
 
     /// <summary>

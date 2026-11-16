@@ -193,22 +193,38 @@ internal sealed class WriterSession : SessionState
                         else if (_openBody is { } openBody && ReferenceEquals(openBody.Group, group))
                         {
                             _openBody = null;
-                            cursor.Enter(openBody.Scope);
+                            if (group is ChoiceInfo memberChoice)
+                            {
+                                cursor.Enter(openBody.Scope, SelectChoice(memberChoice));
+                            }
+                            else
+                            {
+                                cursor.Enter(openBody.Scope);
+                            }
                         }
                         else if (group is ChoiceInfo { IsOpen: true } openChoice)
                         {
                             var openSource = step.Scope as IOpenChoiceSource
                                 ?? throw EngineLogger.Fail($"'{openChoice.Path}': the value model does not implement {nameof(IOpenChoiceSource)}, which an open choice requires.", category: SerializationCategories.Schema);
                             var selected = openSource.EnterOpenChoice(new OpenChoiceContext { Node = openChoice, Services = _services, Instance = _instance });
-                            var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Group, selected.FromTarget);
-                            _openBody = (body, selected.Scope);
-                            cursor.EnterOpenChoice(step.Scope, body, _plan.CreateOpenChoiceRange(openChoice, body, selected.FromTarget, selected.FromInstance, selected.ToTarget, selected.ToInstance));
+                            if (openChoice.MemberNodeDef is null)
+                            {
+                                var (index, member, memberRange) = SelectOpenChoiceMember(_plan, openChoice, selected.Member,
+                                    selected.Begin, selected.BeginInstance, selected.End, selected.EndInstance, cursor.CurrentRange, cursor.RangeInstance());
+                                _choiceIndexes.Push(index);
+                                _openBody = member is null or RepeatInfo or ChoiceInfo { IsOpen: true } ? null : (member, selected.Scope);
+                                cursor.EnterOpenChoice(selected.Scope, index, memberRange);
+                            }
+                            else
+                            {
+                                var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Member);
+                                _openBody = (body, selected.Scope);
+                                cursor.EnterOpenChoice(step.Scope, body, _plan.CreateOpenChoiceRange(openChoice, body, selected.Begin, selected.BeginInstance, selected.End, selected.EndInstance));
+                            }
                         }
                         else if (group is ChoiceInfo choice)
                         {
-                            var index = Resolve(choice.SelectedIndex, choice, _valueContext, _instance);
-                            EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
-                            _choiceIndexes.Push(index);
+                            var index = SelectChoice(choice);
                             var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }); cursor.Enter(choiceScope, index);
                         }
                         else
@@ -219,7 +235,7 @@ internal sealed class WriterSession : SessionState
                         {
                             _sizeStarts.Push(_counter.Written);
                         }
-                        if (group is not RepeatInfo and not ChoiceInfo { IsOpen: true })
+                        if (group is not RepeatInfo and not ChoiceInfo { MemberNodeDef: not null })
                         {
                             BeginLayout(group);
                         }
@@ -242,11 +258,11 @@ internal sealed class WriterSession : SessionState
                 case CursorStepKind.ExitGroup:
                     {
                         var group = (GroupInfo)step.Node!;
-                        if (group is not RepeatInfo and not ChoiceInfo { IsOpen: true })
+                        if (group is not RepeatInfo and not ChoiceInfo { MemberNodeDef: not null })
                         {
                             EndLayout(group);
                         }
-                        if (group is ChoiceInfo { IsOpen: false })
+                        if (group is ChoiceInfo { MemberNodeDef: null })
                         {
                             _choiceIndexes.Pop();
                         }
@@ -387,6 +403,15 @@ internal sealed class WriterSession : SessionState
             }
         }
         return false;
+    }
+
+    // the index of a choice with a selectedIndex, kept for its layout
+    private int SelectChoice(ChoiceInfo choice)
+    {
+        var index = Resolve(choice.SelectedIndex, choice, _valueContext, _instance);
+        EngineLogger.ChoiceSelected(choice.Path.ToString(), index);
+        _choiceIndexes.Push(index);
+        return index;
     }
 
     private void CheckItemCount(RepeatInfo repeat, IValueSource scope, int count)
