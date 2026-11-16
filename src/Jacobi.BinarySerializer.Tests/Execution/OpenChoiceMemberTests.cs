@@ -90,7 +90,7 @@ public class OpenChoiceMemberTests
     private static readonly SchemaName Root = new("MemberTest.Root");
 
     [Test]
-    public void Read_GroupMember_IsEnteredWithTheScopeOfTheModel()
+    public void Read_GroupMember_IsEnteredOnTheScopeOfTheChoice()
     {
         var log = new List<string>();
         var sink = new LogSink("root", log, (_, _) => OpenChoiceSinkResult.Select(new LogSink("member", log), new SchemaName("second")));
@@ -101,12 +101,14 @@ public class OpenChoiceMemberTests
         Assert.That(log, Is.EqualTo(new[]
         {
             "root:Root.Head=1",
+            "member:enter Root.Sel.second",
             "member:Root.Sel.second.A=2",
             "member:enter Root.Sel.second.Part",
             "member:Root.Sel.second.Part.P1=3",
             "member:Root.Sel.second.Part.P2=4",
             "member:exit Root.Sel.second.Part",
             "member:exit Root.Sel.second",
+            "member:exit choice Root.Sel",
             "root:Root.Tail=9",
             "root:exit Root",
         }));
@@ -129,18 +131,18 @@ public class OpenChoiceMemberTests
     }
 
     [Test]
-    public void Read_FieldMember_IsSetOnTheScopeOfTheModel()
+    public void Read_FieldMember_IsSetOnTheScopeOfTheChoice()
     {
         var log = new List<string>();
         var sink = new LogSink("root", log, (_, _) => OpenChoiceSinkResult.Select(new LogSink("member", log), new SchemaName("flag")));
 
         CreateSerializer(MemberSchema).Deserialize(Root, new ReadOnlySequence<byte>([1, 7, 9]), sink);
 
-        Assert.That(log, Is.EqualTo(new[] { "root:Root.Head=1", "member:Root.Sel.flag=7", "root:Root.Tail=9", "root:exit Root" }));
+        Assert.That(log, Is.EqualTo(new[] { "root:Root.Head=1", "member:Root.Sel.flag=7", "member:exit choice Root.Sel", "root:Root.Tail=9", "root:exit Root" }));
     }
 
     [Test]
-    public void Read_RepeatMember_ItemsAreEnteredOnTheScopeOfTheModel()
+    public void Read_RepeatMember_IsEnteredOnTheScopeOfTheChoice()
     {
         var log = new List<string>();
         var sink = new LogSink("root", log, (_, _) => OpenChoiceSinkResult.Select(new LogSink("member", log), new SchemaName("list")));
@@ -150,34 +152,39 @@ public class OpenChoiceMemberTests
         Assert.That(log, Is.EqualTo(new[]
         {
             "root:Root.Head=1",
+            "member:repeat Root.Sel.list[2]",
             "member:Root.Sel.list.L[0]=5",
             "member:Root.Sel.list.L[1]=6",
+            "member:exit repeat Root.Sel.list[2]",
+            "member:exit choice Root.Sel",
             "root:Root.Tail=9",
             "root:exit Root",
         }));
     }
 
     [Test]
-    public void Read_ChoiceMember_IsEnteredWithTheScopeOfTheModel()
+    public void Read_ChoiceMember_IsEnteredOnTheScopeOfTheChoice()
     {
         var log = new List<string>();
         var sink = new LogSink("root", log, (_, _) => OpenChoiceSinkResult.Select(new LogSink("member", log), new SchemaName("pick")));
 
         CreateSerializer(MemberSchema).Deserialize(Root, new ReadOnlySequence<byte>([1, 7, 9]), sink);
 
-        // no EnterChoice: the scope of the model is the scope of the choice
+        // the member choice is entered with its index before its fields are read
         Assert.That(log, Is.EqualTo(new[]
         {
             "root:Root.Head=1",
+            "member:choice Root.Sel.pick[1]",
             "member:Root.Sel.pick.p1=7",
             "member:exit choice Root.Sel.pick",
+            "member:exit choice Root.Sel",
             "root:Root.Tail=9",
             "root:exit Root",
         }));
     }
 
     [Test]
-    public void Read_OpenChoiceMember_SelectsItsMemberOnTheScopeOfTheModel()
+    public void Read_OpenChoiceMember_SelectsItsMemberOnTheScopeOfTheChoice()
     {
         var log = new List<string>();
         var inner = new LogSink("inner", log, (_, self) => OpenChoiceSinkResult.Select(self, new SchemaName("i1")));
@@ -185,11 +192,19 @@ public class OpenChoiceMemberTests
 
         CreateSerializer(MemberSchema).Deserialize(Root, new ReadOnlySequence<byte>([1, 7, 9]), sink);
 
-        Assert.That(log, Is.EqualTo(new[] { "root:Root.Head=1", "inner:Root.Sel.inner.i1=7", "root:Root.Tail=9", "root:exit Root" }));
+        Assert.That(log, Is.EqualTo(new[]
+        {
+            "root:Root.Head=1",
+            "inner:Root.Sel.inner.i1=7",
+            "inner:exit choice Root.Sel.inner",
+            "inner:exit choice Root.Sel",
+            "root:Root.Tail=9",
+            "root:exit Root",
+        }));
     }
 
     [Test]
-    public void Write_ChoiceMember_IsWrittenFromTheScopeOfTheModel()
+    public void Write_ChoiceMember_IsEnteredOnTheScopeOfTheChoice()
     {
         var output = new ArrayBufferWriter<byte>();
         var member = new MapSource(new() { ["Root.Sel.pick.p1"] = 7 });
@@ -198,11 +213,11 @@ public class OpenChoiceMemberTests
         CreateSerializer(MemberSchema).Serialize(Root, source, output);
 
         Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 1, 7, 9 }));
-        Assert.That(member.Entered, Is.Empty);
+        Assert.That(member.Entered, Is.EqualTo(new[] { "choice Root.Sel.pick", "exit choice Root.Sel.pick", "exit choice Root.Sel" }));
     }
 
     [Test]
-    public void Write_GroupMember_IsWrittenFromTheScopeOfTheModel()
+    public void Write_GroupMember_IsEnteredOnTheScopeOfTheChoice()
     {
         var output = new ArrayBufferWriter<byte>();
         var member = new MapSource(new() { ["Root.Sel.first.A"] = 2, ["Root.Sel.first.Part.P1"] = 3, ["Root.Sel.first.Part.P2"] = 4 });
@@ -211,11 +226,14 @@ public class OpenChoiceMemberTests
         CreateSerializer(MemberSchema).Serialize(Root, source, output);
 
         Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 1, 2, 3, 4, 9 }));
-        Assert.That(member.Entered, Is.EqualTo(new[] { "Root.Sel.first.Part" }));
+        Assert.That(member.Entered, Is.EqualTo(new[]
+        {
+            "Root.Sel.first", "Root.Sel.first.Part", "exit Root.Sel.first.Part", "exit Root.Sel.first", "exit choice Root.Sel",
+        }));
     }
 
     [Test]
-    public void Write_FieldMember_IsWrittenFromTheScopeOfTheModel()
+    public void Write_FieldMember_IsWrittenFromTheScopeOfTheChoice()
     {
         var output = new ArrayBufferWriter<byte>();
         var member = new MapSource(new() { ["Root.Sel.flag"] = 7 });
@@ -445,10 +463,16 @@ public class OpenChoiceMemberTests
             log.Add($"{name}:enter {context.Path}");
             return this;
         }
+        public IValueSink EnterRepeat(RepeatContext context, int count)
+        {
+            log.Add($"{name}:repeat {context.Path}[{count}]");
+            return this;
+        }
+        public void ExitRepeat(RepeatContext context, int count) => log.Add($"{name}:exit repeat {context.Path}[{count}]");
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex)
         {
-            log.Add($"{name}:choice {context.Path}");
+            log.Add($"{name}:choice {context.Path}[{selectedIndex}]");
             return this;
         }
         public void ExitGroup(GroupContext context) => log.Add($"{name}:exit {context.Path}");
@@ -464,6 +488,8 @@ public class OpenChoiceMemberTests
     {
         public void SetField(FieldContext context, LogicalField value) => values[$"{context.Path}{context.Instance}"] = Convert.ToInt64(value.Value);
         public IValueSink EnterGroup(GroupContext context) => this;
+        public IValueSink EnterRepeat(RepeatContext context, int count) => this;
+        public void ExitRepeat(RepeatContext context, int count) { }
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
         public void ExitGroup(GroupContext context) { }
@@ -477,6 +503,8 @@ public class OpenChoiceMemberTests
     {
         public void SetField(FieldContext context, LogicalField value) { }
         public IValueSink EnterGroup(GroupContext context) => this;
+        public IValueSink EnterRepeat(RepeatContext context, int count) => this;
+        public void ExitRepeat(RepeatContext context, int count) { }
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
         public void ExitGroup(GroupContext context) { }
@@ -498,9 +526,13 @@ public class OpenChoiceMemberTests
             Entered.Add(context.Path);
             return this;
         }
-        public int GetCount(RepeatContext context) => throw new NotSupportedException();
-        public IValueSource EnterItem(RepeatContext context, int index) => this;
-        public IValueSource EnterChoice(ChoiceContext context)
+        public void ExitGroup(GroupContext context) => Entered.Add($"exit {context.Path}");
+        public IValueSource EnterRepeat(RepeatContext context, int count) => this;
+        public void ExitRepeat(RepeatContext context, int count) { }
+        public void ExitItem(RepeatContext context, int index, int count) { }
+        public void ExitChoice(ChoiceContext context, int selectedIndex) => Entered.Add($"exit choice {context.Path}");
+        public IValueSource EnterItem(RepeatContext context, int index, int count) => this;
+        public IValueSource EnterChoice(ChoiceContext context, int selectedIndex)
         {
             Entered.Add($"choice {context.Path}");
             return this;
@@ -515,8 +547,12 @@ public class OpenChoiceMemberTests
     {
         public SourceResult GetField(FieldContext context) => inner.GetField(context);
         public IValueSource EnterGroup(GroupContext context) => this;
-        public int GetCount(RepeatContext context) => inner.GetCount(context);
-        public IValueSource EnterItem(RepeatContext context, int index) => this;
-        public IValueSource EnterChoice(ChoiceContext context) => this;
+        public void ExitGroup(GroupContext context) { }
+        public IValueSource EnterRepeat(RepeatContext context, int count) => this;
+        public void ExitRepeat(RepeatContext context, int count) { }
+        public void ExitItem(RepeatContext context, int index, int count) { }
+        public void ExitChoice(ChoiceContext context, int selectedIndex) { }
+        public IValueSource EnterItem(RepeatContext context, int index, int count) => this;
+        public IValueSource EnterChoice(ChoiceContext context, int selectedIndex) => this;
     }
 }

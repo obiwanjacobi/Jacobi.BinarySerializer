@@ -33,12 +33,20 @@ public sealed class GroupContext : ValueContext
     public GroupInfo Group => (GroupInfo)Node;
 }
 
-public sealed class RepeatContext : ValueContext
+/// <summary>
+/// Describes a repeat: entering or exiting the repeat, or one of its items (the item index is a parameter of the call).
+/// <see cref="OpenRepeatReadContext"/> adds the input that is left, for the decisions of an open repeat while reading.
+/// </summary>
+public class RepeatContext : ValueContext
 {
     public RepeatInfo Repeat => (RepeatInfo)Node;
 }
 
-public sealed class ChoiceContext : ValueContext
+/// <summary>
+/// Describes a choice. <see cref="OpenChoiceContext"/> is the one of an open choice, so a value model can handle it
+/// with the code it has for a choice.
+/// </summary>
+public class ChoiceContext : ValueContext
 {
     public ChoiceInfo Choice => (ChoiceInfo)Node;
 }
@@ -48,10 +56,8 @@ public sealed class ChoiceContext : ValueContext
 /// one of its members (<see cref="ChoiceInfo.Members"/>), or a group that conforms to its nodeDef contract
 /// (<see cref="MemberNodeDef"/>).
 /// </summary>
-public sealed class OpenChoiceContext : ValueContext
+public sealed class OpenChoiceContext : ChoiceContext
 {
-    public ChoiceInfo Choice => (ChoiceInfo)Node;
-
     /// <summary>
     /// The nodeDef (contract) the selected group must conform to; null when the members of the choice are its alternatives.
     /// </summary>
@@ -59,22 +65,11 @@ public sealed class OpenChoiceContext : ValueContext
 }
 
 /// <summary>
-/// Describes the next item of an open repeat (a repeat without a count).
-/// <see cref="ValueContext.Instance"/> is the instance of the repeat itself; <see cref="Index"/> is the item the decision is for.
+/// Describes an open repeat (a repeat without a count) while reading, when it is entered and before each next item.
+/// <see cref="ValueContext.Instance"/> is the instance of the repeat itself. It gives a view of the input that is left,
+/// so the model can decide on the number of items, or on a terminator or sentinel before the next item is read.
 /// </summary>
-public class OpenRepeatContext : ValueContext
-{
-    public RepeatInfo Repeat => (RepeatInfo)Node;
-
-    /// <summary>The index of the item the decision is for (also the number of items so far).</summary>
-    public required int Index { get; init; }
-}
-
-/// <summary>
-/// Describes the next item of an open repeat while reading. It gives a view of the input that is left,
-/// so the model can decide on a terminator or sentinel before that item is read.
-/// </summary>
-public sealed class OpenRepeatReadContext : OpenRepeatContext
+public sealed class OpenRepeatReadContext : RepeatContext
 {
     /// <summary>The physical bytes left before the readable end (enclosing size windows and reserved layout tails taken into account).</summary>
     public required long Remaining { get; init; }

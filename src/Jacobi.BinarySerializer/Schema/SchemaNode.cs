@@ -147,6 +147,12 @@ public sealed class SchemaChoice : SchemaGroup
     public SchemaValueOrRef<int> SelectedIndex { get; init; }
 
     /// <summary>
+    /// True for an open choice: it has no <see cref="SelectedIndex"/>, the value model selects the alternative (one of
+    /// its members, or a group that conforms to its <see cref="MemberNodeDef"/>).
+    /// </summary>
+    public bool IsOpen => SelectedIndex is not (int or SchemaNodeRef or SchemaPubRef);
+
+    /// <summary>
     /// The nodeDef (a group) that the alternatives of this choice must conform to (the contract of an open choice).
     /// </summary>
     public SchemaName? MemberNodeDef { get; init; }

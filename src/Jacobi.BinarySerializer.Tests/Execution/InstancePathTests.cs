@@ -64,8 +64,12 @@ public class InstancePathTests
             return true;
         }
         public IValueSource EnterGroup(GroupContext context) => this;
-        public int GetCount(RepeatContext context) => 3;
-        public IValueSource EnterItem(RepeatContext context, int index) => this;
-        public IValueSource EnterChoice(ChoiceContext context) => throw new NotSupportedException();
+        public void ExitGroup(GroupContext context) { }
+        public IValueSource EnterRepeat(RepeatContext context, int count) => this;
+        public void ExitRepeat(RepeatContext context, int count) { }
+        public void ExitItem(RepeatContext context, int index, int count) { }
+        public void ExitChoice(ChoiceContext context, int selectedIndex) { }
+        public IValueSource EnterItem(RepeatContext context, int index, int count) => this;
+        public IValueSource EnterChoice(ChoiceContext context, int selectedIndex) => throw new NotSupportedException();
     }
 }

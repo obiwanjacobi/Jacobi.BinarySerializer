@@ -300,7 +300,7 @@ public class BitLayoutSessionTests
         Assert.That(() => Build(root), Throws.TypeOf<ExecutionPlanException>().With.Message.Contains("chained"));
     }
 
-    private sealed class Values : IValueSource, IValueSink
+    private sealed class Values : IOpenRepeatSource, IValueSink
     {
         public Dictionary<string, object?> Data { get; } = [];
         public List<string> Requests { get; } = [];
@@ -318,14 +318,21 @@ public class BitLayoutSessionTests
         }
 
         public void SetField(FieldContext context, LogicalField value) => Data[$"{context.Path}{context.Instance}"] = value.Value;
+        // Count: the number of items of a repeat without a count, or -1 to write it item by item (EndOfData ends it)
+        public OpenRepeatSourceResult EnterOpenRepeat(RepeatContext context)
+            => Count < 0 ? OpenRepeatSourceResult.ItemByItem(this) : OpenRepeatSourceResult.Counted(this, Count);
+        public OpenRepeatAction NextItem(RepeatContext context, int index) => OpenRepeatAction.Default;
+
         public IValueSource EnterGroup(GroupContext context) => this;
         IValueSink IValueSink.EnterGroup(GroupContext context) => this;
-        public int GetCount(RepeatContext context) => Count;
-        public IValueSource EnterItem(RepeatContext context, int index) => this;
-        public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
-        public IValueSource EnterChoice(ChoiceContext context) => this;
-        public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
+        public IValueSource EnterRepeat(RepeatContext context, int count) => this;
+        IValueSink IValueSink.EnterRepeat(RepeatContext context, int count) => this;
+        public IValueSource EnterItem(RepeatContext context, int index, int count) => this;
+        IValueSink IValueSink.EnterItem(RepeatContext context, int index, int count) => this;
+        public IValueSource EnterChoice(ChoiceContext context, int selectedIndex) => this;
+        IValueSink IValueSink.EnterChoice(ChoiceContext context, int selectedIndex) => this;
         public void ExitGroup(GroupContext context) { }
+        public void ExitRepeat(RepeatContext context, int count) { }
         public void ExitItem(RepeatContext context, int index, int count) { }
         public void ExitChoice(ChoiceContext context, int selectedIndex) { }
     }

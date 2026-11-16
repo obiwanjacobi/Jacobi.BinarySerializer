@@ -19,7 +19,6 @@ internal sealed class WriterSession : SessionState
     private readonly IServiceProvider _services;
     private readonly bool _valueFieldsUseModel;
     private InstancePath _instance;
-    private (GroupInfo Group, IValueSource Scope)? _openBody;
 
     private readonly ValueProcessorContext _valueContext;
     private readonly FieldProcessorContext _fieldContext;
@@ -32,12 +31,17 @@ internal sealed class WriterSession : SessionState
     private readonly Stack<long> _groupStarts = new();
     private readonly Dictionary<ProcessorBinding, long> _layoutPositions = [];
     private readonly Dictionary<ProcessorBinding, Stack<(long Position, int? BlockSize)>> _layoutGroupStarts = [];
+    // per choice being written: the index of its alternative (-1 for the body of a choice with a memberNodeDef)
     private readonly Stack<int> _choiceIndexes = new();
     private readonly Stack<long> _sizeStarts = new();
-    private readonly Stack<DeferredSize> _deferred = new();
+    private readonly Stack<DeferredField> _deferred = new();
 
-    private sealed record DeferredSize(
-        FieldInfo Field, IValueSource Scope, GroupInfo Group,
+    // what a deferred field gets when its node is done: the size of a group, or the number of items of a repeat
+    private enum DerivedValue { Size, Count }
+
+    // a field that precedes the node its value is derived from: the output after it goes to a scratch buffer until the node is done
+    private sealed record DeferredField(
+        FieldInfo Field, IValueSource Scope, GroupInfo Node, DerivedValue Kind,
         CountingBufferWriter SavedCounter, IBufferWriter<byte> SavedTarget,
         ArrayBufferWriter<byte> Scratch, long Width);
     private readonly List<ArrayBufferWriter<byte>> _chainBuffers = [];
@@ -127,80 +131,34 @@ internal sealed class WriterSession : SessionState
                         var group = (GroupInfo)step.Node!;
                         if (step.Scope is null)
                         {
-                            if (group is RepeatInfo { UntilEnd: true } openRoot)
+                            // the root: the model is the scope of the root node
+                            switch (group)
                             {
-                                if (source is FieldSourceAdapter or IOpenRepeatSource)
-                                {
+                                case RepeatInfo { UntilEnd: true }:
                                     cursor.EnterOpenRepeat(source);
-                                }
-                                else
-                                {
-                                    var rootCount = source.GetCount(new RepeatContext { Node = openRoot, Services = _services, Instance = _instance });
-                                    if (rootCount < 0)
-                                    {
-                                        cursor.EnterOpenRepeat(source);
-                                    }
-                                    else
-                                    {
-                                        cursor.EnterRepeat(source, rootCount);
-                                    }
-                                }
-                            }
-                            else if (group is RepeatInfo rootRepeat)
-                            {
-                                cursor.EnterRepeat(source, Resolve(rootRepeat.Count, rootRepeat, _valueContext, _instance));
-                            }
-                            else if (group is ChoiceInfo { IsOpen: true } openRootChoice)
-                            {
-                                throw EngineLogger.Fail($"'{openRootChoice.Path}': an open choice cannot be the root.", category: SerializationCategories.Schema);
-                            }
-                            else if (group is ChoiceInfo rootChoice)
-                            {
-                                var rootIndex = Resolve(rootChoice.SelectedIndex, rootChoice, _valueContext, _instance);
-                                _choiceIndexes.Push(rootIndex);
-                                cursor.Enter(source, rootIndex);
-                            }
-                            else
-                            {
-                                cursor.Enter(source);
+                                    break;
+                                case RepeatInfo rootRepeat:
+                                    cursor.EnterRepeat(source, Resolve(rootRepeat.Count, rootRepeat, _valueContext, _instance));
+                                    break;
+                                case ChoiceInfo { IsOpen: true } openRoot:
+                                    throw EngineLogger.Fail($"'{openRoot.Path}': an open choice cannot be the root.", category: SerializationCategories.Schema);
+                                case ChoiceInfo rootChoice:
+                                    cursor.Enter(source, SelectChoice(rootChoice));
+                                    break;
+                                default:
+                                    cursor.Enter(source);
+                                    break;
                             }
                         }
-                        else if (group is RepeatInfo { UntilEnd: true } flatRepeat && step.Scope is FieldSourceAdapter or IOpenRepeatSource)
+                        else if (group is RepeatInfo openRepeat && (openRepeat.UntilEnd || IsDeferred(openRepeat)))
                         {
-                            EngineLogger.RepeatCount(flatRepeat.Path.ToString(), -1);
-                            cursor.EnterOpenRepeat(step.Scope);
-                        }
-                        else if (group is RepeatInfo { UntilEnd: true } openRepeat)
-                        {
-                            var count = step.Scope.GetCount(new RepeatContext { Node = openRepeat, Services = _services, Instance = _instance });
-                            EngineLogger.RepeatCount(openRepeat.Path.ToString(), count);
-                            if (count < 0)
-                            {
-                                cursor.EnterOpenRepeat(step.Scope);
-                            }
-                            else
-                            {
-                                cursor.EnterRepeat(step.Scope, count);
-                            }
+                            EnterOpenRepeat(openRepeat, step.Scope, cursor);
                         }
                         else if (group is RepeatInfo repeat)
                         {
                             var count = Resolve(repeat.Count, repeat, _valueContext, _instance);
-                            CheckItemCount(repeat, step.Scope, count);
                             EngineLogger.RepeatCount(repeat.Path.ToString(), count);
-                            cursor.EnterRepeat(step.Scope, count);
-                        }
-                        else if (_openBody is { } openBody && ReferenceEquals(openBody.Group, group))
-                        {
-                            _openBody = null;
-                            if (group is ChoiceInfo memberChoice)
-                            {
-                                cursor.Enter(openBody.Scope, SelectChoice(memberChoice));
-                            }
-                            else
-                            {
-                                cursor.Enter(openBody.Scope);
-                            }
+                            cursor.EnterRepeat(step.Scope.EnterRepeat(new RepeatContext { Node = repeat, Services = _services, Instance = _instance }, count), count);
                         }
                         else if (group is ChoiceInfo { IsOpen: true } openChoice)
                         {
@@ -209,23 +167,22 @@ internal sealed class WriterSession : SessionState
                             var selected = openSource.EnterOpenChoice(new OpenChoiceContext { Node = openChoice, Services = _services, Instance = _instance });
                             if (openChoice.MemberNodeDef is null)
                             {
-                                var (index, member, memberRange) = SelectOpenChoiceMember(_plan, openChoice, selected.Member,
+                                var (index, memberRange) = SelectOpenChoiceMember(_plan, openChoice, selected.Member,
                                     selected.Begin, selected.BeginInstance, selected.End, selected.EndInstance, cursor.CurrentRange, cursor.RangeInstance());
                                 _choiceIndexes.Push(index);
-                                _openBody = member is null or RepeatInfo or ChoiceInfo { IsOpen: true } ? null : (member, selected.Scope);
                                 cursor.EnterOpenChoice(selected.Scope, index, memberRange);
                             }
                             else
                             {
                                 var body = _plan.ResolveOpenChoiceBody(openChoice, selected.Member);
-                                _openBody = (body, selected.Scope);
-                                cursor.EnterOpenChoice(step.Scope, body, _plan.CreateOpenChoiceRange(openChoice, body, selected.Begin, selected.BeginInstance, selected.End, selected.EndInstance));
+                                _choiceIndexes.Push(-1);
+                                cursor.EnterOpenChoice(selected.Scope, body, _plan.CreateOpenChoiceRange(openChoice, body, selected.Begin, selected.BeginInstance, selected.End, selected.EndInstance));
                             }
                         }
                         else if (group is ChoiceInfo choice)
                         {
                             var index = SelectChoice(choice);
-                            var choiceScope = step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }); cursor.Enter(choiceScope, index);
+                            cursor.Enter(step.Scope.EnterChoice(new ChoiceContext { Node = choice, Services = _services, Instance = _instance }, index), index);
                         }
                         else
                         {
@@ -262,28 +219,30 @@ internal sealed class WriterSession : SessionState
                         {
                             EndLayout(group);
                         }
-                        if (group is ChoiceInfo { MemberNodeDef: null })
+                        switch (group)
                         {
-                            _choiceIndexes.Pop();
+                            case RepeatInfo exitRepeat:
+                                step.Scope!.ExitRepeat(new RepeatContext { Node = exitRepeat, Services = _services, Instance = _instance }, step.Count);
+                                break;
+                            case ChoiceInfo exitChoice:
+                                step.Scope!.ExitChoice(new ChoiceContext { Node = exitChoice, Services = _services, Instance = _instance }, _choiceIndexes.Pop());
+                                break;
+                            default:
+                                step.Scope!.ExitGroup(new GroupContext { Node = group, Services = _services, Instance = _instance });
+                                break;
                         }
-                        if (group.HasByteSize)
+                        long? size = group.HasByteSize ? _counter.Written - _sizeStarts.Pop() : null;
+                        var (completed, sizeDerived) = CompleteDeferredFields(group, size, step.Count);
+                        if (completed != WriteResult.Success)
                         {
-                            var size = _counter.Written - _sizeStarts.Pop();
-                            if (_deferred.Count > 0 && ReferenceEquals(_deferred.Peek().Group, group))
+                            return completed;
+                        }
+                        if (size is { } encoded && !sizeDerived)
+                        {
+                            var declared = Resolve(group.ByteSize, group.Path, _instance);
+                            if (declared != encoded)
                             {
-                                var completed = CompleteDeferredSize(size);
-                                if (completed != WriteResult.Success)
-                                {
-                                    return completed;
-                                }
-                            }
-                            else
-                            {
-                                var declared = Resolve(group.ByteSize, group.Path, _instance);
-                                if (declared != size)
-                                {
-                                    throw EngineLogger.Fail($"'{group.Path}': the declared size {declared} does not match the {size} encoded bytes.");
-                                }
+                                throw EngineLogger.Fail($"'{group.Path}': the declared size {declared} does not match the {encoded} encoded bytes.");
                             }
                         }
                         if (group == root && payload is not null)
@@ -296,7 +255,7 @@ internal sealed class WriterSession : SessionState
                 case CursorStepKind.EnterItem:
                     {
                         var repeat = (RepeatInfo)step.Node!;
-                        var item = step.Scope!.EnterItem(new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index);
+                        var item = step.Scope!.EnterItem(new RepeatContext { Node = repeat, Services = _services, Instance = _instance.Append(step.Index) }, step.Index, step.Count);
                         cursor.Enter(item);
                         SetInstance(cursor.Instance);
                         BeginLayout(repeat, step.Index, step.Count);
@@ -305,12 +264,13 @@ internal sealed class WriterSession : SessionState
 
                 case CursorStepKind.ExitItem:
                     EndLayout((GroupInfo)step.Node!, step.Index, step.Count);
+                    step.Scope!.ExitItem(new RepeatContext { Node = (RepeatInfo)step.Node!, Services = _services, Instance = _instance }, step.Index, step.Count);
                     break;
 
                 case CursorStepKind.Done:
                     if (_deferred.Count > 0)
                     {
-                        throw EngineLogger.Fail($"'{_deferred.Peek().Field.Path}': the size field was deferred but its group was never completed.", category: SerializationCategories.Schema);
+                        throw EngineLogger.Fail($"'{_deferred.Peek().Field.Path}': the field was deferred to derive its value, but '{_deferred.Peek().Node.Path}' was never completed.", category: SerializationCategories.Schema);
                     }
                     EngineLogger.WriteFinished(root.Path.ToString());
                     return WriteResult.Success;
@@ -318,14 +278,19 @@ internal sealed class WriterSession : SessionState
         }
     }
 
-    private LogicalField DerivedSize(FieldInfo field, long size)
-        => new(field.Name, field.ValueType.ClrType, ToValueType(field, checked((int)size)));
+    private LogicalField DerivedField(FieldInfo field, long value)
+        => new(field.Name, field.ValueType.ClrType, ToValueType(field, checked((int)value)));
+
+    private bool IsDeferred(RepeatInfo repeat)
+        => _deferred.Any(deferred => deferred.Kind == DerivedValue.Count && ReferenceEquals(deferred.Node, repeat));
 
     /// <summary>
-    /// The size field precedes the content it measures: probe its encoded width, then redirect the output to a scratch buffer until the group ends.
+    /// The field precedes the node its value is derived from (the group it measures, the repeat it counts): probe its
+    /// encoded width, then redirect the output to a scratch buffer until the node ends.
     /// </summary>
-    private WriteResult DeferSizeField(FieldInfo field, IValueSource scope)
+    private WriteResult DeferField(FieldInfo field, IValueSource scope)
     {
+        var (node, kind) = field.CountOf is { } countOf ? ((GroupInfo)countOf, DerivedValue.Count) : (field.ByteSizeOf!, DerivedValue.Size);
         var savedCounter = _counter;
         var savedTarget = _target;
         var probe = new ArrayBufferWriter<byte>();
@@ -335,7 +300,7 @@ internal sealed class WriterSession : SessionState
         try
         {
             var probeResult = WriteResult.Success;
-            WithoutPublishing(() => probeResult = WriteField(field, scope, DerivedSize(field, 0)));
+            WithoutPublishing(() => probeResult = WriteField(field, scope, DerivedField(field, 0)));
             result = probeResult;
         }
         finally
@@ -350,13 +315,38 @@ internal sealed class WriterSession : SessionState
 
         var width = probe.WrittenCount;
         var scratch = new ArrayBufferWriter<byte>();
-        _deferred.Push(new DeferredSize(field, scope, field.ByteSizeOf!, savedCounter, savedTarget, scratch, width));
+        _deferred.Push(new DeferredField(field, scope, node, kind, savedCounter, savedTarget, scratch, width));
         _counter = new CountingBufferWriter(scratch, savedCounter.Written + width);
         _target = _counter;
         return WriteResult.Success;
     }
 
-    private WriteResult CompleteDeferredSize(long size)
+    /// <summary>
+    /// Writes the deferred fields whose value is derived from <paramref name="node"/>, now that it is done: its
+    /// <paramref name="size"/>, its number of <paramref name="items"/>. They must be the innermost deferred fields.
+    /// </summary>
+    private (WriteResult Result, bool SizeDerived) CompleteDeferredFields(GroupInfo node, long? size, int items)
+    {
+        var sizeDerived = false;
+        while (_deferred.TryPeek(out var top) && ReferenceEquals(top.Node, node))
+        {
+            sizeDerived |= top.Kind == DerivedValue.Size;
+            var result = CompleteDeferredField(top.Kind == DerivedValue.Size ? size!.Value : items);
+            if (result != WriteResult.Success)
+            {
+                return (result, sizeDerived);
+            }
+        }
+        if (_deferred.FirstOrDefault(deferred => ReferenceEquals(deferred.Node, node)) is { } overlapping)
+        {
+            throw EngineLogger.Fail(
+                $"'{overlapping.Field.Path}': its value is derived from '{node.Path}', which ends before '{_deferred.Peek().Node.Path}' that the field '{_deferred.Peek().Field.Path}' is derived from; " +
+                "derived fields and their nodes must nest.", category: SerializationCategories.Schema);
+        }
+        return (WriteResult.Success, sizeDerived);
+    }
+
+    private WriteResult CompleteDeferredField(long value)
     {
         var deferred = _deferred.Pop();
         _counter = deferred.SavedCounter;
@@ -370,7 +360,7 @@ internal sealed class WriterSession : SessionState
         WriteResult result;
         try
         {
-            result = WriteField(deferred.Field, deferred.Scope, DerivedSize(deferred.Field, size));
+            result = WriteField(deferred.Field, deferred.Scope, DerivedField(deferred.Field, value));
         }
         finally
         {
@@ -381,11 +371,11 @@ internal sealed class WriterSession : SessionState
         {
             return result;
         }
-        if (sizeBuffer.WrittenCount != deferred.Width && HasLayoutInside(deferred.Group))
+        if (sizeBuffer.WrittenCount != deferred.Width && HasLayoutInside(deferred.Node))
         {
             throw EngineLogger.Fail(
-                $"'{deferred.Field.Path}': the derived size field is {sizeBuffer.WrittenCount} bytes but {deferred.Width} were assumed, " +
-                "and the group contains layout processors whose result depends on that width.", category: SerializationCategories.Schema);
+                $"'{deferred.Field.Path}': the derived field is {sizeBuffer.WrittenCount} bytes but {deferred.Width} were assumed, " +
+                $"and '{deferred.Node.Path}' contains layout processors whose result depends on that width.", category: SerializationCategories.Schema);
         }
 
         _target.Write(sizeBuffer.WrittenSpan);
@@ -414,39 +404,35 @@ internal sealed class WriterSession : SessionState
         return index;
     }
 
-    private void CheckItemCount(RepeatInfo repeat, IValueSource scope, int count)
+    // enters a repeat without a count, or one whose count field is derived from the items written: the scope that
+    // holds it (IOpenRepeatSource) gives the number of items, or the repeat is written item by item.
+    private void EnterOpenRepeat(RepeatInfo repeat, IValueSource holder, PlanCursor<IValueSource> cursor)
     {
-        int modelCount;
-        try
+        var openSource = holder as IOpenRepeatSource
+            ?? throw EngineLogger.Fail(repeat.UntilEnd
+                ? $"'{repeat.Path}': the value model does not implement {nameof(IOpenRepeatSource)}, which a repeat without a count requires."
+                : $"'{repeat.Path}': the value model has no value for its count field, which is then derived from the items written; that requires a value model that implements {nameof(IOpenRepeatSource)}.",
+                category: SerializationCategories.Schema);
+        var entered = openSource.EnterOpenRepeat(new RepeatContext { Node = repeat, Services = _services, Instance = _instance });
+        EngineLogger.RepeatCount(repeat.Path.ToString(), entered.Count);
+        if (entered.Count >= 0)
         {
-            modelCount = scope.GetCount(new RepeatContext { Node = repeat, Services = _services, Instance = _instance });
+            cursor.EnterRepeat(entered.Scope, entered.Count);
         }
-        catch (NotSupportedException)
+        else
         {
-            return;     // flat models cannot tell
-        }
-
-        if (modelCount >= 0 && modelCount != count)
-        {
-            throw EngineLogger.Fail(
-                $"'{repeat.Path}': the schema count is {count} but the value model has {modelCount} items.");
+            cursor.EnterOpenRepeat(entered.Scope);
         }
     }
 
-    // asks the scope that holds the repeat (IOpenRepeatSource) or falls back to the EndOfData probe.
+    // asks the scope of the repeat (IOpenRepeatSource) or falls back to the EndOfData probe.
     private bool EndsOpenRepeat(PlanCursor<IValueSource> cursor)
     {
         var scope = cursor.CurrentScope;
         if (scope is IOpenRepeatSource openSource)
         {
-            var context = new OpenRepeatContext
-            {
-                Node = cursor.CurrentGroup!,
-                Services = _services,
-                Instance = cursor.Instance,
-                Index = cursor.NextItemIndex,
-            };
-            switch (openSource.NextItem(context))
+            var context = new RepeatContext { Node = cursor.CurrentGroup!, Services = _services, Instance = cursor.Instance };
+            switch (openSource.NextItem(context, cursor.NextItemIndex))
             {
                 case OpenRepeatAction.Next:
                     return false;
@@ -457,7 +443,7 @@ internal sealed class WriterSession : SessionState
         return ProbeEndOfData(scope, cursor);
     }
 
-    // probes the first field of the next item on the scope that holds the repeat.
+    // probes the first field of the next item on the scope of the repeat.
     private bool ProbeEndOfData(IValueSource scope, PlanCursor<IValueSource> cursor)
     {
         GroupInfo node = cursor.CurrentGroup!;
@@ -502,10 +488,9 @@ internal sealed class WriterSession : SessionState
             {
                 throw EngineLogger.Fail($"'{field.Path}': the value source reported the end of data, which is only allowed on the first field of an item of a repeat without a count.", category: SerializationCategories.Schema);
             }
-            if (field.CountOf is { } countOf)
+            if (field.CountOf is not null)
             {
-                var count = scope.GetCount(new RepeatContext { Node = countOf, Services = _services, Instance = _instance });
-                logical = new LogicalField(field.Name, field.ValueType.ClrType, ToValueType(field, count));
+                return null;    // derived from the items written (deferred)
             }
             else if (field.HasExpectedValue)
             {
@@ -565,7 +550,7 @@ internal sealed class WriterSession : SessionState
         var logical = PrepareLogicalField(field, scope, forced);
         if (logical is null)
         {
-            return DeferSizeField(field, scope);
+            return DeferField(field, scope);
         }
         if (field.ByteOffset is not null)
         {

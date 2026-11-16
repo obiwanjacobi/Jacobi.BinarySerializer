@@ -24,12 +24,14 @@ internal enum CursorStepKind
 /// <param name="Scope">
 /// EnterGroup: the scope of the parent group (default for the root).
 /// Field: the scope of the group that contains the field.
-/// ExitGroup: the scope of the group that was exited (for a repeat: the scope of its parent).
-/// EnterItem: the scope of the group that contains the repeat.
+/// ExitGroup: the scope of the group, repeat or choice that was exited.
+/// EnterItem: the scope of the repeat.
 /// ExitItem: the scope of the item that was exited.
 /// </param>
 /// <param name="Index">EnterItem/ExitItem: the zero-based item index.</param>
-/// <param name="Count">EnterItem/ExitItem: the number of items of the repeat.</param>
+/// <param name="Count">
+/// EnterItem/ExitItem: the number of items of the repeat (-1 while it is open). ExitGroup of a repeat: the number of items.
+/// </param>
 internal readonly record struct CursorStep<TScope>(CursorStepKind Kind, NodeInfo? Node, TScope? Scope, int Index = 0, int Count = 0);
 
 /// <summary>
@@ -165,7 +167,7 @@ internal sealed class PlanCursor<TScope>
             }
 
             _frames.Pop();
-            return new(CursorStepKind.ExitGroup, frame.Group, frame.Scope);
+            return new(CursorStepKind.ExitGroup, frame.Group, frame.Scope, Count: count);
         }
 
         if (frame.Range is { } memberRange)
@@ -246,9 +248,9 @@ internal sealed class PlanCursor<TScope>
     /// <summary>
     /// Completes an <see cref="CursorStepKind.EnterGroup"/> step for a repeat: the cursor will emit an EnterItem step per item.
     /// </summary>
-    /// <param name="parentScope">The scope of the group that contains the repeat (the items are entered from it).</param>
-    /// <param name="count">The resolved number of items; 0 skips the repeat.</param>
-    public void EnterRepeat(TScope parentScope, int count)
+    /// <param name="scope">The scope of the repeat (the items are entered from it).</param>
+    /// <param name="count">The resolved number of items; 0 skips the items.</param>
+    public void EnterRepeat(TScope scope, int count)
     {
         if (_pendingEnter is not RepeatInfo repeat || !_pendingAnnounced || _pendingItemIndex >= 0)
         {
@@ -260,7 +262,7 @@ internal sealed class PlanCursor<TScope>
             throw _logger.Fail($"'{repeat.Path}': the repeat count {count} cannot be negative.");
         }
 
-        _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = count, Range = CurrentRange });
+        _frames.Push(new Frame(repeat, scope, 0, 0) { Count = count, Range = CurrentRange });
         _pendingEnter = null;
         _pendingAnnounced = false;
     }
@@ -268,14 +270,15 @@ internal sealed class PlanCursor<TScope>
     /// <summary>
     /// Completes an EnterGroup step for a repeat without a count: items are emitted until <see cref="CloseRepeat"/> is called.
     /// </summary>
-    public void EnterOpenRepeat(TScope parentScope)
+    /// <param name="scope">The scope of the repeat (the items are entered from it).</param>
+    public void EnterOpenRepeat(TScope scope)
     {
         if (_pendingEnter is not RepeatInfo repeat || !_pendingAnnounced || _pendingItemIndex >= 0)
         {
             throw _logger.Fail("EnterOpenRepeat can only be called after an EnterGroup step for a repeat.", category: SerializationCategories.Schema);
         }
 
-        _frames.Push(new Frame(repeat, parentScope, 0, 0) { Count = Int32.MaxValue, Open = true, Range = CurrentRange });
+        _frames.Push(new Frame(repeat, scope, 0, 0) { Count = Int32.MaxValue, Open = true, Range = CurrentRange });
         _pendingEnter = null;
         _pendingAnnounced = false;
     }
@@ -283,6 +286,7 @@ internal sealed class PlanCursor<TScope>
     /// <summary>
     /// Completes an EnterGroup step for an open choice with a memberNodeDef: the selected body group is the only member of the choice.
     /// </summary>
+    /// <param name="scope">The scope of the choice (the body is entered from it).</param>
     /// <param name="range">Optional: a range over the body plan; null visits the whole body.</param>
     public void EnterOpenChoice(TScope scope, GroupInfo body, PlanRange? range = null)
     {
@@ -299,7 +303,7 @@ internal sealed class PlanCursor<TScope>
     /// <summary>
     /// Completes an EnterGroup step for an open choice with members: the selected member is the only one visited.
     /// </summary>
-    /// <param name="scope">The scope that holds the values of the member (a field member is processed with it).</param>
+    /// <param name="scope">The scope of the choice (the member is processed with it).</param>
     /// <param name="index">The index of the selected member.</param>
     /// <param name="range">Optional: a range of this plan inside the member; null keeps the current range.</param>
     public void EnterOpenChoice(TScope scope, int index, PlanRange? range = null)
@@ -317,7 +321,7 @@ internal sealed class PlanCursor<TScope>
     /// <summary>True when the next step is the start of an item (or the end) of a repeat without a count.</summary>
     public bool AtOpenRepeat => _pendingEnter is null && _frames.Count > 0 && _frames.Peek() is { Open: true };
 
-    /// <summary>The scope of the current frame (for a repeat frame: the scope that holds the repeat).</summary>
+    /// <summary>The scope of the current frame (for a repeat frame: the scope of the repeat).</summary>
     public TScope CurrentScope => _frames.Peek().Scope;
 
     /// <summary>The index the next item of the current repeat frame will get.</summary>

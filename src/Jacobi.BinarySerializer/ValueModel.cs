@@ -11,38 +11,69 @@ namespace Jacobi.BinarySerializer;
 // - Scopes are plain objects that the session keeps on its frame stack (no call-stack state), so reads/writes can be resumed.
 // - Steps are described by context objects (see ValueContext), which identify the plan node (Name/Path) and can grow.
 // - A model need not map every schema field (length prefixes, counts, reserved bits): the engine derives those.
+// - Reading and writing walk the same sequence: every scope is entered and exited, the exit is called on the scope
+//   the enter returned. The root model is the scope of the root node: it is not entered, but it is exited.
+//   A group:  EnterGroup ... ExitGroup.
+//   A repeat: EnterRepeat (EnterOpenRepeat for a repeat without a count), then per item EnterItem ... ExitItem on
+//             the repeat's scope, then ExitRepeat.
+//   A choice: EnterChoice (EnterOpenChoice for a choice without a selectedIndex), the selected member through the
+//             choice's scope with the calls above, then ExitChoice.
 
 /// <summary>
-/// Provides the values to write. An instance represents one scope (group, repeat item or choice).
+/// Provides the values to write. An instance represents one scope (group, repeat, repeat item or choice).
 /// </summary>
 public interface IValueSource
 {
     /// <summary>
     /// Gets the value of a field.
     /// Answers NoValue when the model has no value for the field (the engine then derives it or fails),
-    /// or EndOfData on the first field of an item of a count-less repeat when there are no more items.
+    /// or EndOfData on the first field of an item of a repeat without a count when there are no more items
+    /// (the engine's own rule, see <see cref="OpenRepeatAction.Default"/>).
     /// </summary>
     SourceResult GetField(FieldContext context);
 
     /// <summary>Enters a child group of this scope.</summary>
     IValueSource EnterGroup(GroupContext context);
 
+    /// <summary>Called when a group scope is done, on the scope that was returned by EnterGroup (or on the root).</summary>
+    void ExitGroup(GroupContext context);
+
     /// <summary>
-    /// Gets the number of items the model holds for a child repeat.
-    /// Answer -1 (unknown) for a count-less repeat: the engine then probes the first field of each item with GetField (on this source, with the item instance)
-    /// until it answers EndOfData. Only flat models can do that.
+    /// Enters a child repeat with a count: <paramref name="count"/> is the resolved number of items. The scope holds its items
+    /// (EnterItem is called on it). A repeat without a count is entered with <see cref="IOpenRepeatSource.EnterOpenRepeat"/>.
     /// </summary>
-    int GetCount(RepeatContext context);
+    IValueSource EnterRepeat(RepeatContext context, int count);
 
-    /// <summary>Enters one item of a child repeat. The scope holds the repeat's members.</summary>
-    IValueSource EnterItem(RepeatContext context, int index);
+    /// <summary>
+    /// Called when a repeat is done, on the scope that was returned by EnterRepeat or EnterOpenRepeat (or on the root).
+    /// <paramref name="count"/> is the number of items.
+    /// </summary>
+    void ExitRepeat(RepeatContext context, int count);
 
-    /// <summary>Enters a child choice. The scope holds the choice's alternatives.</summary>
-    IValueSource EnterChoice(ChoiceContext context);
+    /// <summary>
+    /// Enters one item of a repeat, on the scope of the repeat. The scope holds the repeat's members.
+    /// <paramref name="count"/> is the number of items, or -1 for a repeat that is written item by item.
+    /// </summary>
+    IValueSource EnterItem(RepeatContext context, int index, int count);
+
+    /// <summary>Called when an item is done, on the scope that was returned by EnterItem.</summary>
+    void ExitItem(RepeatContext context, int index, int count);
+
+    /// <summary>
+    /// Enters a child choice with the resolved alternative index. The scope holds the selected alternative.
+    /// A choice without a selectedIndex is entered with <see cref="IOpenChoiceSource.EnterOpenChoice"/>.
+    /// </summary>
+    IValueSource EnterChoice(ChoiceContext context, int selectedIndex);
+
+    /// <summary>
+    /// Called when a choice is done, on the scope that was returned by EnterChoice or EnterOpenChoice.
+    /// <paramref name="selectedIndex"/> is the index of the alternative, -1 for a body of a choice with a memberNodeDef.
+    /// </summary>
+    void ExitChoice(ChoiceContext context, int selectedIndex);
 }
 
 /// <summary>
-/// Receives the values that were read. An instance represents one scope (group, repeat item or choice).
+/// Receives the values that were read. An instance represents one scope (group, repeat, repeat item or choice).
 /// </summary>
 public interface IValueSink
 {
@@ -52,27 +83,38 @@ public interface IValueSink
     /// <summary>Enters a child group of this scope.</summary>
     IValueSink EnterGroup(GroupContext context);
 
-    /// <summary>Enters one item of a child repeat. <paramref name="count"/> is the resolved item count, or -1 for a repeat without a count (not known up front).</summary>
-    IValueSink EnterItem(RepeatContext context, int index, int count);
-
-    /// <summary>Enters a child choice with the resolved alternative index.</summary>
-    IValueSink EnterChoice(ChoiceContext context, int selectedIndex);
-
     /// <summary>
-    /// Called when a group scope is exhausted, on the scope that was returned by EnterGroup (or on the root).
+    /// Called when a group scope is done, on the scope that was returned by EnterGroup (or on the root).
     /// Models that build immutable/typed instances create the instance here and hand it to their parent.
     /// </summary>
     void ExitGroup(GroupContext context);
 
     /// <summary>
-    /// Called when a repeat item scope is exhausted, on the scope that was returned by EnterItem.
-    /// <paramref name="count"/> is the resolved item count, or -1 for a repeat without a count.
+    /// Enters a child repeat: <paramref name="count"/> is the resolved number of items, or -1 for a repeat without a
+    /// count when this scope is not an <see cref="IOpenRepeatSink"/> (the engine's own rule ends it). The scope receives
+    /// its items (EnterItem is called on it).
     /// </summary>
+    IValueSink EnterRepeat(RepeatContext context, int count);
+
+    /// <inheritdoc cref="IValueSource.ExitRepeat"/>
+    void ExitRepeat(RepeatContext context, int count);
+
+    /// <summary>
+    /// Enters one item of a repeat, on the scope of the repeat. The scope receives the repeat's members.
+    /// <paramref name="count"/> is the number of items, or -1 for a repeat that is read item by item.
+    /// </summary>
+    IValueSink EnterItem(RepeatContext context, int index, int count);
+
+    /// <inheritdoc cref="IValueSource.ExitItem"/>
     void ExitItem(RepeatContext context, int index, int count);
 
     /// <summary>
-    /// Called when a choice scope is exhausted, on the scope that was returned by EnterChoice.
+    /// Enters a child choice with the resolved alternative index. The scope receives the selected alternative.
+    /// A choice without a selectedIndex is entered with <see cref="IOpenChoiceSink.EnterOpenChoice"/>.
     /// </summary>
+    IValueSink EnterChoice(ChoiceContext context, int selectedIndex);
+
+    /// <inheritdoc cref="IValueSource.ExitChoice"/>
     void ExitChoice(ChoiceContext context, int selectedIndex);
 }
 
@@ -91,10 +133,9 @@ public readonly record struct OpenChoiceSourceResult
     }
 
     /// <summary>
-    /// The scope the engine uses for the selected member: the member's own scope for a group, a choice or a body (the
-    /// engine enters the member with it, without a further EnterGroup or EnterChoice); for a field or a repeat, the scope
-    /// the engine calls GetField/SetField, or GetCount/EnterItem, on for that member. It may be a scope dedicated to the
-    /// member. For a member that is an open choice itself, the engine selects its member with EnterOpenChoice on it.
+    /// The scope of the choice, as <see cref="IValueSource.EnterChoice"/> returns it: the engine handles the selected
+    /// member through it with the usual calls (EnterGroup for a group or a body, GetField for a field, EnterRepeat,
+    /// EnterChoice or EnterOpenChoice) and calls ExitChoice on it when the choice is done.
     /// </summary>
     public IValueSource Scope { get; }
 
@@ -222,7 +263,7 @@ internal readonly record struct OpenChoiceTarget(SchemaPath Begin, InstancePath 
 public interface IOpenChoiceSource : IValueSource
 {
     /// <summary>
-    /// Selects the member of a child open choice and enters its scope.
+    /// Selects the member of a child open choice and enters the choice: in place of <see cref="IValueSource.EnterChoice"/>.
     /// </summary>
     OpenChoiceSourceResult EnterOpenChoice(OpenChoiceContext context);
 }
@@ -233,9 +274,74 @@ public interface IOpenChoiceSource : IValueSource
 public interface IOpenChoiceSink : IValueSink
 {
     /// <summary>
-    /// Selects the member of a child open choice (based on values already seen) and enters its scope.
+    /// Selects the member of a child open choice (based on values already seen) and enters the choice: in place of
+    /// <see cref="IValueSink.EnterChoice"/>.
     /// </summary>
     OpenChoiceSinkResult EnterOpenChoice(OpenChoiceContext context);
+}
+
+/// <summary>
+/// The scope of an open repeat to write, and its number of items when the model knows it. Made with
+/// <see cref="Counted"/> or <see cref="ItemByItem"/>.
+/// </summary>
+public readonly record struct OpenRepeatSourceResult
+{
+    private OpenRepeatSourceResult(IValueSource scope, int count)
+    {
+        Scope = scope ?? throw new ArgumentNullException(nameof(scope));
+        Count = count;
+    }
+
+    /// <summary>The scope of the repeat, as <see cref="IValueSource.EnterRepeat"/> returns it.</summary>
+    public IValueSource Scope { get; }
+
+    /// <summary>The number of items, or -1: item by item (the engine asks NextItem before each item).</summary>
+    public int Count { get; }
+
+    /// <summary>The model knows the number of items.</summary>
+    public static OpenRepeatSourceResult Counted(IValueSource scope, int count)
+        => new(scope, count >= 0 ? count : throw new ArgumentOutOfRangeException(nameof(count), count, "The number of items cannot be negative."));
+
+    /// <summary>
+    /// The model decides per item: the engine asks <see cref="IOpenRepeatSource.NextItem"/> on the scope before each item
+    /// (the engine's own rule when the scope is not an <see cref="IOpenRepeatSource"/>).
+    /// </summary>
+    public static OpenRepeatSourceResult ItemByItem(IValueSource scope) => new(scope, -1);
+
+    /// <summary>The same result with another scope (e.g. a scope that wraps this one).</summary>
+    public OpenRepeatSourceResult WithScope(IValueSource scope) => new(scope, Count);
+}
+
+/// <summary>
+/// The scope of an open repeat to read, and its number of items when the model knows it. Made with
+/// <see cref="Counted"/> or <see cref="ItemByItem"/>.
+/// </summary>
+public readonly record struct OpenRepeatSinkResult
+{
+    private OpenRepeatSinkResult(IValueSink scope, int count)
+    {
+        Scope = scope ?? throw new ArgumentNullException(nameof(scope));
+        Count = count;
+    }
+
+    /// <summary>The scope of the repeat, as <see cref="IValueSink.EnterRepeat"/> returns it.</summary>
+    public IValueSink Scope { get; }
+
+    /// <inheritdoc cref="OpenRepeatSourceResult.Count"/>
+    public int Count { get; }
+
+    /// <inheritdoc cref="OpenRepeatSourceResult.Counted"/>
+    public static OpenRepeatSinkResult Counted(IValueSink scope, int count)
+        => new(scope, count >= 0 ? count : throw new ArgumentOutOfRangeException(nameof(count), count, "The number of items cannot be negative."));
+
+    /// <summary>
+    /// The model decides per item: the engine asks <see cref="IOpenRepeatSink.NextItem"/> on the scope before each item
+    /// (the engine's own rule when the scope is not an <see cref="IOpenRepeatSink"/>).
+    /// </summary>
+    public static OpenRepeatSinkResult ItemByItem(IValueSink scope) => new(scope, -1);
+
+    /// <inheritdoc cref="OpenRepeatSourceResult.WithScope"/>
+    public OpenRepeatSinkResult WithScope(IValueSink scope) => new(scope, Count);
 }
 
 /// <summary>
@@ -243,7 +349,10 @@ public interface IOpenChoiceSink : IValueSink
 /// </summary>
 public enum OpenRepeatAction
 {
-    /// <summary>Let the engine decide with its own rules (end of data/window on read, GetCount/EndOfData probe on write).</summary>
+    /// <summary>
+    /// Let the engine decide with its own rule: on read the end of the input or size window; on write the first field
+    /// of the next item answers EndOfData (asked on the scope of the repeat).
+    /// </summary>
     Default,
     /// <summary>There is another item: enter it.</summary>
     Next,
@@ -252,28 +361,40 @@ public enum OpenRepeatAction
 }
 
 /// <summary>
-/// Optional extension of <see cref="IValueSource"/> for models that decide when an open repeat ends.
-/// Implemented by the scope that holds the repeat (the parent scope, or the root for a root repeat).
+/// Optional extension of <see cref="IValueSource"/> for models that write repeats without a count. Required on the scope
+/// that holds such a repeat; also for a repeat whose count field the engine derives from the items written (the model
+/// has no value for it).
 /// </summary>
 public interface IOpenRepeatSource : IValueSource
 {
     /// <summary>
-    /// Called before each item of a child open repeat (including the first) to decide if the item is written.
-    /// The engine then does not ask <see cref="IValueSource.GetCount"/> for the repeat.
+    /// Enters a child repeat without a count (on the scope that holds it): in place of <see cref="IValueSource.EnterRepeat"/>.
     /// </summary>
-    OpenRepeatAction NextItem(OpenRepeatContext context);
+    OpenRepeatSourceResult EnterOpenRepeat(RepeatContext context);
+
+    /// <summary>
+    /// Called on the scope of an open repeat that is written item by item, before each item (including the first), to
+    /// decide if the item <paramref name="index"/> (also the number of items so far) is written.
+    /// </summary>
+    OpenRepeatAction NextItem(RepeatContext context, int index);
 }
 
 /// <summary>
-/// Optional extension of <see cref="IValueSink"/> for models that decide when an open repeat ends.
-/// Implemented by the scope that holds the repeat (the parent scope, or the root for a root repeat).
+/// Optional extension of <see cref="IValueSink"/> for models that decide how many items a repeat without a count has.
+/// Without it the engine's own rule (the end of the input or size window) ends such a repeat.
 /// </summary>
 public interface IOpenRepeatSink : IValueSink
 {
     /// <summary>
-    /// Called before each item of a child open repeat (including the first) to decide if another item is read.
+    /// Enters a child repeat without a count (on the scope that holds it): in place of <see cref="IValueSink.EnterRepeat"/>.
+    /// </summary>
+    OpenRepeatSinkResult EnterOpenRepeat(OpenRepeatReadContext context);
+
+    /// <summary>
+    /// Called on the scope of an open repeat that is read item by item, before each item (including the first), to
+    /// decide if the item <paramref name="index"/> (also the number of items so far) is read.
     /// The model has already received the values of the previous items, so it can stop after a terminating item (e.g. PNG IEND, MIDI End of Track)
     /// or, by peeking, before a terminator that a sibling node reads (e.g. a 0x00 end marker).
     /// </summary>
-    OpenRepeatAction NextItem(OpenRepeatReadContext context);
+    OpenRepeatAction NextItem(OpenRepeatReadContext context, int index);
 }

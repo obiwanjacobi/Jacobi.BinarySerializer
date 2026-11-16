@@ -198,9 +198,13 @@ internal sealed class DictSource(Dictionary<string, object?> values, List<string
         return this;
     }
 
-    public int GetCount(RepeatContext context) => throw new NotSupportedException();
-    public IValueSource EnterItem(RepeatContext context, int index) => throw new NotSupportedException();
-    public IValueSource EnterChoice(ChoiceContext context)
+    public void ExitGroup(GroupContext context) { }
+    public IValueSource EnterRepeat(RepeatContext context, int count) => this;
+    public void ExitRepeat(RepeatContext context, int count) { }
+    public void ExitItem(RepeatContext context, int index, int count) { }
+    public void ExitChoice(ChoiceContext context, int selectedIndex) { }
+    public IValueSource EnterItem(RepeatContext context, int index, int count) => throw new NotSupportedException();
+    public IValueSource EnterChoice(ChoiceContext context, int selectedIndex)
     {
         events?.Add($"Enter:{context.Path}");
         return this;
@@ -227,6 +231,12 @@ internal sealed class DictSink : IValueSink
         return new DictSink(_root, context.Path);
     }
 
+    public IValueSink EnterRepeat(RepeatContext context, int count)
+    {
+        _root.Events.Add($"Repeat:{context.Path}[{count}]");
+        return new DictSink(_root, context.Path);
+    }
+    public void ExitRepeat(RepeatContext context, int count) => _root.Events.Add($"Complete:{_path}[{count}]");
     public IValueSink EnterItem(RepeatContext context, int index, int count)
     {
         _root.Events.Add($"Item:{context.Path}[{index}/{count}]");

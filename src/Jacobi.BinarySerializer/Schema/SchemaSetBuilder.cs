@@ -440,7 +440,7 @@ public sealed class SchemaSetBuilder
             throw new InvalidOperationException(
                 $"{referrer} has both members and a memberNodeDef: an open choice has no members, the value model selects a group that conforms to the memberNodeDef.");
         }
-        if (choice.SelectedIndex is int or SchemaNodeRef or SchemaPubRef)
+        if (!choice.IsOpen)
         {
             throw new InvalidOperationException(
                 $"{referrer} sets a selectedIndex, which is not valid for an open choice (with a memberNodeDef): the value model selects the group.");
@@ -504,7 +504,7 @@ public sealed class SchemaSetBuilder
             {
                 ValidateOpenChoice(openChoice, referrer);
             }
-            else if (node is SchemaChoice { ValueProcessors.Count: > 0 } memberChoice && memberChoice.SelectedIndex is not (int or SchemaNodeRef or SchemaPubRef))
+            else if (node is SchemaChoice { IsOpen: true, ValueProcessors.Count: > 0 })
             {
                 throw new InvalidOperationException(
                     $"{referrer} sets valueProcessors without a selectedIndex: it is an open choice, whose member the value model selects, so there is no selectedIndex to convert.");

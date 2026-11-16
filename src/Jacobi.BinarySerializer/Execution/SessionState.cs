@@ -166,14 +166,13 @@ public closed class SessionState
     public void Publish(SchemaPath path, InstancePath instance, object? value) => Publish(PublishedValueKey.ForPath(path, instance), value);
 
     /// <summary>
-    /// The member of an open choice with members that the value model selected (read and write alike): its index, the
-    /// member when it is a group (entered with the model's scope) and the range of the target inside it (null: the
-    /// current range applies). A target needs a member that is a group, and a current range that covers the whole
+    /// The member of an open choice with members that the value model selected (read and write alike): its index and
+    /// the range of the target inside it (null: the current range applies). A target needs a member that is a group, and a current range that covers the whole
     /// choice (one that does not begin or end inside it).
     /// </summary>
     /// <param name="current">The range of the read or write at the choice (null: no range).</param>
     /// <param name="above">The item indices of the repeats above the choice that the range keys know about.</param>
-    internal (int Index, GroupInfo? Group, PlanRange? Range) SelectOpenChoiceMember(ExecutionPlan plan, ChoiceInfo choice,
+    internal (int Index, PlanRange? Range) SelectOpenChoiceMember(ExecutionPlan plan, ChoiceInfo choice,
         SchemaName member, SchemaPath begin, InstancePath beginInstance, SchemaPath end, InstancePath endInstance,
         PlanRange? current, InstancePath above)
     {
@@ -194,7 +193,7 @@ public closed class SessionState
             range = plan.CreateOpenChoiceRange(choice, group, begin, beginInstance, end, endInstance, above);
         }
         EngineLogger.ChoiceSelected(choice.Path.ToString(), node.Index);
-        return (node.Index, node as GroupInfo, range);
+        return (node.Index, range);
     }
 
     /// <summary>

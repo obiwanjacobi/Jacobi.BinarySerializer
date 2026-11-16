@@ -65,7 +65,7 @@ public class SessionOpenRepeatModelTests
         var sink = new Sink((context, items) =>
         {
             Assert.That(context.Path, Is.EqualTo("Root.Items"));
-            seen.Add((context.Index, context.Remaining, context.AtDefaultEnd));
+            seen.Add((items.Count, context.Remaining, context.AtDefaultEnd));
             return OpenRepeatAction.Default;
         });
 
@@ -93,6 +93,46 @@ public class SessionOpenRepeatModelTests
 
         Assert.That(result, Is.EqualTo(ReadResult.Success));
         Assert.That(sink.Items, Is.Empty);
+    }
+
+    [Test]
+    public void Read_SinkKnowsTheCount_ReadsThatManyItemsWithoutNextItem()
+    {
+        var sink = new Sink((_, _) => throw new InvalidOperationException("NextItem is not asked when the count is known.")) { Count = 2 };
+        var session = new ReaderSession(Build(Root()));
+
+        var result = session.Read(new ReadOnlySequence<byte>(new byte[] { 9, 1, 2, 3 }), sink);
+
+        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That(sink.Items, Is.EqualTo(new byte[] { 1, 2 }));
+        Assert.That(session.BytesRead, Is.EqualTo(3));
+        Assert.That(sink.RepeatCounts, Is.EqualTo(new[] { 2, 2 }));
+        Assert.That(sink.Counts, Is.EqualTo(new[] { 2, 2, 2, 2 }));
+    }
+
+    [Test]
+    public void Read_ItemByItem_ExitRepeatGetsTheNumberOfItems()
+    {
+        var sink = new Sink((_, _) => OpenRepeatAction.Default);
+
+        new ReaderSession(Build(Root())).Read(new ReadOnlySequence<byte>(new byte[] { 9, 1, 2, 3 }), sink);
+
+        Assert.That(sink.RepeatCounts, Is.EqualTo(new[] { -1, 3 }));
+        Assert.That(sink.Counts, Is.EqualTo(new[] { -1, -1, -1, -1, -1, -1 }));
+    }
+
+    [Test]
+    public void Write_SourceKnowsTheCount_WritesThatManyItemsWithoutNextItem()
+    {
+        var indexes = new List<int>();
+        var source = new Source([1, 2, 3], indexes) { Count = 3 };
+        var output = new ArrayBufferWriter<byte>();
+
+        var result = new WriterSession(Build(Root()), output).Write(source);
+
+        Assert.That(result, Is.EqualTo(WriteResult.Success));
+        Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 9, 1, 2, 3 }));
+        Assert.That(indexes, Is.Empty);
     }
 
     [Test]
@@ -197,7 +237,19 @@ public class SessionOpenRepeatModelTests
         public List<int> Counts { get; } = [];
         public byte? Tail { get; private set; }
 
-        public OpenRepeatAction NextItem(OpenRepeatReadContext context) => decide(context, Items);
+        // the counts EnterRepeat/EnterOpenRepeat and ExitRepeat received (-1: item by item), in call order.
+        public List<int> RepeatCounts { get; } = [];
+
+        // the number of items the sink knows (null: item by item)
+        public int? Count { get; init; }
+
+        public OpenRepeatSinkResult EnterOpenRepeat(OpenRepeatReadContext context)
+        {
+            RepeatCounts.Add(Count ?? -1);
+            return Count is { } count ? OpenRepeatSinkResult.Counted(this, count) : OpenRepeatSinkResult.ItemByItem(this);
+        }
+
+        public OpenRepeatAction NextItem(OpenRepeatReadContext context, int index) => decide(context, Items);
 
         public void SetField(FieldContext context, LogicalField value)
         {
@@ -212,6 +264,12 @@ public class SessionOpenRepeatModelTests
         }
 
         public IValueSink EnterGroup(GroupContext context) => this;
+        public IValueSink EnterRepeat(RepeatContext context, int count)
+        {
+            RepeatCounts.Add(count);
+            return this;
+        }
+        public void ExitRepeat(RepeatContext context, int count) => RepeatCounts.Add(count);
         public IValueSink EnterItem(RepeatContext context, int index, int count)
         {
             Counts.Add(count);
@@ -228,10 +286,16 @@ public class SessionOpenRepeatModelTests
     {
         private int _item = -1;
 
-        public OpenRepeatAction NextItem(OpenRepeatContext context)
+        // the number of items the source gives up front (null: item by item)
+        public int? Count { get; init; }
+
+        public OpenRepeatSourceResult EnterOpenRepeat(RepeatContext context)
+            => Count is { } count ? OpenRepeatSourceResult.Counted(this, count) : OpenRepeatSourceResult.ItemByItem(this);
+
+        public OpenRepeatAction NextItem(RepeatContext context, int index)
         {
-            indexes.Add(context.Index);
-            return context.Index < items.Length ? OpenRepeatAction.Next : OpenRepeatAction.End;
+            indexes.Add(index);
+            return index < items.Length ? OpenRepeatAction.Next : OpenRepeatAction.End;
         }
 
         public SourceResult GetField(FieldContext context) => context.Path switch
@@ -243,20 +307,28 @@ public class SessionOpenRepeatModelTests
         };
 
         public IValueSource EnterGroup(GroupContext context) => this;
-        public int GetCount(RepeatContext context) => throw new NotSupportedException("an open repeat source is not asked for a count");
+        public void ExitGroup(GroupContext context) { }
+        public IValueSource EnterRepeat(RepeatContext context, int count) => this;
+        public void ExitRepeat(RepeatContext context, int count) { }
+        public void ExitItem(RepeatContext context, int index, int count) { }
+        public void ExitChoice(ChoiceContext context, int selectedIndex) { }
 
-        public IValueSource EnterItem(RepeatContext context, int index)
+        public IValueSource EnterItem(RepeatContext context, int index, int count)
         {
             _item = index;
             return this;
         }
 
-        public IValueSource EnterChoice(ChoiceContext context) => throw new NotSupportedException();
+        public IValueSource EnterChoice(ChoiceContext context, int selectedIndex) => throw new NotSupportedException();
     }
 
-    // root scope -> Body scope (holds the open repeat, answers -1 and EndOfData) -> item scopes; each scope only knows its own fields.
-    private sealed class HierarchicalSource(byte[] items, int level = 0, int item = -1) : IValueSource
+    // root scope -> Body scope (holds the open repeat, writes it item by item and answers EndOfData: the engine's own rule) -> item scopes;
+    // each scope only knows its own fields.
+    private sealed class HierarchicalSource(byte[] items, int level = 0, int item = -1) : IOpenRepeatSource
     {
+        public OpenRepeatSourceResult EnterOpenRepeat(RepeatContext context) => OpenRepeatSourceResult.ItemByItem(this);
+        public OpenRepeatAction NextItem(RepeatContext context, int index) => OpenRepeatAction.Default;
+
         public SourceResult GetField(FieldContext context) => (level, context.Path) switch
         {
             (0, "Root.Head") => SourceResult.Provided(new LogicalField("Head", typeof(byte), (byte)9)),
@@ -266,8 +338,12 @@ public class SessionOpenRepeatModelTests
         };
 
         public IValueSource EnterGroup(GroupContext context) => new HierarchicalSource(items, level + 1);
-        public int GetCount(RepeatContext context) => -1;
-        public IValueSource EnterItem(RepeatContext context, int index) => new HierarchicalSource(items, level + 1, index);
-        public IValueSource EnterChoice(ChoiceContext context) => throw new NotSupportedException();
+        public void ExitGroup(GroupContext context) { }
+        public IValueSource EnterRepeat(RepeatContext context, int count) => this;
+        public void ExitRepeat(RepeatContext context, int count) { }
+        public void ExitItem(RepeatContext context, int index, int count) { }
+        public void ExitChoice(ChoiceContext context, int selectedIndex) { }
+        public IValueSource EnterItem(RepeatContext context, int index, int count) => new HierarchicalSource(items, level + 1, index);
+        public IValueSource EnterChoice(ChoiceContext context, int selectedIndex) => throw new NotSupportedException();
     }
 }

@@ -51,6 +51,28 @@ public class OpenChoiceTests
     }
 
     [Test]
+    public void Read_OpenChoice_TheBodyIsEnteredOnTheScopeOfTheChoice()
+    {
+        var serializer = CreateSerializer(OpenChoiceSchema);
+        var sink = new OpenSink();
+
+        serializer.Deserialize(new SchemaName("OpenTest.Root"), new ReadOnlySequence<byte>([0x07]), sink);
+
+        Assert.That(sink.Events, Is.EqualTo(new[] { "enter BodyA", "exit BodyA", "exit choice Root.Msg[-1]", "exit Root" }));
+    }
+
+    [Test]
+    public void Write_OpenChoice_TheBodyIsEnteredOnTheScopeOfTheChoice()
+    {
+        var serializer = CreateSerializer(OpenChoiceSchema);
+        var source = new OpenSource();
+
+        serializer.Serialize(new SchemaName("OpenTest.Root"), source, new ArrayBufferWriter<byte>());
+
+        Assert.That(source.Events, Is.EqualTo(new[] { "enter BodyA", "exit BodyA", "exit choice Root.Msg[-1]", "exit Root" }));
+    }
+
+    [Test]
     public void Read_OpenChoice_UnknownGroup_Throws()
     {
         var serializer = CreateSerializer(OpenChoiceSchema);
@@ -236,7 +258,7 @@ public class OpenChoiceTests
     public void Read_OpenRepeatAtEndOfBodyFollowedByEnvelopeNodes_DefaultThrows()
     {
         var serializer = CreateSerializer(TrailingSchema);
-        var sink = new OpenRepeatOpenSink(_ => OpenRepeatAction.Default);
+        var sink = new OpenRepeatOpenSink((_, _) => OpenRepeatAction.Default);
 
         var ex = Assert.Throws<SerializationException>(
             () => serializer.Deserialize(new SchemaName("TrailTest.Root"), new ReadOnlySequence<byte>([1, 2, 9]), sink));
@@ -248,7 +270,7 @@ public class OpenChoiceTests
     public void Read_OpenRepeatAtEndOfBodyFollowedByEnvelopeNodes_SinkEndsIt()
     {
         var serializer = CreateSerializer(TrailingSchema);
-        var sink = new OpenRepeatOpenSink(context => context.Index < 2 ? OpenRepeatAction.Next : OpenRepeatAction.End);
+        var sink = new OpenRepeatOpenSink((_, index) => index < 2 ? OpenRepeatAction.Next : OpenRepeatAction.End);
 
         serializer.Deserialize(new SchemaName("TrailTest.Root"), new ReadOnlySequence<byte>([1, 2, 9]), sink);
 
@@ -942,6 +964,7 @@ public class OpenChoiceTests
 
     private class PlainSink : IValueSink
     {
+        public List<string> Events { get; } = [];
         public List<string> Fields { get; } = [];
         public List<InstancePath> Instances { get; } = [];
         public void SetField(FieldContext context, LogicalField value)
@@ -949,20 +972,28 @@ public class OpenChoiceTests
             Fields.Add($"{context.Path}={value.Value}");
             Instances.Add(context.Instance);
         }
-        public IValueSink EnterGroup(GroupContext context) => this;
+        public IValueSink EnterGroup(GroupContext context)
+        {
+            Events.Add($"enter {context.Path}");
+            return this;
+        }
+        public IValueSink EnterRepeat(RepeatContext context, int count) => this;
+        public void ExitRepeat(RepeatContext context, int count) { }
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
-        public void ExitGroup(GroupContext context) { }
+        public void ExitGroup(GroupContext context) => Events.Add($"exit {context.Path}");
         public void ExitItem(RepeatContext context, int index, int count) { }
-        public void ExitChoice(ChoiceContext context, int selectedIndex) { }
+        public void ExitChoice(ChoiceContext context, int selectedIndex) => Events.Add($"exit choice {context.Path}[{selectedIndex}]");
     }
 
-    private sealed class OpenRepeatOpenSink(Func<OpenRepeatReadContext, OpenRepeatAction> next) : PlainSink, IOpenChoiceSink, IOpenRepeatSink
+    private sealed class OpenRepeatOpenSink(Func<OpenRepeatReadContext, int, OpenRepeatAction> next) : PlainSink, IOpenChoiceSink, IOpenRepeatSink
     {
         public OpenChoiceSinkResult EnterOpenChoice(OpenChoiceContext context)
             => OpenChoiceSinkResult.Select(this, new SchemaName("BodyA"));
 
-        public OpenRepeatAction NextItem(OpenRepeatReadContext context) => next(context);
+        public OpenRepeatSinkResult EnterOpenRepeat(OpenRepeatReadContext context) => OpenRepeatSinkResult.ItemByItem(this);
+
+        public OpenRepeatAction NextItem(OpenRepeatReadContext context, int index) => next(context, index);
     }
 
     private sealed class OpenSink : PlainSink, IOpenChoiceSink
@@ -985,16 +1016,25 @@ public class OpenChoiceTests
 
     private class PlainSource : IValueSource
     {
+        public List<string> Events { get; } = [];
         public List<InstancePath> Instances { get; } = [];
         public SourceResult GetField(FieldContext context)
         {
             Instances.Add(context.Instance);
             return SourceResult.Provided(new LogicalField(context.Name, typeof(byte), (byte)5));
         }
-        public IValueSource EnterGroup(GroupContext context) => this;
-        public int GetCount(RepeatContext context) => throw new NotSupportedException();
-        public IValueSource EnterItem(RepeatContext context, int index) => this;
-        public IValueSource EnterChoice(ChoiceContext context) => this;
+        public IValueSource EnterGroup(GroupContext context)
+        {
+            Events.Add($"enter {context.Path}");
+            return this;
+        }
+        public void ExitGroup(GroupContext context) => Events.Add($"exit {context.Path}");
+        public IValueSource EnterRepeat(RepeatContext context, int count) => this;
+        public void ExitRepeat(RepeatContext context, int count) { }
+        public void ExitItem(RepeatContext context, int index, int count) { }
+        public void ExitChoice(ChoiceContext context, int selectedIndex) => Events.Add($"exit choice {context.Path}[{selectedIndex}]");
+        public IValueSource EnterItem(RepeatContext context, int index, int count) => this;
+        public IValueSource EnterChoice(ChoiceContext context, int selectedIndex) => this;
     }
 
     private sealed class OpenSource : PlainSource, IOpenChoiceSource

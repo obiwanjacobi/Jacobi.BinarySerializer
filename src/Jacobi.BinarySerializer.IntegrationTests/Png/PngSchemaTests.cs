@@ -91,19 +91,24 @@ public class PngSchemaTests
     }
 
     // Flat recorder: all scopes share the one instance; the engine decides what is visited.
-    private sealed class Recorder : IValueSink, IValueSource
+    // The chunks (a repeat without a count) are written item by item until the length of the next chunk answers EndOfData.
+    private sealed class Recorder : IValueSink, IOpenRepeatSource
     {
         public IValueSink EnterGroup(GroupContext context) => this;
+        public IValueSink EnterRepeat(RepeatContext context, int count) => this;
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
         public void ExitGroup(GroupContext context) { }
+        public void ExitRepeat(RepeatContext context, int count) { }
         public void ExitItem(RepeatContext context, int index, int count) { }
         public void ExitChoice(ChoiceContext context, int selectedIndex) { }
 
         IValueSource IValueSource.EnterGroup(GroupContext context) => this;
-        IValueSource IValueSource.EnterItem(RepeatContext context, int index) => this;
-        IValueSource IValueSource.EnterChoice(ChoiceContext context) => this;
-        public int GetCount(RepeatContext context) => -1;
+        IValueSource IValueSource.EnterRepeat(RepeatContext context, int count) => this;
+        IValueSource IValueSource.EnterItem(RepeatContext context, int index, int count) => this;
+        IValueSource IValueSource.EnterChoice(ChoiceContext context, int selectedIndex) => this;
+        public OpenRepeatSourceResult EnterOpenRepeat(RepeatContext context) => OpenRepeatSourceResult.ItemByItem(this);
+        public OpenRepeatAction NextItem(RepeatContext context, int index) => OpenRepeatAction.Default;
 
         private readonly Dictionary<string, LogicalField> _values = [];
 
@@ -122,9 +127,11 @@ public class PngSchemaTests
     private sealed class Sink : IValueSink
     {
         public IValueSink EnterGroup(GroupContext context) => this;
+        public IValueSink EnterRepeat(RepeatContext context, int count) => this;
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
         public void ExitGroup(GroupContext context) { }
+        public void ExitRepeat(RepeatContext context, int count) { }
         public void ExitItem(RepeatContext context, int index, int count) { }
         public void ExitChoice(ChoiceContext context, int selectedIndex) { }
 

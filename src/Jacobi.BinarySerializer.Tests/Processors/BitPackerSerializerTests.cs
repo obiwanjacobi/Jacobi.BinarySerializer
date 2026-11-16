@@ -542,7 +542,7 @@ public class BitPackerSerializerTests
     }
 
     // Flat model: one instance serves as source and sink, values are keyed by schema path and repeat instance.
-    private sealed class Model : IValueSource, IValueSink
+    private sealed class Model : IOpenRepeatSource, IValueSink
     {
         public Dictionary<string, object?> Values { get; } = [];
 
@@ -555,15 +555,20 @@ public class BitPackerSerializerTests
 
         public void SetField(FieldContext context, LogicalField value) => Values[$"{context.Path}{context.Instance}"] = value.Value;
 
-        public int GetCount(RepeatContext context) => -1;
+        // a repeat without a count is written item by item with the engine's own rule (the EndOfData probe)
+        public OpenRepeatSourceResult EnterOpenRepeat(RepeatContext context) => OpenRepeatSourceResult.ItemByItem(this);
+        public OpenRepeatAction NextItem(RepeatContext context, int index) => OpenRepeatAction.Default;
 
         IValueSource IValueSource.EnterGroup(GroupContext context) => this;
-        IValueSource IValueSource.EnterItem(RepeatContext context, int index) => this;
-        IValueSource IValueSource.EnterChoice(ChoiceContext context) => this;
+        IValueSource IValueSource.EnterRepeat(RepeatContext context, int count) => this;
+        IValueSource IValueSource.EnterItem(RepeatContext context, int index, int count) => this;
+        IValueSource IValueSource.EnterChoice(ChoiceContext context, int selectedIndex) => this;
         IValueSink IValueSink.EnterGroup(GroupContext context) => this;
+        IValueSink IValueSink.EnterRepeat(RepeatContext context, int count) => this;
         IValueSink IValueSink.EnterItem(RepeatContext context, int index, int count) => this;
         IValueSink IValueSink.EnterChoice(ChoiceContext context, int selectedIndex) => this;
         public void ExitGroup(GroupContext context) { }
+        public void ExitRepeat(RepeatContext context, int count) { }
         public void ExitItem(RepeatContext context, int index, int count) { }
         public void ExitChoice(ChoiceContext context, int selectedIndex) { }
     }

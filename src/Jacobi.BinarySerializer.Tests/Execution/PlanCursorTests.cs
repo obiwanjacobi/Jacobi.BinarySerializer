@@ -139,7 +139,7 @@ public class PlanCursorTests
             "EnterGroup:Root.R",
             "EnterItem:Root.R:0/2", "Field:Root.R.A:0/0", "ExitItem:Root.R:0/2",
             "EnterItem:Root.R:1/2", "Field:Root.R.A:0/0", "ExitItem:Root.R:1/2",
-            "ExitGroup:Root.R:0/0", "ExitGroup:Root:0/0", "Done::0/0",
+            "ExitGroup:Root.R:0/2", "ExitGroup:Root:0/0", "Done::0/0",
         }));
     }
 

@@ -25,7 +25,7 @@ read:   bytes -> (Stream, root only) -> Layout -> Representation -> Semantic -> 
 
 1. **Plan building.** The builder walks the compiled schema, binds processors (the `ProcessorPipeline` sorts them into stages), binds constants and references (`ref:`, `pub:`) and validates processor chains. All problems found are reported together in an `ExecutionPlanException`.
 2. **Stepping.** A session creates a `PlanCursor` and loops on `Next()`. The cursor only tells *what* comes next; the session decides *how* (create a scope, process a field, resolve a count).
-3. **Scopes.** On `EnterGroup`/`EnterItem` the session asks the value model for a child scope and hands it to the cursor (`Enter`, `EnterRepeat`, `EnterOpenRepeat`). Fields are then read from/written to the scope of their containing group.
+3. **Scopes.** Every group, repeat, repeat item and choice is a scope of the value model, on read and on write alike. The session asks the scope that holds the node to enter it (`EnterGroup`, `EnterRepeat` or `EnterOpenRepeat`, `EnterChoice` or `EnterOpenChoice`; `EnterItem` on the scope of the repeat), hands the new scope to the cursor (`Enter`, `EnterRepeat`, `EnterOpenRepeat`, `EnterOpenChoice`) and calls the matching exit on that scope when the node is done. The root model is the scope of the root node: it is not entered, but it is exited. The member of a choice is handled through the scope of the choice. Fields are read from/written to the scope that holds them.
 4. **Fields.** Per field the session runs the stages in order (see the diagram). A stage without processors is short-circuited: the value passes unchanged, is encoded fixed-width by the default codec, or the bytes go straight to the output.
 5. **Finishing.** The root's stream processors (if any) run over the whole payload: after layout when writing, before layout when reading.
 
@@ -34,7 +34,7 @@ read:   bytes -> (Stream, root only) -> Layout -> Representation -> Semantic -> 
 - **Values only through `IValueSource` (write) and `IValueSink` (read).** The engine never touches a concrete model. This keeps a future typed-object API possible without changing the engine.
 - **No call-stack state.** Everything that is "where are we" lives on the cursor's frame stack and the session's stacks, so a walk is resumable and nothing recurses.
 - **Nodes are identified by plan `NodeInfo` (Name/Path)**, occurrences by `InstancePath`. Not by model member names.
-- **Derived values are resolved in the engine, not in the adapters.** Repeat counts, choice indices, group sizes and length fields that exist only in the schema (no model member) are derived by the engine. The model is not required to supply them.
+- **Derived values are resolved in the engine, not in the adapters.** Repeat counts, choice indices, group sizes and length fields that exist only in the schema (no model member) are derived by the engine. The model is not required to supply them. A size or count field that precedes its group or repeat is deferred on write: the output after it goes to a scratch buffer until the node is done, then the field is written with the size or the number of items. Deferred fields and their nodes must nest.
 - **Processors are stateless.** They get a context per call; private state lives in `SessionState` (per binding, optionally per repeat instance). Processors never reference each other.
 - **Processors communicate through published values.** A processor publishes a value (`pubns`/name, or a field's value by path); other nodes read it with `pub:`/`ref:`. A reference to a value that is not yet known is a runtime error.
 - **Truncated input is an error condition, not a mode.** The reader returns `NeedMoreData`; the caller supplies the complete message and reads again from the start. The writer returns `NeedMoreSpace`/failure results the same way. Nothing is streamed/resumed across calls.
@@ -68,7 +68,7 @@ How the facts are filled, in one place:
 
 - **Group**: a sequence of members. Optional `byteSize` (constant or reference) bounds its bytes: the reader limits a window, the writer buffers the group and writes the size once it is known.
 - **Buffered layouts**: the engine retains independent input windows and committed positions for layout stages. Empty output skips enclosing writes; cached input can complete a read without invoking enclosing readers. NeedMoreData, optionally specifying a minimum input count, drives the same refill scheduler for fields and begin/end hooks. Only committed consumption advances a stage; unused parent output remains buffered. Every read is bounded by enclosing size windows and reserved layout tails. Fields are published/delivered individually, so a later truncated field does not roll back previously delivered fields. A range can select part of such a group and encodes those selected fields as a fresh scoped message; it is not a bit-offset slice of the original wire message.
-- **Repeat**: a group with a count (constant, `ref:`, `pub:`) or *until end* (open). Each item is entered/exited as a separate frame with its own index.
+- **Repeat**: a group with a count (constant, `ref:`, `pub:`) or *until end* (open). Each item is entered/exited as a separate frame with its own index. On write, a count field the model has no value for is derived from the items written: the repeat is written as an open repeat.
 - **Choice**: a group where one member is selected by an index (constant or referenced); only the selected member is visited.
 
 ## Open repeats
@@ -77,23 +77,23 @@ A repeat without a `count` (`RepeatInfo.UntilEnd`) is open: it repeats until the
 
 ### Value model decides
 
-A scope that holds an open repeat (its parent scope, or the root for a root repeat) can implement `IOpenRepeatSink` (read) / `IOpenRepeatSource` (write). The engine then calls `NextItem` before each item, including the first, and the model answers:
+An open repeat is entered with `EnterOpenRepeat` of `IOpenRepeatSink` (read) / `IOpenRepeatSource` (write), on the scope that holds it (a root repeat is not entered: the root model is its scope). The model returns the scope of the repeat and either the number of items (`Counted`) or `ItemByItem`. Item by item, the engine calls `NextItem(context, index)` on the scope of the repeat before each item, including the first, and the model answers:
 
 - `Next`: enter another item. On read, missing input gives the normal `NeedMoreData`.
 - `End`: end the repeat; the session continues with the next sibling.
 - `Default`: apply the engine rules below.
 
-On read, `OpenRepeatReadContext` gives the next item's `Index`, the `Remaining` physical bytes up to the readable end, `AtDefaultEnd` (what `Default` would do) and `TryPeek` for the next bytes without consuming them. `TryPeek` returns false when a layout processor holds buffered input for the repeat. The model has received the previous items' values, so it can stop after a terminating item or, by peeking, before a terminator.
+On read, `OpenRepeatReadContext` (at the enter and before each item) gives the `Remaining` physical bytes up to the readable end, `AtDefaultEnd` (what `Default` would do) and `TryPeek` for the next bytes without consuming them. `TryPeek` returns false when a layout processor holds buffered input for the repeat. The model has received the previous items' values, so it can stop after a terminating item or, by peeking, before a terminator. A scope that holds the repeat and is not an `IOpenRepeatSink` gets `EnterRepeat(context, -1)`; then, and when the scope of the repeat is not an `IOpenRepeatSink`, the engine rules apply; a repeat that the engine cannot end by itself then fails to read.
 
-On write, a scope that implements `IOpenRepeatSource` is not asked `GetCount` for an open repeat; `Default` falls back to the `EndOfData` probe.
+On write, the scope that holds the repeat must be an `IOpenRepeatSource`. When the scope of the repeat is not one, or answers `Default`, the engine falls back to the `EndOfData` probe.
 
-Without these interfaces the rules below apply; a repeat that the engine cannot end by itself then fails to read.
+`ExitRepeat` gets the number of items, on read and on write.
 
 ### Plan building
 
 - **Anywhere in the schema.** An open repeat may be followed by other nodes. Plan building accepts it; the reader checks at runtime who ends it (see `RepeatInfo.EndsAtInputEnd`).
 - **Engine can end it** when the repeat has a `byteSize`, or nothing follows it up to the end of the input or of an enclosing size window: it is the last member of its group (or a choice alternative), and so is every enclosing group up to the root or a group with a `byteSize`. The body of an open choice is a separate plan: its root counts as last only when the open choice itself is last (checked the same way, through nested open choices).
-- **Model must end it** in every other case: the scope that holds it must implement `IOpenRepeatSink` and answer `Next` or `End`. Without the interface, or on a `Default` answer, the read fails naming the repeat path. Writing has no such restriction.
+- **Model must end it** in every other case: `EnterOpenRepeat` gives the number of items, or the scope of the repeat implements `IOpenRepeatSink` and answers `Next` or `End`. Without the interface, or on a `Default` answer, the read fails naming the repeat path. Writing has no such restriction.
 - **Bytes without a length** still must be last: a bytes field without a `byteLength` (or a group or choice that ends in one) takes the rest of the size window, so plan building reports an error when it is followed by other members. This does not apply to the members of a choice (they are alternatives, not a sequence).
 
 ### Read
@@ -107,11 +107,11 @@ Before each next item the reader decides whether the repeat ends (the engine rul
 
 ### Write
 
-- A flat field source (`IFieldSource`) always gives an open repeat.
-- A value source (`IValueSource`) is asked `GetCount`. A count of 0 or more makes it a counted repeat; `-1` (unknown) keeps it open and also skips the check of the model count against a schema count.
-- Before each next item the engine probes `GetField` on the item's first field (on the scope that holds the repeat, with the next item's instance) and ends the repeat when the model answers `EndOfData`. The probe follows nested plain groups to that field; when the first member is a choice or a nested repeat the probe cannot end the repeat.
+- A value source must implement `IOpenRepeatSource` on the scope that holds the repeat; without it the write fails naming the repeat path. `EnterOpenRepeat` gives the number of items or `ItemByItem`. This also applies to a repeat with a count field the model has no value for: the field is derived from the items written.
+- A flat field source (`IFieldSource`) writes an open repeat item by item with the `EndOfData` probe (its adapter implements `IOpenRepeatSource` and answers `Default`).
+- The probe (`Default`): before each next item the engine probes `GetField` on the item's first field (on the scope of the repeat, with the next item's instance) and ends the repeat when the model answers `EndOfData`. The probe follows nested plain groups to that field; when the first member is a choice or a nested repeat the probe cannot end the repeat.
 - `EndOfData` is only allowed on that probed first field; anywhere else the write fails.
-- This only works for flat models; a hierarchical model must return the real count.
+- The probe is meant for flat models; a hierarchical model gives the number of items or answers `NextItem`.
 - The probe runs before the item is entered, so layout processors see no begin hook for an item that does not exist.
 
 ## Forward references

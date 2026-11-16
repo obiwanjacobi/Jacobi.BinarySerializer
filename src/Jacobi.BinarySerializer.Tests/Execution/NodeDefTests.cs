@@ -187,6 +187,8 @@ public class NodeDefTests
 
         public void SetField(FieldContext context, LogicalField value) => Values[context.Path] = value.Value;
         public IValueSink EnterGroup(GroupContext context) => this;
+        public IValueSink EnterRepeat(RepeatContext context, int count) => this;
+        public void ExitRepeat(RepeatContext context, int count) { }
         public IValueSink EnterItem(RepeatContext context, int index, int count) => this;
         public IValueSink EnterChoice(ChoiceContext context, int selectedIndex) => this;
         public void ExitGroup(GroupContext context) { }
