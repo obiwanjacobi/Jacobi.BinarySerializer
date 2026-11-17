@@ -107,6 +107,41 @@ public class StringProcessorTests
     }
 
     [Test]
+    public void RoundTrip_RestLength_TakesTheRestOfTheData_WithoutPadding()
+    {
+        // padding 0x20: on a rest field a trailing space is text, not padding
+        var a = new SchemaField { Name = "A", DataType = "sys.string", ByteLength = -1, ProcessorsList = [Ref("string", ("padding", "32"))] };
+        var root = Group("Root", [], Field("B", "sys.uint8"), a);
+        var values = new Dictionary<string, object?> { ["Root.B"] = (byte)7, ["Root.A"] = "name " };
+
+        var (bytes, read) = RoundTrip(root, values);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 7, (byte)'n', (byte)'a', (byte)'m', (byte)'e', (byte)' ' }));
+        Assert.That(read, Is.EqualTo(values));
+    }
+
+    [Test]
+    public void RoundTrip_RestLength_EmptyText()
+    {
+        var a = new SchemaField { Name = "A", DataType = "sys.string", ByteLength = -1, ProcessorsList = [Ref("string")] };
+        var root = Group("Root", [], Field("B", "sys.uint8"), a);
+        var values = new Dictionary<string, object?> { ["Root.B"] = (byte)7, ["Root.A"] = "" };
+
+        var (bytes, read) = RoundTrip(root, values);
+
+        Assert.That(bytes, Is.EqualTo(new byte[] { 7 }));
+        Assert.That(read, Is.EqualTo(values));
+    }
+
+    [Test]
+    public void Write_RestLengthAndTerminator_Throws()
+    {
+        var a = new SchemaField { Name = "A", DataType = "sys.string", ByteLength = -1, ProcessorsList = [Ref("string", ("terminator", "0"))] };
+
+        Assert.Throws<SerializationException>(() => Write(Group("Root", [], a), new() { ["Root.A"] = "abc" }, out _));
+    }
+
+    [Test]
     public void RoundTrip_FieldLength_PadsAndTrims()
     {
         var a = new SchemaField { Name = "A", DataType = "sys.string", ByteLength = 6, ProcessorsList = [Ref("string")] };

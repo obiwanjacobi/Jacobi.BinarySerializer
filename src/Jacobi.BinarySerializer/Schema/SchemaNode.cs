@@ -89,7 +89,7 @@ public sealed class SchemaField : SchemaNode
 
     /// <summary>
     /// Optional physical length (in bytes) of the value (a constant or a reference to a value).
-    /// Without a length a <c>sys.bytes</c> field takes the rest of the enclosing sized group (size window).
+    /// Without a length a <c>sys.bytes</c> field takes the rest of the enclosing sized group (size window), or without one the rest of the data.
     /// The writer derives a referenced length field from the encoded byte count of the model value, not from its logical length (e.g. characters).
     /// </summary>
     public SchemaValueOrRef<int> ByteLength { get; init; }

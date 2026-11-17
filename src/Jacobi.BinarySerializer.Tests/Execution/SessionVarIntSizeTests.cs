@@ -18,7 +18,7 @@ public class SessionVarIntSizeTests
         {
             body.ProcessorsList.AddRange(bodyProcessors);
         }
-        body.MemberList.Add(new SchemaField { Name = "Blob", DataType = "sys.bytes" });
+        body.MemberList.Add(new SchemaField { Name = "Blob", DataType = "sys.bytes", ByteLength = -1 });
         return Group("Root", [], Field("Len", "sys.uint32", [Ref("varint")]), body);
     }
 

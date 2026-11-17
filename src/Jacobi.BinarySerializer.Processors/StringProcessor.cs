@@ -5,7 +5,8 @@ using Jacobi.BinarySerializer.Processor;
 namespace Jacobi.BinarySerializer.Processors;
 
 /// <summary>
-/// Strings (sys:string). Exactly one of 'length' or 'terminator' delimits the string.
+/// Strings (sys:string). Exactly one of 'length' or 'terminator' delimits the string, or the field takes the rest
+/// (byteLength -1): the text is all bytes up to the end of the size window or of the data, written as is (no padding).
 /// 'length' is a fixed byte count: shorter strings are padded with the 'padding' byte (default 0), which is trimmed again on read.
 /// 'terminator' is a single byte value that ends the string and is not part of it.
 /// The 'encoding' property names the text encoding (default 'utf-8'). See also <see cref="System.Text.Encoding.WebName"/>.
@@ -68,6 +69,11 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
 
         context.Publish(PublishedLength, text.Length);
         var bytes = Encode(text, options, path);
+        if (options.Rest)
+        {
+            options.CharacterSet.CheckBytes(bytes, bytes.Length, path);
+            return FieldWriteResult<EncodedField>.Written(new(field.Name, typeof(byte[]), bytes, bytes.Length * 8), bytes.Length * 8);
+        }
         if (options.Length is { } length)
         {
             if (bytes.Length > length)
@@ -113,7 +119,17 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
 
         int textLength;
         int consumed;
-        if (options.Length is { } length)
+        if (options.Rest)
+        {
+            // all bytes that are left: no padding to trim
+            textLength = options.Length ?? bytes.Length;
+            if (bytes.Length < textLength)
+            {
+                return FieldReadResult<LogicalField>.NeedMoreData();
+            }
+            consumed = textLength;
+        }
+        else if (options.Length is { } length)
         {
             if (bytes.Length < length)
             {
@@ -138,7 +154,7 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
         }
 
         // the bytes of the field: padding included, terminator excluded
-        options.CharacterSet.CheckBytes(bytes, options.Length ?? textLength, path);
+        options.CharacterSet.CheckBytes(bytes, options.Rest ? textLength : options.Length ?? textLength, path);
         var text = Decode(bytes, textLength, options, path);
 
         context.Publish(PublishedLength, text.Length);
@@ -241,6 +257,18 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
         {
             throw new InvalidOperationException($"Invalid '{properties.FullName(ByteLengthProperty.Name)}' value '{length}'. Expected a number from 1 to {Int32.MaxValue}.");
         }
+        byte? terminator = properties.TryGet<byte>(TerminatorProperty, out var terminatorValue) ? terminatorValue : null;
+        var padding = properties.GetOrDefault<byte>(PaddingProperty);
+        if (context.FieldData.TakesRest)
+        {
+            // the field takes the rest: on read the session gives the number of bytes that are left, on write none
+            if (length is not null || terminator is not null)
+            {
+                throw new InvalidOperationException(
+                    $"The field takes the rest (byte length -1); the '{properties.FullName(ByteLengthProperty.Name)}' and '{properties.FullName(TerminatorProperty.Name)}' properties cannot be used as well.");
+            }
+            return new Options(encoding, context.FieldData.ByteLength, null, padding, CharacterSetOf(context, encoding), Rest: true);
+        }
         if (context.FieldData.ByteLength is { } fieldLength)
         {
             if (length is not null)
@@ -254,26 +282,29 @@ internal sealed class StringProcessor : ProcessorBase, IFieldProcessor
             }
             length = fieldLength;
         }
-        byte? terminator = properties.TryGet<byte>(TerminatorProperty, out var terminatorValue) ? terminatorValue : null;
-        var padding = properties.GetOrDefault<byte>(PaddingProperty);
-
         if (length is null == terminator is null)
         {
             throw new InvalidOperationException(
                 $"The string processor requires exactly one of the field byte length, '{properties.FullName(ByteLengthProperty.Name)}' or '{properties.FullName(TerminatorProperty.Name)}'.");
         }
 
+        return new Options(encoding, length, terminator, padding, CharacterSetOf(context, encoding));
+    }
+
+    private static CharacterSet CharacterSetOf(FieldProcessorContext context, Encoding encoding)
+    {
+        var properties = context.Properties;
         // a referenced value can differ per call: not cached
         var characterSet = properties.HasReferences ? new CharacterSet() : context.GetOrCreateState<CharacterSet>();
         if (!characterSet.IsParsed)
         {
             characterSet.Parse(properties, encoding);
         }
-
-        return new Options(encoding, length, terminator, padding, characterSet);
+        return characterSet;
     }
 
-    private sealed record Options(Encoding Encoding, int? Length, byte? Terminator, byte Padding, CharacterSet CharacterSet);
+    // Rest: the field takes the rest (byteLength -1); Length is then the number of bytes left on read, null on write
+    private sealed record Options(Encoding Encoding, int? Length, byte? Terminator, byte Padding, CharacterSet CharacterSet, bool Rest = false);
 
     /// <summary>
     /// The character map ('byte' = 'text element' properties) and the valid bytes ('validBytes') of one processor binding,

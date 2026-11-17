@@ -179,7 +179,6 @@ internal static class BuiltInDataTypes
             })
         {
             SupportsLength = true,
-            TakesRestOfWindow = true,
             Encode = (object? value, out byte[] bytes) =>
             {
                 bytes = [];

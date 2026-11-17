@@ -13,6 +13,13 @@ public sealed class FieldData
     public int? ByteLength { get; internal set; }
 
     /// <summary>
+    /// True when the field takes the rest of the enclosing size window or of the data (<c>byteLength</c> -1). On read
+    /// <see cref="ByteLength"/> is the number of bytes that are left; on write it is null: the value is written as is
+    /// (e.g. a string without padding).
+    /// </summary>
+    public bool TakesRest { get; internal set; }
+
+    /// <summary>
     /// The most bytes the default layout read offers to a field processor that decides its own width.
     /// The session grows it when the processor needs more data.
     /// </summary>

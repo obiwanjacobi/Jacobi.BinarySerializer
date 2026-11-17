@@ -49,9 +49,6 @@ public sealed class DataTypeDescriptor
     /// <summary>The field may specify a physical length in bytes.</summary>
     public bool SupportsLength { get; init; }
 
-    /// <summary>Without a length the field takes the rest of the enclosing size window.</summary>
-    public bool TakesRestOfWindow { get; init; }
-
     /// <summary>The type has a default representation (<see cref="Encode"/> and <see cref="Decode"/> are set).</summary>
     public bool HasDefaultRepresentation => Encode is not null && Decode is not null;
 
@@ -164,7 +161,6 @@ public sealed class DataTypeDescriptor
             Decode = Decode,
             FixedSize = FixedSize,
             SupportsLength = SupportsLength,
-            TakesRestOfWindow = TakesRestOfWindow,
             Min = min,
             Max = max,
             Scale = scale,

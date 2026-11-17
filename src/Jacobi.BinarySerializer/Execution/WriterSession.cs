@@ -559,9 +559,15 @@ internal sealed class WriterSession : SessionState
 
         var pipeline = field.Pipeline;
         EncodedField encoded;
+        if (field.LacksLength)
+        {
+            throw EngineLogger.Fail($"'{field.Path}': a {field.DataType} field needs a length: a byteLength (a constant, a reference, or -1: the rest of the size window or of the data) or a field processor that decides it.");
+        }
         var fieldLength = field.HasByteLength ? Resolve(field.ByteLength, field.Path, _instance) : (int?)null;
         _fieldContext.FieldData.ByteLength = fieldLength;
         _layoutContext.FieldData.ByteLength = fieldLength;
+        _fieldContext.FieldData.TakesRest = field.TakesRest;
+        _layoutContext.FieldData.TakesRest = field.TakesRest;
         switch (pipeline.FieldProcessors.Count)
         {
             case 0:

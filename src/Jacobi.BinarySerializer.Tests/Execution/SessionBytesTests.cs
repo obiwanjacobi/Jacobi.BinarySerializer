@@ -7,11 +7,14 @@ using static Jacobi.BinarySerializer.Tests.Processors.ProcessorTestHelpers;
 
 namespace Jacobi.BinarySerializer.Tests.Execution;
 
-/// <summary>A Bytes field holds raw bytes: its length is a constant, a reference, or the rest of the enclosing size window.</summary>
+/// <summary>A Bytes field holds raw bytes: its length is a constant, a reference, or -1: the rest of the enclosing size window or of the data.</summary>
 public class SessionBytesTests
 {
-    private static SchemaField Blob(SchemaValueOrRef<int> length = default)
+    private static SchemaField Blob(SchemaValueOrRef<int> length)
         => new() { Name = "Blob", DataType = "sys.bytes", ByteLength = length };
+
+    // takes the rest of the size window or of the data
+    private static SchemaField Rest() => Blob(-1);
 
     private static SchemaGroup LengthPrefixed()
         => Group("Root", [], Field("Len", "sys.uint8"), Blob(new SchemaNodeRef { Path = "Root.Len" }), Field("Tail", "sys.uint8"));
@@ -49,9 +52,9 @@ public class SessionBytesTests
     }
 
     [Test]
-    public void Read_NoLengthInWindow_TakesRestOfWindow()
+    public void Read_RestLengthInWindow_TakesRestOfWindow()
     {
-        var body = new SchemaGroup { Name = "Body", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Blob() } };
+        var body = new SchemaGroup { Name = "Body", ByteSize = new SchemaNodeRef { Path = "Root.Len" }, MemberList = { Rest() } };
         var plan = Build(Group("Root", [], Field("Len", "sys.uint8"), body, Field("Tail", "sys.uint8")));
         var sink = new Sink();
 
@@ -63,15 +66,87 @@ public class SessionBytesTests
     }
 
     [Test]
-    public void Build_NoLengthAndNoWindow_ReportsError()
-        => Assert.That(() => Build(Group("Root", [], Blob())), Throws.TypeOf<ExecutionPlanException>());
+    public void Read_RestLengthWithoutWindow_TakesRestOfData()
+    {
+        var plan = Build(Group("Root", [], Field("Len", "sys.uint8"), Rest()));
+        var sink = new Sink();
+
+        var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 3, 10, 11, 12 }), sink);
+
+        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That((byte[])sink.Values["Root.Blob"]!, Is.EqualTo(new byte[] { 10, 11, 12 }));
+    }
 
     [Test]
-    public void Build_NoLengthNotLast_ReportsError()
+    public void Read_RestLengthWithoutWindow_StopsBeforeTheReservedTail()
     {
-        var body = new SchemaGroup { Name = "Body", ByteSize = 4, MemberList = { Blob(), Field("Tail", "sys.uint8") } };
+        // the CRC (4 bytes after the group) is a reserved tail: it is not part of the rest of the data
+        var plan = Build(Group("Root", [Ref("crc")], Field("Len", "sys.uint8"), Rest()));
+        var output = new ArrayBufferWriter<byte>();
+        Assert.That(new WriterSession(plan, output).Write(new Source(new() { ["Root.Len"] = (byte)3, ["Root.Blob"] = new byte[] { 10, 11, 12 } })),
+            Is.EqualTo(WriteResult.Success));
+        Assert.That(output.WrittenCount, Is.EqualTo(8));
+        var sink = new Sink();
+
+        var result = new ReaderSession(plan).Read(new ReadOnlySequence<byte>(output.WrittenMemory), sink);
+
+        Assert.That(result, Is.EqualTo(ReadResult.Success));
+        Assert.That((byte[])sink.Values["Root.Blob"]!, Is.EqualTo(new byte[] { 10, 11, 12 }));
+    }
+
+    [Test]
+    public void Write_RestLengthWithoutWindow_WritesTheValue()
+    {
+        var plan = Build(Group("Root", [], Field("Len", "sys.uint8"), Rest()));
+        var output = new ArrayBufferWriter<byte>();
+        var source = new Source(new() { ["Root.Len"] = (byte)3, ["Root.Blob"] = new byte[] { 10, 11, 12 } });
+
+        Assert.That(new WriterSession(plan, output).Write(source), Is.EqualTo(WriteResult.Success));
+        Assert.That(output.WrittenSpan.ToArray(), Is.EqualTo(new byte[] { 3, 10, 11, 12 }));
+    }
+
+    [Test]
+    public void Build_RestLengthWithoutWindowNotLast_ReportsError()
+    {
+        var nested = new SchemaGroup { Name = "Nested", MemberList = { Rest() } };
+
+        // the group that ends in the field is followed by another node, and there is no window to end it
+        Assert.That(() => Build(Group("Root", [], nested, Field("Tail", "sys.uint8"))), Throws.TypeOf<ExecutionPlanException>());
+    }
+
+    [Test]
+    public void Build_RestLengthNotLast_ReportsError()
+    {
+        var body = new SchemaGroup { Name = "Body", ByteSize = 4, MemberList = { Rest(), Field("Tail", "sys.uint8") } };
 
         Assert.That(() => Build(Group("Root", [], body)), Throws.TypeOf<ExecutionPlanException>());
+    }
+
+    [Test]
+    public void ReadAndWrite_NoLength_Fail()
+    {
+        // without a byteLength a bytes field has no length (-1 says it takes the rest); the plan builds (it is also used
+        // without bytes), reading and writing fail
+        var body = new SchemaGroup { Name = "Body", ByteSize = 4, MemberList = { new SchemaField { Name = "Blob", DataType = "sys.bytes" } } };
+        var plan = Build(Group("Root", [], body));
+
+        var read = Assert.Throws<SerializationException>(() => new ReaderSession(plan).Read(new ReadOnlySequence<byte>(new byte[] { 1, 2, 3, 4 }), new Sink()));
+        var write = Assert.Throws<SerializationException>(() => new WriterSession(plan, new ArrayBufferWriter<byte>()).Write(new Source(new() { ["Root.Body.Blob"] = new byte[] { 1, 2, 3, 4 } })));
+        Assert.That(read!.Message, Does.Contain("Root.Body.Blob").And.Contain("needs a length"));
+        Assert.That(write!.Message, Does.Contain("Root.Body.Blob").And.Contain("needs a length"));
+    }
+
+    [TestCase(-2)]
+    [TestCase(-100)]
+    public void Build_NegativeLengthOtherThanRest_ReportsError(int length)
+        => Assert.That(() => Build(Group("Root", [], Blob(length))), Throws.TypeOf<ExecutionPlanException>());
+
+    [Test]
+    public void Build_RestLengthOnFixedSizeTypeWithoutProcessor_ReportsError()
+    {
+        var field = new SchemaField { Name = "Number", DataType = "sys.uint16", ByteLength = -1 };
+
+        Assert.That(() => Build(Group("Root", [], field)), Throws.TypeOf<ExecutionPlanException>());
     }
 
     [Test]

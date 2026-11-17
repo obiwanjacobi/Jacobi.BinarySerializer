@@ -87,7 +87,15 @@ public class BitsProcessorTests
     [Test]
     public void Read_NonIntegerType_Throws()
     {
-        Assert.Throws<SerializationException>(() => Read(Root("sys.string", 0, 1), 0xFF));
+        // a string with a length: the bits processor rejects the type, not the plan the missing length
+        var root = Group("Root", [], new SchemaField
+        {
+            Name = "A",
+            DataType = "sys.string",
+            ByteLength = 1,
+            ProcessorsList = [Ref("bits", ("bitoffset", "0"), ("bitlength", "1"))],
+        });
+        Assert.Throws<SerializationException>(() => Read(root, 0xFF));
     }
 
     [Test]

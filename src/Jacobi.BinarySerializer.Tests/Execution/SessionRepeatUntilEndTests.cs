@@ -106,7 +106,7 @@ public class SessionRepeatUntilEndTests
     public void Build_BytesWithoutLengthNotLast_ReportsError()
     {
         var body = new SchemaGroup { Name = "Body", ByteSize = 4 };
-        body.MemberList.Add(Field("Data", "sys.bytes"));
+        body.MemberList.Add(new SchemaField { Name = "Data", DataType = "sys.bytes", ByteLength = -1 });
         body.MemberList.Add(Field("Tail", "sys.uint8"));
 
         var ex = Assert.Throws<ExecutionPlanException>(() => Build(Group("Root", [], body)));

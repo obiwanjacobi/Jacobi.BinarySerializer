@@ -336,7 +336,6 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         var rootInfo = BuildGroup(root, root.Name, parentPipeline, state);
         ResolvePathReferences(rootInfo, state);
         CheckPropertyReferences(rootInfo, state);
-        ValidateBytesWindow(rootInfo, false, state);
 
         if (state.Errors.Count > 0)
         {
@@ -471,6 +470,9 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
 
     private static readonly ProcessorKey DataTypeProcessorKey = new("sys", "datatype");
 
+    /// <summary>The constant <c>byteLength</c> of a field that takes the rest of the size window or of the data.</summary>
+    public const int RestLength = -1;
+
     private FieldInfo? BuildFieldInfo(SchemaField field, SchemaPath path, ProcessorPipeline fieldPipeline, bool declaresSemantics, BuildState state)
     {
         var length = BindValueSource(field.ByteLength, path, state);
@@ -488,6 +490,20 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         {
             state.Error(path, $"A length is not supported on a {dataType} field.");
         }
+        // -1: the rest of the enclosing size window or of the data
+        var takesRest = length is RestLength;
+        if (takesRest)
+        {
+            length = default;
+            if (dataType.FixedSize is { } size && fieldPipeline.FieldProcessors.Count == 0)
+            {
+                state.Error(path, $"A {dataType} field has {size} bytes: it cannot take the rest (length {RestLength}) without a field processor that represents it.");
+            }
+        }
+        else if (length is int negative && negative < 0)
+        {
+            state.Error(path, $"The length {negative} is negative; {RestLength} (the rest of the size window or of the data) is the only negative length.");
+        }
         if (length is int constantLength && dataType.FixedSize is { } fixedSize && fixedSize != constantLength && fieldPipeline.FieldProcessors.Count == 0)
         {
             state.Error(path, $"The length {constantLength} does not match the {fixedSize} bytes of a {dataType} field; a field processor is needed to represent it.");
@@ -502,6 +518,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
             ValueType = valueType,
             Pipeline = fieldPipeline,
             ByteLength = length,
+            TakesRest = takesRest,
             ByteOffset = field.ByteOffset,
             // the constant is a logical value
             ConstantValue = BindConstant(field, valueType ?? dataType, path, state),
@@ -594,7 +611,7 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         {
             if (info is not ChoiceInfo && i < members.Count - 1 && TakesRestOfWindow(members[i]))
             {
-                state.Error(members[i].Path, "A node that takes the rest of the size window (a bytes field without a length, or a group or choice that ends in one) must be the last node of its group.");
+                state.Error(members[i].Path, "A node that takes the rest of the size window or of the data (a field with length -1, or a group or choice that ends in one) must be the last node of its group.");
             }
             members[i].Parent = info;
             members[i].Index = i;
@@ -617,28 +634,12 @@ internal sealed class ExecutionPlanBuilder(IProcessorProvider processorProvider,
         return source is PublishedValueKey key && key.Namespace.Length == 0 && key.Name == target.Value;
     }
 
-    private static void ValidateBytesWindow(NodeInfo node, bool inWindow, BuildState state)
-    {
-        switch (node)
-        {
-            case FieldInfo { DataType.TakesRestOfWindow: true, HasByteLength: false } when !inWindow:
-                state.Error(node.Path, "A bytes field without a length takes the rest of the enclosing size window, but no enclosing group has a size.");
-                break;
-            case GroupInfo group:
-                foreach (var child in group.Members)
-                {
-                    ValidateBytesWindow(child, inWindow || group.HasByteSize, state);
-                }
-                break;
-        }
-    }
-
     // a repeat without a count may be followed by other nodes: the value model ends it (checked when reading).
     private static bool TakesRestOfWindow(NodeInfo node)
         => node switch
         {
             GroupInfo { HasByteSize: true } => false,
-            FieldInfo { DataType.TakesRestOfWindow: true, HasByteLength: false } => true,
+            FieldInfo { TakesRest: true } => true,
             RepeatInfo => false,
             ChoiceInfo choice => choice.Members.Any(TakesRestOfWindow),
             GroupInfo group => group.Members.Count > 0 && TakesRestOfWindow(group.Members[^1]),

@@ -129,7 +129,7 @@ The members below are part of the schema model itself (as opposed to the free-fo
 |--------|---------|-----------|
 | `type` | The data type of the *logical* value (`UInt16`, `String`, `Bytes`, ...). It says how the value is represented in the model, not how many bytes it takes on the wire. | Choose the model type. Representation processors (varint, bit slicer) may encode it differently from the type's default fixed width. |
 | `value` | An expected logical value (constant or reference): a literal of the field's value type, compared with the logical value after the semantic processors. | Check magic numbers/signatures on read (a mismatch fails). The writer supplies the value when the model has none (so the model need not know it). |
-| `byteLength` | The physical length of the encoded field in bytes (constant or reference). Allowed on every data type except `Boolean`. | Fix the width of `Bytes`/`String`; give a field processor its byte count (`sys.bitslicer`); point at a length field (`ref:`) so a length prefix is read before the data and derived on write. Without a field processor, a fixed-size type needs a length equal to its size. |
+| `byteLength` | The physical length of the encoded field in bytes (constant or reference). Allowed on every data type except `Boolean`. | Fix the width of `Bytes`/`String`; give a field processor its byte count (`sys.bitslicer`); point at a length field (`ref:`) so a length prefix is read before the data and derived on write. Without a field processor, a fixed-size type needs a length equal to its size. -1: the rest of the size window or of the data (see *Take the rest of the data* below). |
 | `byteOffset` | A signed offset in bytes from the current position. The field is read there and the position is restored afterwards: it is *virtual*. The model sees the value on read and must supply it on write; no bytes are written. Its value can be referenced. | Peek at bytes without consuming them: e.g. a MIDI status byte used as a choice `selectedIndex`, before the alternative reads it again. |
 | `processors` | The processors (semantic, field, layout) of this field. | Transform or encode the value, see [Processors](../../Jacobi.BinarySerializer.Processors/readme.md). |
 
@@ -249,7 +249,9 @@ A child node inherits the stages of its parent. Value, field and stream stages: 
 
 **Check a magic number:** give the field a `value`. The writer supplies it when the model has none; the reader fails when the data differs.
 
-**Read a fixed number of raw bytes:** type `Bytes` with `byteLength` (always a byte count, also for `String`). Without a byte length the field takes the rest of the enclosing sized group.
+**Read a fixed number of raw bytes:** type `Bytes` with `byteLength` (always a byte count, also for `String`). A `Bytes` field needs a length: without one (and without a field processor that decides it) reading or writing it fails; the plan still builds, it is also used without bytes.
+
+**Take the rest of the data:** `byteLength` -1 (a constant): the field takes the rest of the enclosing sized group, or without one the rest of the input up to the tails the layout processors reserve (e.g. a checksum, an end marker). The field (or the group that ends in it) must be the last member. Allowed on every data type with a length; a `String` with the `sys.string` processor is then all bytes that are left, without padding (no `terminator` or `byteLength` property). Other negative lengths are an error, and a referenced length cannot be -1.
 
 **Give a field a physical length:** `byteLength` is allowed on every data type except `Boolean`. The data type is the logical representation, so the length says how many bytes the encoded form takes. Without a field processor a fixed-size type must have a constant length equal to its size; with a field processor (e.g. `sys.bitslicer`, `sys.varint`) the processor reads the length from the field.
 

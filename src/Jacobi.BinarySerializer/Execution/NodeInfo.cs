@@ -60,11 +60,25 @@ public sealed class FieldInfo : NodeInfo
 
     /// <summary>
     /// The physical length in bytes of the encoded field, for a data type that supports a length (e.g. <c>sys.bytes</c>, <c>sys.string</c>).
-    /// Unset when the field has no length (a data type that takes the rest of the enclosing size window does so).
+    /// Unset when the field has no length, or takes the rest (<see cref="TakesRest"/>).
     /// </summary>
     public ValueSource<int> ByteLength { get; init; }
 
     public bool HasByteLength => ByteLength is int or PublishedValueKey;
+
+    /// <summary>
+    /// The field takes the rest of the enclosing size window, or without one the rest of the data (up to the tails the
+    /// layout processors reserve): the schema gives <c>byteLength</c> -1. <see cref="ByteLength"/> is unset then.
+    /// </summary>
+    public bool TakesRest { get; init; }
+
+    /// <summary>
+    /// True when the field cannot be read or written: its data type has no fixed size and needs a length, but the field has
+    /// none (no <c>byteLength</c>, not -1) and no field processor decides it. Not a plan error: a plan is also used without
+    /// bytes (e.g. as the structure of values).
+    /// </summary>
+    internal bool LacksLength => DataType.SupportsLength && DataType.FixedSize is null && !HasByteLength && !TakesRest
+        && Pipeline.FieldProcessors.Count == 0;
 
     /// <summary>
     /// Signed offset in physical bytes from the current read position where the field is read.

@@ -461,7 +461,8 @@ internal sealed class ReaderSession : SessionState
         };
 
     /// <summary>
-    /// The number of bytes (physical) a field with a length takes: its length, or the rest of the enclosing size window for a data type that takes the rest. Null for other fields.
+    /// The number of bytes (physical) a field with a length takes: its length, or for a field that takes the rest (length -1)
+    /// the rest of the enclosing size window, without one the rest of the input (up to the reserved layout tails). Null for other fields.
     /// </summary>
     private int? BytesLength(FieldInfo field, ref SequenceReader<byte> reader)
     {
@@ -485,10 +486,25 @@ internal sealed class ReaderSession : SessionState
             return length;
         }
 
-        // validated at plan build: a length-less rest-of-window field has an enclosing window.
-        return field.DataType.TakesRestOfWindow
-            ? checked((int)(_windows.Peek().End - reader.Consumed))
-            : null;
+        if (field.LacksLength)
+        {
+            throw EngineLogger.Fail($"'{field.Path}': a {field.DataType} field needs a length: a byteLength (a constant, a reference, or -1: the rest of the size window or of the data) or a field processor that decides it.");
+        }
+        if (!field.TakesRest)
+        {
+            return null;
+        }
+        if (_windows.Count > 0)
+        {
+            return checked((int)(_windows.Peek().End - reader.Consumed));
+        }
+        // the plan checks that nothing follows the field in its plan; the body of an open choice that is followed by
+        // other nodes is a separate plan: only known here
+        if (!RepeatInfo.IsLast(field, BodyEndsAtInputEnd))
+        {
+            throw EngineLogger.Fail($"'{field.Path}': the field takes the rest of the data, but other nodes follow it (it is in the body of an open choice that is not last).");
+        }
+        return checked((int)(ReadableEnd(ref reader) - reader.Consumed));
     }
 
     /// <summary>
@@ -552,6 +568,8 @@ internal sealed class ReaderSession : SessionState
         var fieldLength = BytesLength(field, ref reader);
         _layoutContext.FieldData.ByteLength = fieldLength;
         _fieldContext.FieldData.ByteLength = fieldLength;
+        _layoutContext.FieldData.TakesRest = field.TakesRest;
+        _fieldContext.FieldData.TakesRest = field.TakesRest;
         _fieldContext.Field = field;
         var open = pipeline.FieldProcessors.Count > 0 && fieldLength is null;
         var encodedBytes = new ArrayBufferWriter<byte>();
