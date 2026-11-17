@@ -36,6 +36,47 @@ public class OpenChoiceTests
         }
         """;
 
+    // The contract has members: a body gets them before its own, like any node that references a nodeDef.
+    private const string ContractWithMembersSchema = """
+        {
+          "name": "OpenTest",
+          "nodeDefs": [
+            { "name": "Body", "kind": "group", "members": [ { "name": "Kind", "kind": "field", "datatype": "sys.uint8" } ] }
+          ],
+          "members": [
+            { "name": "Root", "kind": "group", "members": [ { "name": "Msg", "kind": "choice", "memberNodeDef": "Body" } ] },
+            {
+              "name": "BodyA", "kind": "group", "nodeDef": "Body",
+              "members": [ { "name": "Id", "kind": "field", "datatype": "sys.uint8" } ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Read_OpenChoice_BodyHasTheContractMembersFirst()
+    {
+        var serializer = CreateSerializer(ContractWithMembersSchema);
+        var sink = new OpenSink();
+
+        serializer.Deserialize(new SchemaName("OpenTest.Root"), new ReadOnlySequence<byte>([0x01, 0x07]), sink);
+
+        Assert.That(sink.Fields, Is.EqualTo(new[] { "BodyA.Kind=1", "BodyA.Id=7" }));
+    }
+
+    [Test]
+    public void Compile_OpenChoice_BodyWithTheContractMembersStillConforms()
+    {
+        var schemaBuilder = new SchemaSetBuilder();
+        var document = schemaBuilder.LoadFromJson(ContractWithMembersSchema);
+        var schemas = schemaBuilder.Compile();
+
+        var body = schemas.FindConformingGroups(new SchemaName("OpenTest.Body")).Single();
+
+        Assert.That(body, Is.SameAs(document.Roots.Single(root => root.Name == "BodyA")));
+        Assert.That(body.Members.Select(member => member.Name), Is.EqualTo(new[] { "Kind", "Id" }));
+    }
+
     [Test]
     public void Read_OpenChoice_QueriesTheSinkForTheGroup()
     {

@@ -90,13 +90,21 @@ omitted values inherit, including physical sizes, field values/offsets, repeat c
 settings. Zero is an explicit value. An omitted choice pipeline inherits, while explicitly
 setting `integrate` overrides a template's `isolate`. Defaults are applied after merging.
 Properties and processors retain their existing override rules; template members precede local
-members. Each use receives independent inherited nodes. Local definition/type/processor references
+members, and a local member with the name of a template member replaces it in its place (the use
+wins; names compare case-insensitive). Each use receives independent inherited nodes. Local definition/type/processor references
 retain the declaring document's namespace. Chained definitions are supported; cycles, missing
-definitions, duplicate names and mismatched kinds are errors.
+definitions, duplicate definition names and mismatched kinds are errors.
 
-Plain-group roots that declare a nodeDef retain their open-choice-contract behavior: they list
-their own members rather than importing contract members. Open-choice contracts must be plain
-group definitions. The reader/writer engine consumes the resulting effective nodes unchanged.
+Sibling members (the roots of a document, the members of a group, repeat or choice, also in a
+nodeDef) must have unique names (case-insensitive); a duplicate is a compile error. The members a
+use lists itself are checked before they are merged with the template.
+
+This applies to every node that references a nodeDef, roots included: a root gets the members of
+its nodeDef first, then its own, and its processors and properties merge the same way. Whether a
+nodeDef is the contract of an open choice is decided by the open choice (its `memberNodeDef`), not
+by the nodeDef or the nodes that reference it: a root that references a nodeDef conforms to every
+open choice with that nodeDef as its `memberNodeDef`, with the merged members. Open-choice contracts
+must be plain group definitions. The reader/writer engine consumes the resulting effective nodes unchanged.
 
 ## Nodes
 
@@ -162,10 +170,11 @@ Rules for a choice with a `memberNodeDef`:
 - `memberNodeDef` names a nodeDef of kind `group`: the contract. The envelope only uses its name; the bodies that declare it depend on it. So:
   - A local name (see [Name resolution](#name-resolution)) is checked at compile: the compiler rejects a missing nodeDef or one of another kind. This is the usual setup: the contract lives in the envelope's document and the body documents refer to it.
   - A name qualified with another document is not resolved at compile and does not make that document a dependency, so a generic envelope compiles without it. A body that declares the contract does depend on its document. When no loaded root conforms (e.g. a typo), entering the open choice fails with "no group in the plan conforms".
+- The `memberNodeDef` is a name, not a reference: checking it does not resolve the contract. A nodeDef that holds (also through a nested nodeDef) an open choice on itself as contract is a compile error: every body would hold the choice again. On a concrete node (a root that references the contract and lists the open choice itself) it is allowed.
 - It has no `members`, `selectedIndex` or `valueProcessors`. Setting any of them (directly or through a choice nodeDef) is a compile error.
 - `byteSize` works as on any group: the reader limits the selected body to that window (the body must fill it), the writer checks the encoded body against it.
 - `pipeline` (only for a choice with a `memberNodeDef`) is `integrate` (default) or `isolate`. With `integrate` the selected body is built under the pipeline of the choice, so it inherits the processors of the choice and its ancestors like a nested group (layout scopes of the ancestors stay open around the body, and the body's fields read through the inherited layout chain). With `integrate` the `processors` of the open choice itself also apply to the body (e.g. a `sys.align` on the choice aligns the body's fields); the choice opens no layout scope of its own, so end-of-group padding is not added after the body. With `isolate` the body has its own pipeline: nothing of the envelope applies, and `processors` on the open choice are a compile error. Setting `pipeline="isolate"` on any other choice is a compile error. The JSON/XML property is omitted when it is `integrate`.
-- A body is a schema root (a plain group) that declares `"nodeDef": "<name>"`. Repeat and choice roots are rejected.
+- A body is a schema root (a plain group) that declares `"nodeDef": "<name>"`; it has the members of the contract first, then its own (see [Reusable nodes](#reusable-nodes)). Repeat and choice roots are rejected.
 - The member name is matched by full name (`document.name`), or by short name when exactly one conforming root has that name. An unknown or non-conforming group throws a `SerializationException` (category `schema`) naming the choice path and the nodeDef.
 - The engine builds the plans of all conforming roots when the envelope plan is created (also for nested open choices).
 - A read or write with a range that includes the open choice enters it; a range that stops before it (or does not select it) legally skips it. An included open choice must have at least one conforming body in the plan, otherwise the engine throws, naming the choice path and the nodeDef.
@@ -184,7 +193,6 @@ Querying the relation between open choices and their bodies:
 Limitations (of a choice with a `memberNodeDef`):
 - Body paths are relative to the body root (e.g. `BodyA.Id`).
 - Referenced groups cannot (yet) influence the pipeline mode; only the open choice decides.
-- Body roots are not merged with the members of their nodeDef (nested nodes are); a body must list all its own members.
 - Only plans created from a `SchemaSet` have bodies; plans created from a single group or document cannot resolve an open choice.
 - Bodies are built when the envelope plan is created, not at schema compile time.
 - A range cannot address nodes inside a body (a body is a separate plan whose keys are relative to its own root). Select a target inside the body instead (`SelectNode`, `SelectRange`).

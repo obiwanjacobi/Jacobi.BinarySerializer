@@ -406,7 +406,7 @@ public sealed class SchemaSetBuilder
             }
         }
 
-        ResolveReferences(document, document.MemberList, document.Name, roots: true);
+        ResolveReferences(document, document.MemberList, document.Name);
         document.RefreshIndexes();
 
         return allResolved;
@@ -458,8 +458,9 @@ public sealed class SchemaSetBuilder
     }
 
     // parentPath is the qualified path of the parent ('document.root.group'); it names the referring node in errors.
-    private void ResolveReferences(SchemaDocument document, List<SchemaNode> schemaNodes, string parentPath, bool roots = false)
+    private void ResolveReferences(SchemaDocument document, List<SchemaNode> schemaNodes, string parentPath)
     {
+        ValidateUniqueNames(schemaNodes, parentPath);
         var resolvedNodes = new List<SchemaNode>(schemaNodes);
 
         // Resolve references for groups, fields and processors
@@ -478,12 +479,16 @@ public sealed class SchemaSetBuilder
                         $"{referrer} references the nodeDef '{nodeDef.Name}' that defines a {nodeDef.Kind}: the kinds must match.");
                 }
 
-                if (!roots || node.GetType() != typeof(SchemaGroup))
+                // the own members are checked before they are merged: a duplicate would be hidden by the override
+                if (node is SchemaGroup ownMembers)
                 {
-                    var replacementNode = InstantiateNodeDef(node, nodeDef, node.NodeDef.Value.Qualify(document.Name));
-                    resolvedNodes.Replace(node, replacementNode);
-                    node = replacementNode;
+                    ValidateUniqueNames(ownMembers.Members, path);
                 }
+                // also a root: the members of the nodeDef come first, then its own (an open choice that uses the nodeDef as
+                // its memberNodeDef decides that it is a contract, not the nodeDef or the nodes that reference it)
+                var replacementNode = InstantiateNodeDef(node, nodeDef, node.NodeDef.Value.Qualify(document.Name));
+                resolvedNodes.Replace(node, replacementNode);
+                node = replacementNode;
             }
 
             if (node is SchemaField field)
@@ -513,7 +518,9 @@ public sealed class SchemaSetBuilder
             // only a local contract is checked here; a contract in another document is a name that the bodies resolve (they depend on it)
             if (node is SchemaChoice { MemberNodeDef: { } memberNodeDef } && IsLocal(document, memberNodeDef))
             {
-                var memberDef = FindNodeDef(document, memberNodeDef, $"{referrer} (member nodeDef)");
+                // the contract is only a name here, not a reference: its definition is not resolved (no false cycle when
+                // the choice is part of the contract itself, which ResolveNodeDef reports)
+                var memberDef = LookupNodeDef(document, memberNodeDef, $"{referrer} (member nodeDef)", out _);
                 if (memberDef.Kind != SchemaNodeKind.Group)
                 {
                     throw new InvalidOperationException(
@@ -659,7 +666,7 @@ public sealed class SchemaSetBuilder
                 IsNodeDefInstance = true,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(repeatDef.Processors, repeatNode.Processors),
-                MemberList = [.. repeatDef.Members.Select(CloneNode), .. repeatNode.MemberList],
+                MemberList = MergeMembers(repeatDef.Members, repeatNode.MemberList),
                 Count = Inherit(repeatNode.Count, repeatDef.Count),
                 ByteSize = Inherit(repeatNode.ByteSize, repeatDef.ByteSize),
                 ValueProcessorsList = MergeProcessors(repeatDef.ValueProcessors, repeatNode.ValueProcessors),
@@ -674,7 +681,7 @@ public sealed class SchemaSetBuilder
                 IsNodeDefInstance = true,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(choiceDef.Processors, choiceNode.Processors),
-                MemberList = [.. choiceDef.Members.Select(CloneNode), .. choiceNode.MemberList],
+                MemberList = MergeMembers(choiceDef.Members, choiceNode.MemberList),
                 SelectedIndex = Inherit(choiceNode.SelectedIndex, choiceDef.SelectedIndex),
                 MemberNodeDef = choiceNode.MemberNodeDef ?? choiceDef.MemberNodeDef,
                 PipelineOverride = choiceNode.PipelineOverride ?? choiceDef.PipelineOverride,
@@ -693,12 +700,44 @@ public sealed class SchemaSetBuilder
                 IsNodeDefInstance = true,
                 PropertyList = MergeProperties(nodeDef.PropertyList, node.Properties),
                 ProcessorsList = MergeProcessors(groupDef.Processors, groupNode.Processors),
-                MemberList = [.. groupDef.Members.Select(CloneNode), .. groupNode.MemberList],
+                MemberList = MergeMembers(groupDef.Members, groupNode.MemberList),
                 ByteSize = Inherit(groupNode.ByteSize, groupDef.ByteSize),
             };
         }
 
         throw new NotSupportedException($"Type '{nodeDef.Kind}' is not supported.");
+    }
+
+    // the members of the node def first; a member of the node with the same name replaces it in its place (the node wins)
+    private static List<SchemaNode> MergeMembers(IReadOnlyList<SchemaNode> definition, IReadOnlyList<SchemaNode> overrides)
+    {
+        var merged = definition.Select(CloneNode).ToList();
+        foreach (var member in overrides)
+        {
+            var index = merged.FindIndex(existing => String.Equals(existing.Name, member.Name, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0)
+            {
+                merged[index] = member;
+            }
+            else
+            {
+                merged.Add(member);
+            }
+        }
+        return merged;
+    }
+
+    // siblings are addressed by name (case-insensitive): two with the same name cannot be told apart
+    private static void ValidateUniqueNames(IReadOnlyList<SchemaNode> siblings, string parentPath)
+    {
+        var duplicate = siblings
+            .GroupBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(names => names.Count() > 1);
+        if (duplicate is not null)
+        {
+            throw new InvalidOperationException(
+                $"'{parentPath}' has more than one member with the name '{duplicate.Key}': the names of sibling members must be unique.");
+        }
     }
 
     private List<SchemaProperty> MergeProperties(List<SchemaProperty> properties, IReadOnlyList<SchemaProperty> overrides)
@@ -774,22 +813,51 @@ public sealed class SchemaSetBuilder
 
     private SchemaNode FindNodeDef(SchemaDocument document, SchemaName schemaName, string referrer)
     {
+        var nodeDef = LookupNodeDef(document, schemaName, referrer, out var definingDocument);
+        return ResolveNodeDef(definingDocument, nodeDef);
+    }
+
+    // the node def as declared (not resolved) and the document that declares it
+    private SchemaNode LookupNodeDef(SchemaDocument document, SchemaName schemaName, string referrer, out SchemaDocument definingDocument)
+    {
         var ns = schemaName.Namespace;
         var isLocal = IsLocal(document, schemaName);
 
-        SchemaDocument? definingDocument = isLocal ? document : _documents.GetValueOrDefault(ns!);
-        var nodeDef = definingDocument?.NodeDefs.FirstOrDefault(n =>
+        var found = isLocal ? document : _documents.GetValueOrDefault(ns!);
+        var nodeDef = found?.NodeDefs.FirstOrDefault(n =>
             String.Equals(n.Name, schemaName.Name, StringComparison.OrdinalIgnoreCase));
 
-        if (nodeDef is null)
+        if (found is null || nodeDef is null)
         {
             var fullName = $"{(isLocal ? document.Name : ns)}.{schemaName.Name}";
-            throw new InvalidOperationException(definingDocument is null
+            throw new InvalidOperationException(found is null
                 ? $"{referrer} references the nodeDef '{fullName}' but the schema '{ns}' is not known."
-                : $"{referrer} references the nodeDef '{fullName}' that is not defined in the schema '{definingDocument.Name}'.");
+                : $"{referrer} references the nodeDef '{fullName}' that is not defined in the schema '{found.Name}'.");
         }
 
-        return ResolveNodeDef(definingDocument!, nodeDef);
+        definingDocument = found;
+        return nodeDef;
+    }
+
+    // the path of an open choice inside a resolved node def whose contract is that node def itself; null when there is none
+    private static string? FindOpenChoiceOnItself(SchemaNode node, string path, string documentName, SchemaName self)
+    {
+        if (node is SchemaChoice { MemberNodeDef: { } contract }
+            && String.Equals(contract.Qualify(documentName).FullName, self.FullName, StringComparison.OrdinalIgnoreCase))
+        {
+            return path;
+        }
+        if (node is SchemaGroup group)
+        {
+            foreach (var member in group.Members)
+            {
+                if (FindOpenChoiceOnItself(member, $"{path}{SchemaName.Separator}{member.Name}", documentName, self) is { } found)
+                {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private static SchemaValueOrRef<T> Inherit<T>(SchemaValueOrRef<T> use, SchemaValueOrRef<T> definition)
@@ -893,6 +961,13 @@ public sealed class SchemaSetBuilder
         {
             var nodes = new List<SchemaNode> { CloneNode(definition, document) };
             ResolveReferences(document, nodes, document.Name);
+            // every body of such a choice would hold the choice again: only supported on a concrete node
+            var self = new SchemaName($"{document.Name}{SchemaName.Separator}{definition.Name}");
+            if (FindOpenChoiceOnItself(nodes[0], self.FullName, document.Name, self) is { } choicePath)
+            {
+                throw new InvalidOperationException(
+                    $"The choice '{choicePath}' in the nodeDef '{self}' has that nodeDef as its memberNodeDef: an open choice on its own contract is not supported in a nodeDef, only on a concrete node.");
+            }
             _resolvedNodeDefs.Add(definition, nodes[0]);
             return nodes[0];
         }

@@ -122,6 +122,119 @@ public class SchemaSetTests
     }
 
     [Test]
+    public void Compile_RootUsingNodeDef_IsAnInstanceWithTheNodeDefMembersFirst()
+    {
+        var shared = new SchemaDocumentBuilder("Shared")
+            .NodeDefs(definitions => definitions
+                .Group("Message", members => members.Field("Id"), processors: processors => processors.Add("sys.bytepacker")))
+            .Build();
+        var main = new SchemaDocumentBuilder("Main")
+            .Group("Root", members => members.Field("Value"), nodeDef: "Shared.Message")
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(main);
+        builder.AddDocument(shared);
+        builder.Compile();
+        // compiling again does not merge the node def again
+        builder.Compile();
+
+        var root = main.Roots.Single();
+        Assert.That(root.NodeDef?.ToString(), Is.EqualTo("Shared.Message"));
+        Assert.That(root.IsNodeDefInstance, Is.True);
+        Assert.That(root.Members.Select(member => member.Name), Is.EqualTo(new[] { "Id", "Value" }));
+        Assert.That(root.Processors.Single().Processor.ToString(), Is.EqualTo("sys.bytepacker"));
+        Assert.That(main.Groups, Does.Contain(root));
+    }
+
+    [Test]
+    public void Compile_NestedNodeUsingNodeDef_AMemberWithTheSameNameReplacesTheNodeDefMember()
+    {
+        var document = new SchemaDocumentBuilder("Doc")
+            .NodeDefs(definitions => definitions
+                .Group("Header", members => members.Field("Id").Field("Size")))
+            .Group("Root", members => members
+                .Group("Use", group => group.Field("Size", "sys.uint16").Field("Extra"), nodeDef: "Header"))
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(document);
+        builder.Compile();
+
+        var use = (SchemaGroup)document.Roots.Single().Members.Single();
+        Assert.That(use.Members.Select(member => member.Name), Is.EqualTo(new[] { "Id", "Size", "Extra" }));
+        Assert.That(((SchemaField)use.Members[1]).DataType?.ToString(), Is.EqualTo("sys.uint16"));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Compile_NodeDefWithAnOpenChoiceOnItself_ThrowsClearly(bool throughNestedNodeDef)
+    {
+        var document = new SchemaDocumentBuilder("Doc")
+            .NodeDefs(definitions =>
+            {
+                if (throughNestedNodeDef)
+                {
+                    // the choice comes in through another nodeDef that was resolved on its own first
+                    definitions.Group("Tail", members => members.OpenChoice("Next", "Body"))
+                        .Group("Body", members => members.Field("Id").Group("Rest", nodeDef: "Tail"));
+                }
+                else
+                {
+                    definitions.Group("Body", members => members.Field("Id").OpenChoice("Next", "Body"));
+                }
+            })
+            .Group("Root", members => members.OpenChoice("Msg", "Body"))
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(document);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => builder.Compile());
+
+        Assert.That(ex.Message, Does.Contain("'Doc.Body'").And.Contain("its own contract").And.Not.Contain("Circular"));
+    }
+
+    [Test]
+    public void Compile_ConcreteNodeWithAnOpenChoiceOnItsOwnContract_IsAllowed()
+    {
+        var document = new SchemaDocumentBuilder("Doc")
+            .NodeDefs(definitions => definitions.Group("Body"))
+            .Group("BodyA", members => members.Field("Id").OpenChoice("Next", "Body"), nodeDef: "Body")
+            .Build();
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(document);
+
+        Assert.DoesNotThrow(() => builder.Compile());
+    }
+
+    // sibling members are addressed by name (case-insensitive): duplicates are a compile error wherever they are
+    private static IEnumerable<TestCaseData> DuplicateSiblings()
+    {
+        yield return new TestCaseData(new SchemaDocumentBuilder("Doc")
+            .Group("Root", members => members.Field("Id").Field("ID")), "'Doc.Root'", "Id").SetName("Members of a group");
+        yield return new TestCaseData(new SchemaDocumentBuilder("Doc")
+            .Group("Root").Group("root"), "'Doc'", "Root").SetName("Roots");
+        yield return new TestCaseData(new SchemaDocumentBuilder("Doc")
+            .Group("Root", members => members.Repeat("Items", 2, items => items.Field("A").Field("A"))), "'Doc.Root.Items'", "A").SetName("Members of a repeat");
+        yield return new TestCaseData(new SchemaDocumentBuilder("Doc")
+            .NodeDefs(definitions => definitions.Group("Header", members => members.Field("A").Field("A")))
+            .Group("Root", members => members.Group("Use", nodeDef: "Header")), "'Doc.Header'", "A").SetName("Members of a nodeDef");
+        // the override would hide the duplicate: the own members are checked before they are merged
+        yield return new TestCaseData(new SchemaDocumentBuilder("Doc")
+            .NodeDefs(definitions => definitions.Group("Header", members => members.Field("A")))
+            .Group("Root", members => members.Field("B").Field("B"), nodeDef: "Header"), "'Doc.Root'", "B").SetName("Own members of a node that uses a nodeDef");
+    }
+
+    [TestCaseSource(nameof(DuplicateSiblings))]
+    public void Compile_SiblingsWithTheSameName_Throw(SchemaDocumentBuilder document, string parent, string name)
+    {
+        var builder = new SchemaSetBuilder();
+        builder.AddDocument(document.Build());
+
+        var ex = Assert.Throws<InvalidOperationException>(() => builder.Compile());
+
+        Assert.That(ex.Message, Does.Contain(parent).And.Contain($"'{name}'").And.Contain("must be unique"));
+    }
+
+    [Test]
     public void Compile_NodeDefOfOtherDocument_KeepsItsQualifiedName()
     {
         var shared = new SchemaDocumentBuilder("Shared")
